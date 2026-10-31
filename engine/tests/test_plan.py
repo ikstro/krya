@@ -19,8 +19,9 @@ def test_catalog_models_are_the_whisper_ones():
 
 
 def test_parakeet_dictates_on_the_processor_only():
-    plan = clean_plan({"cpu": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}, "transcripts": {"model": "parakeet-tdt-0.6b-v3"}}, "cuda": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}}})
-    assert plan == {"cpu": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}}}
+    plan = clean_plan({"cpu": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}, "transcripts": {"model": "parakeet-tdt-0.6b-v3"}}, "cuda": {"dictation": {"model": "parakeet-tdt-0.6b-v3", "compute": "float16"}}})
+    # In the card's plan too (the card left to other programs), with no card's compute: it runs on the processor.
+    assert plan == {"cpu": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}}, "cuda": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}}}
     assert asr.backend("parakeet-tdt-0.6b-v3") == "parakeet" and asr.backend("small") == "whisper"
 
 
@@ -62,6 +63,18 @@ def test_strict_language_never_leaves_the_expected_ones():
     # Nothing expected that Whisper knows: as without strict.
     assert asr.pick_language(probs, [], strict=True) == "uk"
     assert asr.pick_language(probs, ["xx"], strict=True) == "uk"
+
+
+def test_speech_in_another_language_is_never_taken_for_english():
+    # Russian dictated with Ukrainian and English expected: Ukrainian, never an English translation.
+    russian = {"ru": 0.9, "en": 0.05, "uk": 0.03}
+    assert asr.pick_language(russian, ["uk", "en"], strict=True) == "uk"
+    assert asr.pick_language(russian, ["uk", "en"]) == "ru"
+    assert asr.pick_language({"ru": 0.6, "en": 0.05, "uk": 0.03}, ["uk", "en"]) == "uk"
+    # English likely enough (an accent heard as German), or the only one expected: English.
+    assert asr.pick_language({"de": 0.4, "en": 0.35, "uk": 0.2}, ["uk", "en"], strict=True) == "en"
+    assert asr.pick_language(russian, ["en"], strict=True) == "en"
+    assert asr.pick_language({"en": 0.6, "uk": 0.3}, ["uk", "en"], strict=True) == "en"
 
 
 def test_clean_vocabulary_drops_bad_entries_and_takes_bare_words():
@@ -128,6 +141,30 @@ def test_bench_test_replaces_and_use_nudges(s):
     assert s["bench"] == {"fingerprint": "other computer", "runs": {}}
 
 
+def test_bench_does_not_count_a_phrase_slowed_by_another_program(s):
+    b = bench.Bench(s)
+    name = bench.key("large-v3-turbo", "cuda", "float16")
+    b.record(name, source="test", phrase=0.22, rtf=0.02)
+    for _ in range(8):  # an emulator on the card: ten times the test
+        b.phrase("large-v3-turbo", "cuda", "float16", seconds=6, took=2.2)
+    run = s["bench"]["runs"][name]
+    assert run["phrase"] == 0.22 and run["n"] == 1
+    b.phrase("large-v3-turbo", "cuda", "float16", seconds=6, took=0.3)  # the card free again
+    assert s["bench"]["runs"][name]["phrase"] == pytest.approx(0.24)
+    b.words("large-v3-turbo", "cuda", "float16", seconds=600, took=600 * 0.2)
+    assert s["bench"]["runs"][name]["rtf"] == 0.02
+    # The next test is the new reference.
+    b.record(name, source="test", phrase=0.5)
+    assert s["bench"]["runs"][name]["tested"] == {"phrase": 0.5, "rtf": 0.02}
+
+
+def test_bench_without_a_test_compares_with_the_number_so_far(s):
+    b = bench.Bench(s)
+    b.phrase("small", "cpu", "int8", seconds=6, took=1.0)
+    b.phrase("small", "cpu", "int8", seconds=6, took=5.0)
+    assert s["bench"]["runs"][bench.key("small", "cpu", "int8")]["phrase"] == 1.0
+
+
 class FakeTranscriber:
     def __init__(self, workers=1):
         self.loaded_with = None
@@ -142,12 +179,18 @@ class FakeTranscriber:
     def unload(self):
         self.loaded_with = None
 
+    @property
+    def loaded(self):
+        return self.loaded_with is not None
+
 
 def make_worker(s, monkeypatch, cuda=True):
     import jobs
 
     monkeypatch.setattr(jobs, "Transcriber", FakeTranscriber)
     monkeypatch.setattr(asr, "gpu", lambda: cuda)
+    # This computer's own card says nothing here.
+    monkeypatch.setattr(asr, "card_free_mb", lambda: None)
     return jobs.Worker(s, lambda: None)
 
 
@@ -156,6 +199,46 @@ def test_worker_follows_the_plan_and_shares_one_model(s, monkeypatch):
     s.update({"plan": {"threads": 6, "cuda": {"dictation": {"model": "large-v3-turbo"}, "transcripts": {"model": "large-v3-turbo"}}, "cpu": {"dictation": {"model": "base"}, "transcripts": {"model": "small"}}}})
     t, entry = w.dictation_model()
     assert t is w.transcriber and t.loaded_with == ("large-v3-turbo", "cuda", None, 6)
+
+
+def test_parakeet_in_the_cards_plan_dictates_on_the_processor(s, monkeypatch):
+    w = make_worker(s, monkeypatch)
+    s.update({"plan": {"cuda": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}, "transcripts": {"model": "large-v3-turbo", "compute": "float16"}}}})
+    assert w.entry("dictation") == ("cpu", {"model": "parakeet-tdt-0.6b-v3"})
+    assert w.entry("transcripts") == ("cuda", {"model": "large-v3-turbo", "compute": "float16"})
+
+
+def test_a_card_held_by_another_program_transcribes_on_the_processor_this_time(s, monkeypatch):
+    w = make_worker(s, monkeypatch)
+    s.update({"plan": {"cuda": {"transcripts": {"model": "large-v3-turbo", "compute": "float16"}}, "cpu": {"transcripts": {"model": "small"}}}})
+    free = {"mb": 900}  # an emulator holds the rest
+    monkeypatch.setattr(asr, "card_free_mb", lambda: free["mb"])
+    assert w.words_model().loaded_with[:2] == ("small", "cpu")
+    assert w.fallback is None
+    free["mb"] = 6000
+    assert w.words_model().loaded_with[:2] == ("large-v3-turbo", "cuda")
+    # Loaded, it holds its memory: not asked again.
+    free["mb"] = 0
+    assert w.words_model().loaded_with[:2] == ("large-v3-turbo", "cuda")
+
+
+def test_a_model_on_the_card_goes_after_three_idle_minutes(s, monkeypatch):
+    class NoRecordings:
+        def rows(self, statuses):
+            return []
+
+    w = make_worker(s, monkeypatch)
+    w.get_store = NoRecordings
+    s.update({"plan": {"cuda": {"dictation": {"model": "parakeet-tdt-0.6b-v3"}, "transcripts": {"model": "large-v3-turbo", "compute": "float16"}}}})
+    w.transcriber.load("large-v3-turbo", "cuda", "float16")
+    w.dictator.load("small", "cpu")
+    w.last_work = w.last_dictation = time.monotonic() - 120
+    w._housekeeping()
+    assert w.transcriber.loaded and w.dictator.loaded
+    w.last_work = w.last_dictation = time.monotonic() - 200
+    w._housekeeping()
+    # The card's model is let go; the processor's waits its longer while.
+    assert not w.transcriber.loaded and w.dictator.loaded
 
 
 def test_worker_without_a_plan_keeps_the_old_rule(s, monkeypatch):

@@ -5,8 +5,11 @@
 // guess from the processor's cores. Each feature then takes the most accurate
 // model within its budget (a phrase in about 1.5 s; the words of an hour in about
 // 45 min), preferring one already downloaded and offering the better one; a model
-// the person picked is kept whatever it costs. The engine gets the result as its
-// plan (settings.py), for the card and for the processor, should the card fail.
+// the person picked is kept whatever it costs. On a computer with the card,
+// dictation runs on the processor all the same when Parakeet suits every
+// language the person uses (2026-10-31): the card is left to their programs.
+// The engine gets the result as its plan (settings.py), for the card and for
+// the processor, should the card fail.
 
 import catalog from '../engine/models.json'
 import { nvidiaCard, type DeviceProfile } from './hardware'
@@ -68,6 +71,8 @@ export type PlanInput = {
   downloaded: string[]
   /** The person's own language (a code). */
   native: string
+  /** Every language they use (codes, their own among them; settings.ts myLanguages): a model for some of them only does not dictate. */
+  languages?: string[]
   prefer: Prefer
   /** A model the person picked per feature; empty for Automatic. */
   pins: Record<Feature, string>
@@ -202,17 +207,22 @@ function speakersRtf(input: PlanInput): number {
   return speakersRtfOn(input, input.speakersCuda && input.cuda ? 'cuda' : 'cpu')
 }
 
-function choice(m: CatalogModel, feature: Feature, device: Device, input: PlanInput): Choice {
+function choice(m: CatalogModel, feature: Feature, plan: Device, input: PlanInput): Choice {
+  // A processor-only model (Parakeet) in the card's plan runs on the processor, beside the card's Whisper.
+  const device: Device = m.devices.includes(plan) ? plan : 'cpu'
   let why = ''
-  let compute = device === 'cpu' || !m.devices.includes('cuda') ? 'int8' : cudaCompute(m, input.profile)
+  let compute = device === 'cpu' ? 'int8' : cudaCompute(m, input.profile)
   if (device === 'cuda' && !compute) {
     why = 'too big for this graphics card'
     compute = 'int8_float16'
   }
-  if (!m.devices.includes(device)) why = 'runs on the processor; the graphics card runs Whisper here'
   const ramMb = (input.profile?.ramGb ?? 8) * 1024
   if (device === 'cpu' && m.ramMb > ramMb * 0.3) why = 'needs more memory than this computer has'
-  if (m.languages !== 'all' && !m.languages.includes(input.native)) why = 'not for your language'
+  if (m.languages !== 'all') {
+    const known = m.languages
+    if (!known.includes(input.native)) why = 'not for your language'
+    else if (!(input.languages ?? []).every(code => known.includes(code))) why = 'not for every language you use'
+  }
   const field = feature === 'dictation' ? 'phrase' : 'rtf'
   const s = speed(m, device, compute, field, input)
   const budget = BUDGET[feature][input.prefer]
@@ -263,18 +273,26 @@ function decide(feature: Feature, device: Device, input: PlanInput): FeaturePlan
 function forDevice(device: Device, input: PlanInput): Record<Feature, FeaturePlan> {
   const transcripts = decide('transcripts', device, input)
   let dictation = decide('dictation', device, input)
+  if (device !== 'cuda' || dictation.pinned) return { dictation, transcripts }
+  // The card is left to the person's programs (2026-10-31, the owner: dictation always on the processor):
+  // Parakeet, as accurate as turbo and as quick here, dictates when it suits every language they use;
+  // until it is downloaded (speechhost.ts fetches it by itself) the card's model dictates.
+  const processor = dictation.choices.find(c => c.device === 'cpu' && !c.why && c.fits)
+  if (processor?.downloaded) return { dictation: { ...dictation, chosen: processor, better: undefined }, transcripts }
   // On the card, dictation uses the transcripts' model when it is quick enough: one model in the card's memory.
-  if (device === 'cuda' && !dictation.pinned) {
-    const same = dictation.choices.find(c => c.model === transcripts.chosen.model && !c.why)
-    if (same && same.estimate <= dictation.budget * KEEP) dictation = { ...dictation, chosen: same, better: undefined }
-  }
+  const same = dictation.choices.find(c => c.model === transcripts.chosen.model && !c.why)
+  if (same && same.estimate <= dictation.budget * KEEP) dictation = { ...dictation, chosen: same, better: undefined }
+  if (processor) dictation = { ...dictation, better: processor }
   return { dictation, transcripts }
 }
 
+/** Dictation's beam: five on the card, two (one for Speed) on the processor. */
+const beamOn = (device: Device, input: PlanInput) => (device === 'cuda' ? 5 : input.prefer === 'speed' ? 1 : 2)
+
 const entryOf = (feature: Feature, plan: FeaturePlan, input: PlanInput): EngineEntry => {
   const c = plan.chosen
-  if (c.device === 'cuda') return { model: c.model, compute: c.compute, ...(feature === 'dictation' ? { beam: 5 } : {}) }
-  return { model: c.model, ...(feature === 'dictation' ? { beam: input.prefer === 'speed' ? 1 : 2 } : {}) }
+  const beam = feature === 'dictation' ? { beam: beamOn(c.device, input) } : {}
+  return c.device === 'cuda' ? { model: c.model, compute: c.compute, ...beam } : { model: c.model, ...beam }
 }
 
 export function planSpeech(input: PlanInput): SpeechPlan {
@@ -307,13 +325,12 @@ export function planSpeech(input: PlanInput): SpeechPlan {
 
 /** The models the speed test should measure: those downloaded, on the device in use, not yet measured here. */
 export function testRuns(input: PlanInput, plan: SpeechPlan, all = false): { model: string; device: Device; compute?: string; beam: number }[] {
-  const device = plan.device
-  const beam = plan.engine[device]?.dictation.beam ?? 2
+  // Each model where it runs: on a card's computer Parakeet is measured on the processor.
   return plan.dictation.choices
     .filter(c => c.downloaded && !c.why)
-    .filter(c => all || measuredValue(input.bench, runKey(c.model, device, c.compute), 'phrase') === undefined || measuredValue(input.bench, runKey(c.model, device, c.compute), 'rtf') === undefined)
+    .filter(c => all || measuredValue(input.bench, runKey(c.model, c.device, c.compute), 'phrase') === undefined || measuredValue(input.bench, runKey(c.model, c.device, c.compute), 'rtf') === undefined)
     .sort((a, b) => a.mb - b.mb)
-    .map(c => ({ model: c.model, device, ...(device === 'cuda' ? { compute: c.compute } : {}), beam }))
+    .map(c => ({ model: c.model, device: c.device, ...(c.device === 'cuda' ? { compute: c.compute } : {}), beam: beamOn(c.device, input) }))
 }
 
 /** What a declined test is remembered by: it is offered again when this changes (another computer, a model added). */

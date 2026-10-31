@@ -13,10 +13,11 @@
 
 import { hotkeyLabel } from '../hotkey'
 import { findLanguage, labelCode, langCode, voiceMatches } from '../languages'
+import { busyName } from '../modelbusy'
 import { chosenNatural } from '../natural'
 import { LEVEL_NAMES } from '../settings'
 import { updateSentences } from './sweep'
-import type { CardKind, CardState, CardView, CheckResult, DiffPart, HostVoice, NaturalState, TextResult, ToHost, ToView, TranslationState, TutorHost, ViewConfig } from '../protocol'
+import type { BusyPart, CardKind, CardState, CardView, CheckResult, DiffPart, HostVoice, NaturalState, TextResult, ToHost, ToView, TranslationState, TutorHost, ViewConfig } from '../protocol'
 import { dwmFlag, el, html, icon } from './dom'
 import { glyph } from './glyphs'
 import { fieldText, halfBar, paint, plainOf, rangeIndexAt, sentenceRanges } from './halves'
@@ -175,6 +176,29 @@ const voiceClose = el(
 )
 const voiceBanner = el('div', { class: 'banner voice-banner', hidden: true }, voiceText, voiceButton, voiceClose)
 
+/**
+ * Fast translated it, the local model too slow just now (another program on
+ * the graphics card or the processor, 2026-10-31): said in the card, with the
+ * model offered for this text, however long it takes.
+ */
+function busyNotice(): { box: HTMLElement; show(busy: BusyPart | undefined): void } {
+  const text = el('span', { class: 'banner-text' })
+  const button = el('button', { class: 'quiet-btn', onclick: () => state.card && post({ type: 'waitForModel', id: state.card.id }) })
+  const box = el('div', { class: 'banner busy-banner', role: 'status', hidden: true }, el('span', { class: 'dot', 'aria-hidden': 'true' }), text, button)
+  return {
+    box,
+    show(busy) {
+      const level = state.card?.level ?? 'fast'
+      box.hidden = !busy || level === 'fast'
+      if (!busy || level === 'fast') return
+      text.textContent = `The ${busyName(busy)} is busy, so Fast translated this. ${LEVEL_NAMES[level]} takes over again once it is free.`
+      button.textContent = `Use ${LEVEL_NAMES[level]} anyway`
+    },
+  }
+}
+const listenBusy = busyNotice()
+const textBusy = busyNotice()
+
 const stateView = el('div', { class: 'empty', hidden: true })
 // The English half: its words open the word card.
 const body = el('div', { class: 'body', 'data-words': true })
@@ -196,7 +220,7 @@ const article = el(
   { class: 'msg assistant' },
   body,
   halfBar([copyButton(() => plainOf(body))], [remote]),
-  el('section', { class: 'lower' }, translation, translationBar),
+  el('section', { class: 'lower' }, translation, translationBar, listenBusy.box),
 )
 const list = el('main', { class: 'list', hidden: true }, article, note)
 
@@ -264,6 +288,7 @@ const textView = el(
   textField,
   halfBar([textCopy, textListen], [textLangs]),
   textResult,
+  textBusy.box,
   textFoot,
 )
 const hint = el('div', { class: 'toast', role: 'status', hidden: true })
@@ -381,9 +406,10 @@ function status(text: string): HTMLElement {
   return el('p', { class: 'empty-text status-line' }, icon('loading', 'codicon-modifier-spin'), text)
 }
 
-/** Translating, with the level's name unless it is Fast. */
+/** Translating, with the level's name unless it is Fast; Fast's while the model is too slow. */
 function translating(): string {
   const level = state.card?.level ?? 'fast'
+  if (state.card?.busy && level !== 'fast') return 'Translating with Fast…'
   return level === 'fast' ? 'Translating…' : `Translating · ${LEVEL_NAMES[level]}…`
 }
 
@@ -424,6 +450,7 @@ function failed(message: string, retry: () => void = () => post({ type: 'retry' 
 /** The lower half; the same translation is left as it is, so a mark on it stays, and a draft becomes the accurate one sentence by sentence (sweep.ts). */
 function renderTranslation(c: CardView, t: TranslationState): void {
   translationBar.hidden = t.status !== 'ready'
+  listenBusy.show(t.status === 'ready' ? t.busy : undefined)
   if (t.status === 'ready') {
     if (translation.dataset.html === t.html) return
     const next = html(t.html)
@@ -543,9 +570,12 @@ function renderText(c: CardView, s: Extract<CardState, { status: 'text' | 'check
   state.shownId = c.id
   if (s.status === 'check') renderCheckResult(s.result, !!s.canPaste)
   else renderTextResult(s.result, !!s.canPaste)
+  textBusy.show(s.status === 'text' && s.result.status === 'ready' ? s.result.busy : undefined)
   hover.refresh()
   const improving = s.status === 'text' && s.result.status === 'ready' && !!s.result.drafts
-  const by = s.status === 'check' ? `Checked · ${s.model}` : improving ? `Improving · ${LEVEL_NAMES[c.level]}…` : `Translated · ${LEVEL_NAMES[c.level]}`
+  // Fast did it, the local model too slow just now: the notice above says why.
+  const busy = s.status === 'text' && s.result.status === 'ready' && !!s.result.busy
+  const by = s.status === 'check' ? `Checked · ${s.model}` : improving ? `Improving · ${LEVEL_NAMES[c.level]}…` : `Translated · ${busy ? 'Fast' : LEVEL_NAMES[c.level]}`
   textFoot.textContent = s.canPaste ? `${by} · Shift+Enter, a new line` : by
   // Said under a translation, or one on its way; not under nothing, or a failure.
   textFoot.hidden = s.result.status === 'none' || s.result.status === 'failed'

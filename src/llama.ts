@@ -107,6 +107,11 @@ export class LlamaServer {
     return this.running?.exe
   }
 
+  /** Whether the server running now was started on the processor (the card could not take the model). */
+  get onProcessor(): boolean {
+    return !!this.running?.cpu
+  }
+
   /** Runs `job` against the server of `target` (its base URL; `loaded`: whether it waited for the model to load), started first when another one or none runs. */
   async run<T>(target: LlamaTarget, job: (base: string, loaded: boolean) => Promise<T>): Promise<T> {
     this.busy++

@@ -254,14 +254,16 @@ export class KeyboardHelper {
   }
 
   /** A word in the badge by the text cursor while Krya works there (Translate in place); empty hides it. */
-  say(text: string): void {
+  say(text: string, ms = SAY_MS): void {
     if (!text) {
       if (this.badgeTimer) clearTimeout(this.badgeTimer)
       if (this.badge && !this.badge.isDestroyed()) this.badge.hide()
       return
     }
     const front = foreground()
-    this.showBadgeText(text, { width: BADGE.width, height: BADGE.height }, front.tid ? caretOf(front.tid) : undefined, SAY_MS)
+    // A word or two: the badge as wide as its text (its mono caption, about 7 px a letter).
+    const width = Math.max(BADGE.width, Math.ceil(text.length * 7.2) + 18)
+    this.showBadgeText(text, { width, height: BADGE.height }, front.tid ? caretOf(front.tid) : undefined, ms)
   }
 
   /** Shows the layout's short name (and Caps Lock, when on) by the text cursor (physical pixels), or by the pointer when the program has no system cursor. */

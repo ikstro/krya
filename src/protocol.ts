@@ -42,10 +42,14 @@ export type TextResult =
    * every sentence a `span.t` (render.ts textOutHtml); `sentences`: the
    * text's sentences in order, as translated, for the card to find in its field;
    * `drafts`: how many sentences are still quick drafts (`span.t.draft`), the
-   * accurate model's translation replacing them one by one.
+   * accurate model's translation replacing them one by one; `busy`: Fast
+   * translated it, the model too slow just now.
    */
-  | { status: 'ready'; text: string; from: string; to: string; html: string; sentences: string[]; drafts?: number }
+  | { status: 'ready'; text: string; from: string; to: string; html: string; sentences: string[]; drafts?: number; busy?: BusyPart }
   | { status: 'failed'; message: string }
+
+/** What kept the local model too slow just now, so Fast translated instead (modelbusy.ts): the graphics card or the processor taken by another program. */
+export type BusyPart = 'card' | 'processor'
 
 /** Check my English's answer under the person's text (a `check` card), asked for with `checkText`. */
 export type CheckResult =
@@ -66,8 +70,8 @@ export type TranslationState =
   | { status: 'translating' }
   /** The translator for this language pair is downloading, once. */
   | { status: 'downloading'; progress: number; size: number }
-  /** `drafts`: as a text's (TextResult). */
-  | { status: 'ready'; html: string; drafts?: number }
+  /** `drafts`, `busy`: as a text's (TextResult). */
+  | { status: 'ready'; html: string; drafts?: number; busy?: BusyPart }
   | { status: 'failed'; message: string }
 
 /**
@@ -105,6 +109,8 @@ export type CardView = {
   native: string
   /** The translation level the card translates with (Settings). */
   level: TranslationLevel
+  /** The level's model too slow just now: Fast translates until it is tried again (modelbusy.ts). */
+  busy?: BusyPart
   /** Read the English aloud as soon as the card has it. */
   autoRead: boolean
   /**
@@ -218,6 +224,8 @@ export type AppView = {
    * let go; `card`: the MB of the graphics card it holds while loaded.
    */
   modelSpeed: Partial<Record<LlmModel, { sentence?: number; text?: number; start?: number; card?: number }>>
+  /** The local model loaded now, and whether on the graphics card (Models › This computer says what Krya holds right now). */
+  llmLoaded?: { model: LlmModel; onCard: boolean }
   /** The word dictionary for the person's language. */
   dictionary: { status: DictionaryStatus }
   /** The mistakes checked texts had, newest first (mistakes.ts). */
@@ -309,7 +317,8 @@ export type ToView =
    * `expected`: the languages the person uses (their own, English, the others named); the phrase is one of them.
    */
   | { type: 'dictation'; command: 'start' | 'stop' | 'cancel'; mode: DictationMode; key: string; session?: string; expected?: string[] }
-  | { type: 'dictationDone'; text: string }
+  /** `note`: said in place of "Typed" (Fast translated it, the model too slow just now). */
+  | { type: 'dictationDone'; text: string; note?: string }
   | { type: 'dictationError'; message: string }
   /** The tray's panel was just shown: focus its first command. */
   | { type: 'trayShown' }
@@ -345,6 +354,8 @@ export type ToHost =
   | { type: 'close' }
   /** Translate the last text again, after a failure. */
   | { type: 'retry' }
+  /** Translate card `id`'s text again with the level's model, however long it takes (Fast did it, the model too slow just now). */
+  | { type: 'waitForModel'; id: number }
   /** Translate a text card's text (as it stands, maybe edited) from one language into another, by codes. */
   | { type: 'translateText'; id: number; text: string; from: string; to: string }
   /** Check a check card's English (as it stands, maybe edited). */

@@ -71,7 +71,7 @@ export function cardText(g: Gpu): string {
 export type LevelFit = { where: 'card' | 'part' | 'processor'; slow: boolean; cuda: boolean }
 
 /** The model's own memory on the card, in MB, with its working room (Gemma 4 E4B, q4_0, whose per-layer embeddings stay in the computer's memory: 3.1 GB measured; Gemma 4 12B, q4_0, 7 GB of weights). */
-const LEVEL_VRAM_MB = { accurate: 3500, most: 9000 }
+export const LEVEL_VRAM_MB = { accurate: 3500, most: 9000 }
 
 /** An NVIDIA card llama.cpp's CUDA 12.4 build runs on: compute 5.0, a driver of 551 or newer (as nvidia-smi numbers it). */
 function cudaReady(g: Gpu | undefined): boolean {

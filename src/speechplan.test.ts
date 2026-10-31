@@ -48,10 +48,25 @@ describe('planSpeech', () => {
     expect(kazakh.dictation.choices.find(c => c.model === 'parakeet-tdt-0.6b-v3')?.why).toMatch(/language/)
   })
 
-  it('the card runs Whisper: Parakeet is shown, but for the processor', () => {
-    const plan = planSpeech(input({ cuda: true }))
-    expect(plan.dictation.choices.find(c => c.model === 'parakeet-tdt-0.6b-v3')?.why).toMatch(/processor/)
-    expect(plan.engine.cpu.dictation.model).toBe('parakeet-tdt-0.6b-v3')
+  it('the card is left to other programs: Parakeet dictates on the processor, the card transcribes', () => {
+    const downloaded = ['large-v3-turbo', 'parakeet-tdt-0.6b-v3']
+    const plan = planSpeech(input({ cuda: true, downloaded, languages: ['ru', 'en'] }))
+    expect(plan.device).toBe('cuda')
+    expect(plan.dictation.chosen).toMatchObject({ model: 'parakeet-tdt-0.6b-v3', device: 'cpu', compute: 'int8' })
+    expect(plan.engine.cuda?.dictation).toEqual({ model: 'parakeet-tdt-0.6b-v3', beam: 2 })
+    expect(plan.engine.cuda?.transcripts).toEqual({ model: 'large-v3-turbo', compute: 'float16' })
+    // Not for a language Parakeet does not know, nor when the person picked a model.
+    expect(planSpeech(input({ cuda: true, downloaded, native: 'kk' })).dictation.chosen).toMatchObject({ model: 'large-v3-turbo', device: 'cuda' })
+    const kazakhToo = planSpeech(input({ cuda: true, downloaded, languages: ['ru', 'en', 'kk'] })).dictation
+    expect(kazakhToo.chosen.model).toBe('large-v3-turbo')
+    expect(kazakhToo.choices.find(c => c.model === 'parakeet-tdt-0.6b-v3')?.why).toMatch(/every language/)
+    expect(planSpeech(input({ cuda: true, downloaded, pins: { dictation: 'large-v3-turbo', transcripts: '' } })).dictation.chosen.device).toBe('cuda')
+  })
+
+  it('until Parakeet is here the card dictates, and Parakeet is offered for the processor', () => {
+    const plan = planSpeech(input({ cuda: true, downloaded: ['large-v3-turbo'] }))
+    expect(plan.dictation.chosen).toMatchObject({ model: 'large-v3-turbo', device: 'cuda' })
+    expect(plan.dictation.better).toMatchObject({ model: 'parakeet-tdt-0.6b-v3', device: 'cpu', downloaded: false })
   })
 
   it('a weak laptop transcribes with turbo, whose decoder is light, and keeps the large model out of its memory', () => {
@@ -162,6 +177,12 @@ describe('planSpeech', () => {
       { model: 'large-v3-turbo', device: 'cpu', beam: 2 },
     ])
     expect(testKey(i, plan)).toBe('fp|cpu|base,small,parakeet-tdt-0.6b-v3,large-v3-turbo')
+    // On a card's computer each is measured where it runs.
+    const card = input({ cuda: true, downloaded: ['large-v3-turbo', 'parakeet-tdt-0.6b-v3'] })
+    expect(testRuns(card, planSpeech(card))).toEqual([
+      { model: 'parakeet-tdt-0.6b-v3', device: 'cpu', beam: 2 },
+      { model: 'large-v3-turbo', device: 'cuda', compute: 'float16', beam: 5 },
+    ])
   })
 })
 

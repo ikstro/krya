@@ -11,6 +11,7 @@
 // little better, cost 40 % more and once repeated a sentence: not used.
 
 import { LLM_LANGUAGES, mapLimit, type LlmFiles, type LlmModel } from './llmfiles'
+import type { Translate } from './translate'
 import type { Translator } from './translator'
 
 const PARALLEL = 4
@@ -32,14 +33,37 @@ export type LlmOptions = {
   onTimed?: (model: LlmModel, timed: { sentence: number; start?: number }) => void
 }
 
-export type LlmTranslators = Record<LlmModel, Translator>
+/**
+ * A sentence took longer than the model may take here (`limit`, seconds):
+ * another program has the graphics card or the processor (2026-10-31: an
+ * emulator filled the card, llama.cpp fit fewer layers on it, 3 words a
+ * second instead of 100). Or, `full`, the model was not started at all: the
+ * card had too little free memory to hold it whole (resources.ts).
+ */
+export class ModelSlow extends Error {
+  constructor(
+    readonly model: LlmModel,
+    readonly limit: number,
+    readonly full?: { free: number; need: number },
+  ) {
+    super('The model is slow right now')
+    this.name = 'ModelSlow'
+  }
+}
+
+export type LlmTranslator = Translator & {
+  /** `translate`, given up with ModelSlow once a sentence takes longer than `limit` seconds, its requests cancelled; no limit, `translate` itself. */
+  hurried(limit: number | undefined): Translate
+}
+
+export type LlmTranslators = Record<LlmModel, LlmTranslator>
 
 export function createLlmTranslators(o: LlmOptions): LlmTranslators {
   const { files } = o
   const { models, languages } = files.manifest
   const post = o.fetch ?? fetch
 
-  async function one(base: string, text: string, from: string, to: string): Promise<string | undefined> {
+  async function one(base: string, text: string, from: string, to: string, signal: AbortSignal): Promise<string | undefined> {
     if (!text.trim()) return text
     const response = await post(`${base}/v1/chat/completions`, {
       method: 'POST',
@@ -56,7 +80,7 @@ export function createLlmTranslators(o: LlmOptions): LlmTranslators {
         cache_prompt: false,
         chat_template_kwargs: { enable_thinking: false },
       }),
-      signal: AbortSignal.timeout(REQUEST_MS),
+      signal,
     })
     if (!response.ok) throw new Error(`The translation engine answered ${response.status}`)
     const data = (await response.json()) as { choices?: { message?: { content?: unknown } }[] }
@@ -64,13 +88,9 @@ export function createLlmTranslators(o: LlmOptions): LlmTranslators {
     return typeof content === 'string' ? content.trim() || undefined : undefined
   }
 
-  function translator(level: LlmModel): Translator {
-    return {
-      direct: true,
-      state: native => (languages[native] ? files.state(level) : { status: 'unsupported', progress: 0, size: 0 }),
-      prepare: (native, onProgress) =>
-        languages[native] ? files.prepare(level, onProgress) : Promise.reject(new Error(`${models[level].name} does not translate this language`)),
-      async translate(sentences, from, to, progress) {
+  function translator(level: LlmModel): LlmTranslator {
+    const translate = (limit: number | undefined): Translate =>
+      async function (sentences, from, to, progress) {
         const unknown = [from, to].find(code => !languages[code])
         if (unknown) throw new Error(`${models[level].name} does not translate this language (${unknown})`)
         if (sentences.length === 0) return []
@@ -78,9 +98,21 @@ export function createLlmTranslators(o: LlmOptions): LlmTranslators {
         const began = Date.now()
         return files.server.run(target, async (base, loaded) => {
           const ready = Date.now()
+          // One sentence too slow cancels the rest: the job is Fast's now.
+          const cancel = new AbortController()
           // Each sentence is heard of as it comes, so the card can show it before the rest.
           const out = await mapLimit(sentences, PARALLEL, async (s, i) => {
-            const done = await one(base, s, from, to)
+            if (cancel.signal.aborted) throw new ModelSlow(level, limit ?? 0)
+            const late = limit === undefined ? undefined : AbortSignal.timeout(limit * 1000)
+            const signal = AbortSignal.any([AbortSignal.timeout(REQUEST_MS), cancel.signal, ...(late ? [late] : [])])
+            let done: string | undefined
+            try {
+              done = await one(base, s, from, to, signal)
+            } catch (error) {
+              if (!late?.aborted && !cancel.signal.aborted) throw error
+              cancel.abort()
+              throw new ModelSlow(level, limit ?? 0)
+            }
             progress?.(i, done, false)
             return done
           })
@@ -88,7 +120,14 @@ export function createLlmTranslators(o: LlmOptions): LlmTranslators {
           if (counted > 0) o.onTimed?.(level, { sentence: (Date.now() - ready) / 1000 / counted, ...(loaded ? { start: (ready - began) / 1000 } : {}) })
           return out
         })
-      },
+      }
+    return {
+      direct: true,
+      state: native => (languages[native] ? files.state(level) : { status: 'unsupported', progress: 0, size: 0 }),
+      prepare: (native, onProgress) =>
+        languages[native] ? files.prepare(level, onProgress) : Promise.reject(new Error(`${models[level].name} does not translate this language`)),
+      translate: translate(undefined),
+      hurried: translate,
       dispose: () => files.dispose(),
     }
   }

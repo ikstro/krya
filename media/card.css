@@ -315,6 +315,30 @@ svg.glyph {
   line-height: 1.5;
 }
 
+/* Fast translated it, the local model too slow just now: the amber dot a mark only, the words muted, the model offered framed. */
+.busy-banner .dot {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.busy-banner .quiet-btn {
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.text-view .busy-banner {
+  margin: 10px 0 0;
+}
+
+.lower .busy-banner {
+  margin: 8px 14px 0 var(--gutter);
+}
+
 .empty {
   padding: 18px 18px 18px 18px;
 }

@@ -6,7 +6,8 @@ and 30 s as Transcribe does. Real use keeps the numbers up afterwards: every
 transcription's words and speakers, every dictated phrase. Krya reads them from
 /health (`bench`) and chooses the models from them (src/speechplan.ts).
 
-Kept in speech.json as {fingerprint, at, runs: {"model|device|compute": {phrase, rtf, n, at, source}}}.
+Kept in speech.json as {fingerprint, at, runs: {"model|device|compute": {phrase, rtf, n, at, source, tested}}};
+`tested` keeps the test's own numbers, against which real use far slower is not counted (`OUTLIER`).
 The fingerprint is this computer's (processor, memory, cards, driver), as Krya
 sends it with the plan: on another computer the numbers start again.
 """
@@ -32,6 +33,10 @@ PHRASE_SECONDS = 7
 WINDOW_SECONDS = 29
 # A test's number replaces the old one; real use moves it this far towards what it saw.
 USE_WEIGHT = 0.25
+# Real use this many times slower than the test (or than the number so far) is another program on the
+# card or the processor, not the model's speed: not counted (2026-10-31, an emulator on the card made
+# turbo's phrases 2 s against 0.22 s tested, and the plan walked dictation down to base for good).
+OUTLIER = 3.0
 # Real use shorter than this says little: loading and the first window weigh too much.
 SHORTEST = {"words": 60.0, "speakers": 120.0, "phrase": (3.0, 15.0), "proportional": (1.5, 30.0)}
 
@@ -67,12 +72,29 @@ class Bench:
             bench = dict(self.settings["bench"])
             runs = dict(bench.get("runs", {}))
             run = dict(runs.get(name, {}))
+            tested = dict(run.get("tested") or {})
+            counted = False
             for field, value in values.items():
                 if value is None or value <= 0:
                     continue
                 old = run.get(field)
-                mixed = value if source == "test" or old is None else old + (value - old) * USE_WEIGHT
+                if source == "test":
+                    tested[field] = round(value, 4)
+                    mixed = value
+                elif old is None:
+                    mixed = value
+                else:
+                    usual = tested.get(field, old)
+                    if value > usual * OUTLIER:
+                        log.info("%s: %s %.2f against %.2f usual here: something else is busy, not counted", name, field, value, usual)
+                        continue
+                    mixed = old + (value - old) * USE_WEIGHT
                 run[field] = round(mixed, 4)
+                counted = True
+            if not counted:
+                return
+            if tested:
+                run["tested"] = tested
             run["n"] = int(run.get("n", 0)) + 1
             run["at"] = _now()
             run["source"] = "test" if source == "test" or run.get("source") == "test" else "use"

@@ -15,9 +15,9 @@ import { langCode } from './languages'
 import { log } from './log'
 import { freeFolderSoon, runningProcessesSoon } from './oldfolder'
 import type { SpeechView } from './protocol'
-import type { Settings } from './settings'
+import { myLanguages, type Settings } from './settings'
 import { DOWNLOAD_MB, hasNvidia, INSTALLED_MB, SpeechPack, type SpeechPart } from './speechpack'
-import { planSpeech, testKey, testRuns, type PlanInput, type SpeechPlan } from './speechplan'
+import { AUTO_DOWNLOAD_MB, planSpeech, testKey, testRuns, type PlanInput, type SpeechPlan } from './speechplan'
 import { SpeechService, speechToken, type SpeechResult } from './speechservice'
 import { vocabularyFor } from './vocabulary'
 
@@ -25,6 +25,8 @@ import { vocabularyFor } from './vocabulary'
 const DECLINE_MS = 24 * 3600_000
 /** A test run by itself is not run again for the same models sooner than this (one that failed, say). */
 const RETEST_MS = 3600_000
+/** A processor model for dictation whose download did not come is asked for again after this. */
+const FETCH_AGAIN_MS = 30 * 60_000
 /** How often a model being downloaded is asked about, and how many asks it has to show as running (each ask may start it again). */
 const MODEL_PROBE_MS = 3000
 const MODEL_START_PROBES = 2
@@ -57,6 +59,8 @@ export class SpeechHost {
   private pushed = ''
   private pushing = false
   private autoTested = { key: '', at: 0 }
+  /** When each processor model for dictation was last asked to download (`fetchProcessorDictation`). */
+  private readonly fetchAsked = new Map<string, number>()
   private readonly nvidiaDriver = hasNvidia()
   /** The extension's version in Krya's folder, which Chrome loads unpacked. */
   private readonly extensionShipped: string
@@ -152,6 +156,7 @@ export class SpeechHost {
       speakers: !!h?.parts.speakers,
       downloaded: h?.downloaded ?? [],
       native: langCode(s.native),
+      languages: myLanguages(s),
       prefer: s.speechPrefer,
       pins: { dictation: s.dictationModel, transcripts: s.transcriptsModel },
       ...(h ? { previous: { dictation: h.models.dictation.name, transcripts: h.models.transcripts.name } } : {}),
@@ -202,6 +207,23 @@ export class SpeechHost {
     }
     void this.push()
     this.autoTest()
+    this.fetchProcessorDictation()
+  }
+
+  /**
+   * Dictation leaves the card to the person's programs (2026-10-31): its
+   * processor model (Parakeet, speechplan.ts `better`) downloads by itself
+   * while the card's model dictates, and the plan moves to it once it is here.
+   * Asked once, and again a while later should the download have failed.
+   */
+  private fetchProcessorDictation(): void {
+    const better = this.plan.dictation.better
+    if (this.plan.device !== 'cuda' || better?.device !== 'cpu' || better.downloaded || better.mb > AUTO_DOWNLOAD_MB) return
+    const asked = this.fetchAsked.get(better.model)
+    if (asked !== undefined && Date.now() - asked < FETCH_AGAIN_MS) return
+    this.fetchAsked.set(better.model, Date.now())
+    log(`speech: ${better.model} downloads for dictation on the processor, leaving the graphics card free`)
+    void this.downloadModel(better.model)
   }
 
   /** What the engine is told of Krya's choices: the plan, and the words to spell (vocabulary.ts). */

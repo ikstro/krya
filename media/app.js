@@ -1357,7 +1357,12 @@
     const out = [
       radioRow(
         el("span", {}, "Automatic", recommended()),
-        [`the most accurate model that is quick enough here: ${budget}`, p.pinned ? null : `uses ${p.chosen.label} now`],
+        [
+          `the most accurate model that is quick enough here: ${budget}`,
+          p.pinned ? null : `uses ${p.chosen.label} now`,
+          // Dictation leaves the card to the person's programs (speechplan.ts forDevice).
+          feature === "dictation" && plan.device === "cuda" && (p.chosen.device === "cpu" || p.better?.device === "cpu") ? p.chosen.device === "cpu" ? "on the processor: leaves the graphics card to your programs" : `moves to ${p.better?.label} on the processor once it is downloaded, leaving the graphics card to your programs` : null
+        ],
         !p.pinned,
         () => pin(feature, "")
       )
@@ -1450,8 +1455,24 @@
         [cards, tested],
         running(v) && !t ? linkBtn(v.speech.test.agreed && plan.measured ? "Test again" : "Test", () => post({ type: "testSpeech" }), v.speech.test.runs === 0 && !plan.dictation.choices.some((c) => c.downloaded)) : null
       ),
-      ...t ? [t] : []
+      ...t ? [t] : [],
+      row("Right now", [heldNow(v)])
     ];
+  }
+  function heldNow(v) {
+    const card2 = [];
+    const processor = [];
+    const l = v.llmLoaded;
+    if (l) {
+      const mb = v.modelSpeed[l.model]?.card;
+      (l.onCard ? card2 : processor).push(`${LEVEL_NAMES[l.model]}${l.onCard && mb ? ` (${size(mb)})` : ""}`);
+    }
+    for (const m of v.speech.health?.loaded ?? []) {
+      const name = m.model === "speakers" ? "Who spoke when" : MODELS.find((c) => c.name === m.model)?.label ?? m.model;
+      (m.device === "cuda" ? card2 : processor).push(name);
+    }
+    if (!card2.length && !processor.length) return "nothing loaded: the graphics card and the memory are free for your programs";
+    return [card2.length ? `on the graphics card: ${card2.join(", ")}` : "nothing on the graphics card", processor.length ? `on the processor: ${processor.join(", ")}` : null, card2.length ? "let go after 3 idle minutes" : null].filter(Boolean).join(" \xB7 ");
   }
   function cardNote(v) {
     const s = v.speech;

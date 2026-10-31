@@ -41,14 +41,24 @@ export function throughEnglish(translate: Translate): Translate {
  * each sentence the draft has is heard of as a draft until its accurate
  * translation replaces it. Without `progress` nobody sees a draft, so only
  * the accurate one runs. Resolves with the accurate translation; a draft that
- * fails or comes late changes nothing.
+ * fails or comes late changes nothing. When the accurate one gives up
+ * (`gaveUp` says so of its error: the model too slow just now), the draft
+ * stands for every sentence it did not do (made then, without `progress`).
  */
-export function drafted(accurate: Translate, draft: Translate): Translate {
+export function drafted(accurate: Translate, draft: Translate, gaveUp: (error: unknown) => boolean = () => false): Translate {
   return async (sentences, from, to, progress) => {
-    if (!progress) return accurate(sentences, from, to)
-    const final = new Set<number>()
+    if (!progress) {
+      try {
+        return await accurate(sentences, from, to)
+      } catch (error) {
+        if (gaveUp(error)) return draft(sentences, from, to)
+        throw error
+      }
+    }
+    const final = new Map<number, string | undefined>()
     let over = false
-    draft(sentences, from, to).then(
+    const drafting = draft(sentences, from, to)
+    drafting.then(
       out => {
         if (!over) out.forEach((text, i) => text?.trim() && !final.has(i) && progress(i, text, true))
       },
@@ -57,9 +67,14 @@ export function drafted(accurate: Translate, draft: Translate): Translate {
     try {
       return await accurate(sentences, from, to, (i, text, isDraft) => {
         if (isDraft || over) return
-        final.add(i)
+        final.set(i, text)
         progress(i, text, false)
       })
+    } catch (error) {
+      if (!gaveUp(error)) throw error
+      over = true
+      const out = await drafting
+      return out.map((text, i) => (final.has(i) ? final.get(i) : text))
     } finally {
       over = true
     }

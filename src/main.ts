@@ -50,17 +50,19 @@ import { DOWNLOADABLE, DictionaryStore } from './dictstore'
 import { openStream } from './download'
 import { frameWindow, WIN11 } from './dwm'
 import { createTranslator, NATIVES } from './engine'
-import { translationAdvice } from './hardware'
+import { LEVEL_VRAM_MB, translationAdvice } from './hardware'
 import { hotkeyLabel, isAccelerator } from './hotkey'
 import { FIX_LANGUAGES, KeyboardHelper, keyboardLayouts } from './keyboard'
-import { cardMemoryUsed, driveOf, freeMb, loadModelSpeeds, loadVoiceSpeed, median, nextModelSpeed, nextVoiceSpeed, saveModelSpeeds, saveVoiceSpeed, type ModelSpeeds, type VoiceSpeed } from './device'
+import { cardMemoryFree, cardMemoryUsed, driveOf, freeMb, loadModelSpeeds, loadVoiceSpeed, median, nextModelSpeed, nextVoiceSpeed, saveModelSpeeds, saveVoiceSpeed, type ModelSpeeds, type VoiceSpeed } from './device'
 import { defaultNative, findLanguage, langCode, scriptFor } from './languages'
 import { convertText, layoutsAfter, nextLayout, sourceLayout, type KeyTable } from './layoutfix'
 import { LearnStore } from './learning'
 import { lookup, type Dictionary } from './lemma'
 import { LlamaServer } from './llama'
 import { createLlmFiles, llmPaths, type LlmFiles } from './llmfiles'
-import { createLlmTranslators, type LlmTranslators } from './llmtranslator'
+import { createLlmTranslators, ModelSlow, type LlmTranslators } from './llmtranslator'
+import { BUSY_MS, busyName, slowAfter, tryAgain, type ModelBusy } from './modelbusy'
+import { cardRoom, sharedReading } from './resources'
 import { MistakeStore } from './mistakes'
 import { log, logTo } from './log'
 import { NATURAL_PREFIX, systemVoiceName, type NaturalState } from './natural'
@@ -69,10 +71,10 @@ import { pickLines } from './ocrpick'
 import { adoptLocalFolder, adoptOldFolders, freeFolder, hasToMove, leftIn, moveDownloads, partDir, removeOldUpdaterCaches, type LeftPart, type Warn } from './oldfolder'
 import { paragraphsOf } from './ocrtext'
 import { placeByTray, placeNear, resize, type Point } from './placement'
-import type { AppTab, AppView, CardKind, CardState, CheckResult, DictationMode, DictionaryStatus, GlossMissing, HostCall, HostVoice, StorageId, StoragePart, StorageView, TextResult, ToHost, ToView, TranslationState, TrayCommand, TrayView, ViewConfig } from './protocol'
+import type { AppTab, AppView, BusyPart, CardKind, CardState, CheckResult, DictationMode, DictionaryStatus, GlossMissing, HostCall, HostVoice, StorageId, StoragePart, StorageView, TextResult, ToHost, ToView, TranslationState, TrayCommand, TrayView, ViewConfig } from './protocol'
 import { draftsIn, englishHtml, textOutHtml, translationHtml } from './render'
 import { issueUrl, mailUrl, makeReport, namesHere, reportName, type ReportFacts } from './report'
-import { addKept, CARD_WIDTH, DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, normalize, TARGET, type LlmModel, type Settings } from './settings'
+import { addKept, CARD_WIDTH, DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, normalize, TARGET, type LlmModel, type Settings, type TranslationLevel } from './settings'
 import { Speaker, listHostVoices } from './speech'
 import { SpeechHost } from './speechhost'
 import { MODELS as SPEECH_MODELS } from './speechplan'
@@ -1136,6 +1138,7 @@ function appView(): AppView {
     },
     models: { accurate: llmFiles.state('accurate'), most: llmFiles.state('most') },
     modelSpeed: modelSpeedView(),
+    ...llmLoadedView(),
     dictionary: { status: dictionaryStatus() },
     mistakes: mistakes.list(),
     ...(storage ? { storage: storageView(storage) } : {}),
@@ -1234,7 +1237,7 @@ function postCard(): void {
   if (!shown) return
   post({
     type: 'card',
-    card: { ...shown, target: TARGET, native: settings.native, level: settings.translationLevel, autoRead: settings.autoRead },
+    card: { ...shown, target: TARGET, native: settings.native, level: settings.translationLevel, ...busySpell(), autoRead: settings.autoRead },
     config: config(),
     pinned,
     maximized: !!maximizedFrom,
@@ -1513,6 +1516,11 @@ function onMessage(message: ToHost): void {
     case 'retry':
       if (last && shown?.id === last.id) void translateInto(last.id, last.text, last.kind, last.note)
       return
+    case 'waitForModel':
+      if (shown?.id !== message.id) return
+      if (shown.state.status === 'text') void translateTextCard(message.id, shown.state.text, shown.state.from, shown.state.to, true)
+      else if (last?.id === message.id) void translateInto(last.id, last.text, last.kind, last.note, true)
+      return
     case 'translateText':
       void translateTextCard(message.id, message.text, message.from, message.to)
       return
@@ -1634,6 +1642,9 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** A translation's translator, its Translate, and whether Fast did it for the model, too slow just now (`busy`: where). */
+type TranslationJob = { t: Translator; translate: Translate; busy(): BusyPart | undefined }
+
 /**
  * The level's translator with Fast's before it as a draft (2026-10-31): with
  * Accurate or Most accurate, Firefox's models (on the processor, quick, no
@@ -1641,19 +1652,125 @@ function messageOf(error: unknown): string {
  * replace it one by one. Fast's models for the pair (`codes`, besides
  * English) download once by themselves when missing; until then there is
  * no draft. Paste and Translate in place take the model's translation only.
+ * A model far slower than usual here (another program on the graphics card
+ * or the processor, modelbusy.ts) gives the job up and Fast's translation
+ * stands; Fast then translates by itself until the model is tried again.
+ * Without Fast's models nothing is given up: the model is all there is.
+ * `wait`: the person asked for the model on this text (Use Accurate anyway):
+ * Fast's draft first, then the model, however long it takes.
  */
-function withDraft(t: Translator, codes: readonly string[]): Translate {
-  if (t === translator) return t.translate
+function translationJob(codes: readonly string[], wait = false): TranslationJob {
+  const level = settings.translationLevel
+  const fast = { t: translator, translate: translator.translate, busy: () => undefined }
+  if (level === 'fast') return fast
+  const t = llm[level]
   const missing = codes.filter(code => code !== 'en' && translator.state(code).status !== 'ready')
-  if (missing.length === 0) return drafted(t.translate, throughEnglish(translator.translate))
-  for (const code of missing) {
-    if (translator.state(code).status !== 'absent') continue
-    translator
-      .prepare(code, () => undefined)
-      .catch(error => console.warn('Krya: the draft translator did not download', error))
-      .finally(() => postApp())
+  if (missing.length) {
+    for (const code of missing) {
+      if (translator.state(code).status !== 'absent') continue
+      translator
+        .prepare(code, () => undefined)
+        .catch(error => console.warn('Krya: the draft translator did not download', error))
+        .finally(() => postApp())
+    }
+    return { t, translate: t.translate, busy: () => undefined }
   }
-  return t.translate
+  if (wait) return { t, translate: drafted(t.translate, throughEnglish(translator.translate)), busy: () => undefined }
+  const busy = busyFor(level)
+  if (busy) return { ...fast, busy: () => busy }
+  let fell: BusyPart | undefined
+  const gaveUp = (error: unknown) => error instanceof ModelSlow && ((fell = modelSlow(error)), true)
+  return { t, translate: drafted(roomFirst(level, t.hurried(slowAfter(modelSpeeds[level]?.sentence ?? [], LEVEL_SURE_AFTER))), throughEnglish(translator.translate), gaveUp), busy: () => fell }
+}
+
+/** The graphics card's free memory, one nvidia-smi reading shared by a key press and the job after it. */
+const cardFree = sharedReading(cardMemoryFree, 5000)
+
+/**
+ * The card too full to hold the level's model whole (resources.ts): the free
+ * memory and what the model needs, else nothing. Only an NVIDIA card says how
+ * full it is; a model already running holds its memory, so there is nothing
+ * to look at then; and one advised partly on the card or on the processor here
+ * runs so anyway.
+ */
+async function cardFull(model: LlmModel): Promise<{ free: number; need: number } | undefined> {
+  if (llmFiles.server.model !== undefined || translationAdvice(speech?.profile)[model].where !== 'card') return undefined
+  const need = modelSpeeds[model]?.card ?? LEVEL_VRAM_MB[model]
+  const free = await cardFree()
+  return free !== undefined && !cardRoom(free, need) ? { free, need } : undefined
+}
+
+/** A job that starts the model only when the card holds it whole; else it is given up at once, and Fast's translation stands (modelSlow). */
+function roomFirst(model: LlmModel, translate: Translate): Translate {
+  return async (sentences, from, to, progress) => {
+    const full = await cardFull(model)
+    if (full) throw new ModelSlow(model, 0, full)
+    return translate(sentences, from, to, progress)
+  }
+}
+
+/** A job's `busy`, for its result. */
+function busyOf(job: TranslationJob): { busy?: BusyPart } {
+  const busy = job.busy()
+  return busy ? { busy } : {}
+}
+
+/** How long the badge by the cursor says that Fast translated in place. */
+const BUSY_SAY_MS = 2500
+
+/** The local model found too slow here just now: Fast translates until it is tried again (modelbusy.ts). */
+let modelBusy: ModelBusy | undefined
+let recheckingBusy = false
+
+/** Where the level's model is kept busy now, if it is. */
+function busyFor(level: TranslationLevel): BusyPart | undefined {
+  return level !== 'fast' && modelBusy?.model === level ? modelBusy.where : undefined
+}
+
+/** The card's `busy`: the picked level's model kept busy now. */
+function busySpell(): { busy?: BusyPart } {
+  const busy = busyFor(settings.translationLevel)
+  return busy ? { busy } : {}
+}
+
+/**
+ * A job given up: Fast translates for a while, and the model's server goes,
+ * so that, started again, llama.cpp fits the model on the card as it is then
+ * (and the other program gets its memory meanwhile).
+ */
+function modelSlow(slow: ModelSlow): BusyPart {
+  const server = llmFiles.server
+  const where: BusyPart = !slow.full && (server.onProcessor || translationAdvice(speech?.profile)[slow.model].where === 'processor') ? 'processor' : 'card'
+  if (modelBusy?.model !== slow.model)
+    log(
+      slow.full
+        ? `model: ${slow.model} not started: the graphics card has ${slow.full.free} MB free, it needs ${slow.full.need} and room for the programs around it; Fast translates`
+        : `model: ${slow.model} too slow just now (a sentence over ${slow.limit.toFixed(1)} s): Fast translates, the ${busyName(where)} busy`,
+    )
+  modelBusy = { model: slow.model, where, until: Date.now() + BUSY_MS }
+  if (server.restingFor !== undefined) void server.stop()
+  return where
+}
+
+/** On the model clock: the model tried again once its time is out, on an NVIDIA card once its memory is free for it. */
+async function recheckBusy(): Promise<void> {
+  const busy = modelBusy
+  if (!busy || recheckingBusy || Date.now() < busy.until) return
+  const need = modelSpeeds[busy.model]?.card ?? LEVEL_VRAM_MB[busy.model]
+  let free: number | undefined
+  // A server running now holds its memory, and its model loaded: nothing to look at.
+  if (busy.where === 'card' && llmFiles.server.model === undefined) {
+    recheckingBusy = true
+    free = await cardFree().finally(() => (recheckingBusy = false))
+  }
+  if (modelBusy !== busy) return
+  if (tryAgain(busy, Date.now(), free, need)) {
+    modelBusy = undefined
+    log(`model: ${busy.model} tried again`)
+    return
+  }
+  modelBusy = { ...busy, until: Date.now() + BUSY_MS }
+  log(`model: the graphics card has ${free} MB free, ${busy.model} needs ${need}: Fast a while longer`)
 }
 
 /** A card's translation as it comes in, sentence by sentence: at most ten updates a second, the latest always sent; `cancel` before the last. */
@@ -1686,7 +1803,7 @@ function every(ms: number, send: () => void): { ask(): void; cancel(): void } {
  * first time. An English text is shown, and read, at once, its translation
  * coming in under it; a text in the person's language waits for its English.
  */
-async function translateInto(id: number, text: string, kind: CardKind, note?: string): Promise<void> {
+async function translateInto(id: number, text: string, kind: CardKind, note?: string, wait = false): Promise<void> {
   last = { id, text, kind, ...(note ? { note } : {}) }
   const native = langCode(settings.native)
   const split = splitText(text.slice(0, MAX_TEXT_CHARS), settings.native)
@@ -1695,7 +1812,8 @@ async function translateInto(id: number, text: string, kind: CardKind, note?: st
   const early = englishReady(split) ? englishHtml(split.lines) : undefined
   const pending = (translation: Exclude<TranslationState, { status: 'ready' }>) =>
     setState(id, early ? { status: 'done', html: early, translation, ...noted } : translation)
-  const t = activeTranslator()
+  const job = translationJob([native], wait)
+  const { t } = job
   try {
     pending({ status: 'translating' })
     if (t.state(native).status !== 'ready') {
@@ -1705,10 +1823,10 @@ async function translateInto(id: number, text: string, kind: CardKind, note?: st
       pending({ status: 'translating' })
     }
     let now: Line[] = []
-    const ready = (lines: Line[]): CardState => ({ status: 'done', html: englishHtml(lines), translation: { status: 'ready', html: translationHtml(lines), drafts: draftsIn(lines) }, ...noted })
+    const ready = (lines: Line[]): CardState => ({ status: 'done', html: englishHtml(lines), translation: { status: 'ready', html: translationHtml(lines), drafts: draftsIn(lines), ...busyOf(job) }, ...noted })
     const update = every(UPDATE_MS, () => setState(id, ready(now)))
     try {
-      const lines = await translateLines(split, settings.native, withDraft(t, [native]), lines => ((now = lines), update.ask()))
+      const lines = await translateLines(split, settings.native, job.translate, lines => ((now = lines), update.ask()))
       update.cancel()
       setState(id, ready(lines))
     } finally {
@@ -1859,18 +1977,21 @@ async function pasteText(text: string): Promise<void> {
  */
 async function translateInPlace(text: string, at: Point, window: bigint, via?: string): Promise<void> {
   const { from, to } = textState(text)
-  const t = activeTranslator()
-  const missing = [from, to].some(code => code !== 'en' && t.state(code).status !== 'ready')
+  const job = translationJob([from, to])
+  const missing = [from, to].some(code => code !== 'en' && job.t.state(code).status !== 'ready')
   if (missing) return translateWindow(text, at, window, via)
   keyboard.say('…')
   try {
-    const out = await translatePlain(text.slice(0, MAX_TEXT_CHARS), from, to, t.translate, t.direct)
+    const out = await translatePlain(text.slice(0, MAX_TEXT_CHARS), from, to, job.translate, job.t.direct)
     keyboard.say('')
     if (!out.trim()) return
     logTranslation(text, out, from, to)
     if (foreground().hwnd !== window) return translateWindow(text, at, window, via)
     await keysLetGo()
     await pasteInto(window, undefined, out)
+    // Fast did it: said by the cursor, as no card shows.
+    const busy = job.busy()
+    if (busy) keyboard.say(`Fast · ${busyName(busy)} busy`, BUSY_SAY_MS)
   } catch (error) {
     keyboard.say('')
     tray?.displayBalloon({ title: 'Krya', content: `Could not translate: ${messageOf(error)}` })
@@ -1901,13 +2022,14 @@ async function readScreenText(png: Buffer, via?: string): Promise<void> {
 let textAsked = 0
 
 /** Translates the translator's text, as it stands, from one language into another. */
-async function translateTextCard(id: number, text: string, from: string, to: string): Promise<void> {
+async function translateTextCard(id: number, text: string, from: string, to: string, wait = false): Promise<void> {
   const set = (result: TextResult) => {
     if (shown?.id === id && shown.state.status === 'text') setState(id, { ...shown.state, text, from, to, result })
   }
   const asked = ++textAsked
   const current = () => asked === textAsked
-  const t = activeTranslator()
+  const job = translationJob([from, to], wait)
+  const { t } = job
   try {
     set({ status: 'translating' })
     for (const code of [from, to]) {
@@ -1925,11 +2047,12 @@ async function translateTextCard(id: number, text: string, from: string, to: str
       html: textOutHtml(lines),
       sentences: lines.flatMap(line => line.pairs.map(p => p.src)),
       drafts: draftsIn(lines),
+      ...busyOf(job),
     })
     let now: TextLine[] = []
     const update = every(UPDATE_MS, () => current() && set(ready(now)))
     try {
-      const lines = await translatePairs(text.slice(0, MAX_TEXT_CHARS), from, to, withDraft(t, [from, to]), t.direct, lines => ((now = lines), update.ask()))
+      const lines = await translatePairs(text.slice(0, MAX_TEXT_CHARS), from, to, job.translate, t.direct, lines => ((now = lines), update.ask()))
       update.cancel()
       if (current()) set(ready(lines))
     } finally {
@@ -2094,9 +2217,25 @@ async function measureCard(): Promise<void> {
 /** Less than this is no model on the card (one on the processor), or the noise of other programs. */
 const CARD_HELD_MIN_MB = 300
 
+/** The local model loaded now, for the Models page's "Right now". */
+function llmLoadedView(): { llmLoaded?: { model: LlmModel; onCard: boolean } } {
+  const server = llmFiles.server
+  const model = server.loaded && (['accurate', 'most'] as const).find(m => llmFiles.target(m).model === server.loaded)
+  return model ? { llmLoaded: { model, onCard: !server.onProcessor } } : {}
+}
+
+/** What the window last heard of the loaded model: a change is sent to it. */
+let loadedShown = ''
+
 /** Every few seconds while Krya runs: a model on a full screen's card let go, and what one holds measured. */
 function watchModel(): void {
+  const loaded = JSON.stringify(llmLoadedView())
+  if (loaded !== loadedShown) {
+    loadedShown = loaded
+    postApp()
+  }
   stopForFullScreen()
+  recheckBusy().catch(error => console.warn('Krya: could not look at the graphics card', error))
   measureCard().catch(error => console.warn('Krya: could not measure the graphics card', error))
 }
 
@@ -2109,7 +2248,15 @@ function watchModel(): void {
 function warmModel(purpose: Purpose): void {
   const model = purpose === 'check' ? settings.model : settings.translationLevel
   if (model === 'fast' || llmFiles.state(model).status !== 'ready') return
-  llmFiles.server.warm(llmFiles.target(model))
+  // Check my English always uses the model.
+  if (purpose === 'check') return llmFiles.server.warm(llmFiles.target(model))
+  // Fast translates while the model is too slow: nothing to load for it.
+  if (busyFor(model)) return
+  // Only on a card that holds it whole; else the job finds the card full itself and Fast translates (roomFirst).
+  cardFull(model).then(
+    full => full || busyFor(model) || llmFiles.server.warm(llmFiles.target(model)),
+    () => llmFiles.server.warm(llmFiles.target(model)),
+  )
 }
 
 /** A selection key: Krya presses Ctrl+C in the program in front and shows what it copies; the clipboard is put back after. */
@@ -2813,9 +2960,11 @@ function setUpSpeechEngine(): void {
     preload: path.join(__dirname, 'preload.js'),
     speech,
     paste: typeText,
-    toEnglish: (text, from) => {
-      const t = activeTranslator()
-      return translatePlain(text, from, 'en', t.translate, t.direct)
+    toEnglish: async (text, from) => {
+      const job = translationJob([from])
+      const english = await translatePlain(text, from, 'en', job.translate, job.t.direct)
+      const busy = job.busy()
+      return { text: english, ...(busy ? { note: `Typed with Fast: the ${busyName(busy)} is busy` } : {}) }
     },
     check: practice,
     expected: () => myLanguages(settings),

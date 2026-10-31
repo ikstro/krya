@@ -219,7 +219,7 @@ window.addEventListener('message', event => {
     else if (message.command === 'stop') void stop()
     else void cancel()
   } else if (message.type === 'dictationDone') {
-    show('done', wordsOf(message.text), el('span', { class: 'check' }, '✓'), el('span', { class: 'what' }, mode === 'note' ? 'Saved' : 'Typed'))
+    show('done', wordsOf(message.text), el('span', { class: 'check' }, '✓'), el('span', { class: 'what' }, message.note ?? (mode === 'note' ? 'Saved' : 'Typed')))
   } else if (message.type === 'dictationError') {
     show('error', wordsOf(message.message), el('span', { class: 'what' }, mode === 'note' ? 'The note was not saved' : 'Nothing typed'))
   }

@@ -342,6 +342,25 @@ describe('a draft first, the accurate translation sentence by sentence', () => {
     expect(asked).toBe(1)
   })
 
+  test('a model that gives up leaves the draft as the translation, its own sentences kept; any other error still fails', async () => {
+    class Slow extends Error {}
+    const givesUp: Translate = async (sentences, _from, to, progress) => {
+      await new Promise(resolve => setTimeout(resolve, 2))
+      progress?.(0, `${to}{${sentences[0]}}`, false)
+      throw new Slow()
+    }
+    const gaveUp = (error: unknown) => error instanceof Slow
+    const seen: TextLine[][] = []
+    const lines = await translatePairs('One. Two.', 'en', 'ru', drafted(givesUp, quick, gaveUp), true, l => seen.push(structuredClone(l)))
+    expect(lines[0]?.pairs).toEqual([
+      { src: 'One.', out: 'ru{One.}' },
+      { src: 'Two.', out: 'ru~Two.' },
+    ])
+    // Nobody listening: the draft is made then.
+    expect(await drafted(givesUp, quick, gaveUp)(['One.'], 'en', 'ru')).toEqual(['ru~One.'])
+    await expect(drafted(givesUp, quick)(['One.'], 'en', 'ru')).rejects.toBeInstanceOf(Slow)
+  })
+
   test("Firefox's translator goes through English when neither side is", async () => {
     const english: Translate = async (sentences, from, to) => sentences.map(s => `${from}>${to}(${s})`)
     expect(await throughEnglish(english)(['Hallo.'], 'de', 'ru')).toEqual(['en>ru(de>en(Hallo.))'])

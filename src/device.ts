@@ -148,12 +148,21 @@ const nvidiaSmiExe = () => path.join(process.env.SystemRoot ?? 'C:\\Windows', 'S
 
 /** The memory used on the NVIDIA cards now, in MB, all of them together; undefined without nvidia-smi. */
 export function cardMemoryUsed(): Promise<number | undefined> {
+  return cardMemory('memory.used')
+}
+
+/** The graphics cards' free memory in MB, all together (nvidia-smi), or undefined without it. */
+export function cardMemoryFree(): Promise<number | undefined> {
+  return cardMemory('memory.free')
+}
+
+function cardMemory(field: 'memory.used' | 'memory.free'): Promise<number | undefined> {
   const exe = nvidiaSmiExe()
   if (!fs.existsSync(exe)) return Promise.resolve(undefined)
   return new Promise(resolve =>
-    execFile(exe, ['--query-gpu=memory.used', '--format=csv,noheader,nounits'], { windowsHide: true, timeout: 10_000 }, (error, stdout) => {
-      const used = error ? [] : stdout.split(/\r?\n/).map(Number).filter(n => Number.isFinite(n) && n > 0)
-      resolve(used.length ? used.reduce((a, b) => a + b, 0) : undefined)
+    execFile(exe, [`--query-gpu=${field}`, '--format=csv,noheader,nounits'], { windowsHide: true, timeout: 10_000 }, (error, stdout) => {
+      const mb = error ? [] : stdout.split(/\r?\n/).filter(line => line.trim()).map(Number).filter(n => Number.isFinite(n) && n >= 0)
+      resolve(mb.length ? mb.reduce((a, b) => a + b, 0) : undefined)
     }),
   )
 }

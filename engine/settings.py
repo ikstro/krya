@@ -255,10 +255,12 @@ def clean_plan(plan: dict) -> dict:
         for feature in FEATURES:
             entry = entries.get(feature)
             known = ALL_MODELS.get(entry.get("model")) if isinstance(entry, dict) else None
-            if not known or device not in known.get("devices", DEVICES) or feature not in known.get("features", FEATURES):
+            runs_on = known.get("devices", DEVICES) if known else ()
+            # A processor-only model may stand in the card's plan: it runs on the processor beside the card's Whisper (jobs.py entry).
+            if not known or not (device in runs_on or "cpu" in runs_on) or feature not in known.get("features", FEATURES):
                 continue
             clean = {"model": entry["model"]}
-            if entry.get("compute") in COMPUTE[device]:
+            if device in runs_on and entry.get("compute") in COMPUTE[device]:
                 clean["compute"] = entry["compute"]
             if isinstance(entry.get("beam"), int) and 1 <= entry["beam"] <= 10:
                 clean["beam"] = entry["beam"]

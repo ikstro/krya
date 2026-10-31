@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { LlamaServer, LlamaTarget } from './llama'
 import { createLlmFiles, llmPaths, type LlmEngine, type LlmManifest, type LlmModel } from './llmfiles'
-import { createLlmTranslators, translatePrompt } from './llmtranslator'
+import { createLlmTranslators, ModelSlow, translatePrompt } from './llmtranslator'
 
 const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex')
 
@@ -137,6 +137,31 @@ describe('createLlmTranslators', () => {
       [0, '[Да.]', false],
       [1, '[Нет.]', false],
     ])
+  })
+
+  it('gives up with ModelSlow when a sentence takes longer than it may here, the other requests cancelled and nothing timed', async () => {
+    const { files, server, timed } = setup(() => 'vulkan')
+    await files.prepare('accurate', () => undefined)
+    const cancelled: string[] = []
+    // A model 100 ms a sentence; "Долго." a sentence the card is too busy for.
+    const slow = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          const { messages } = JSON.parse(String(init.body)) as { messages: { content: string }[] }
+          const text = messages[1]!.content
+          const timer = setTimeout(() => resolve(new Response(JSON.stringify({ choices: [{ message: { content: `[${text}]` } }] }))), text === 'Долго.' ? 5000 : 100)
+          init.signal?.addEventListener('abort', () => (clearTimeout(timer), cancelled.push(text), reject(init.signal?.reason)))
+        }),
+    )
+    const hurried = createLlmTranslators({ files, fetch: slow as unknown as typeof fetch, onTimed: (level, t) => timed.push({ level, ...t }) })
+    expect(await hurried.accurate.hurried(1)(['Да.'], 'ru', 'en')).toEqual(['[Да.]'])
+    const before = timed.length
+    const error = await hurried.accurate.hurried(0.3)(['Долго.', 'Да.', 'Нет.', 'Ещё.', 'И ещё.'], 'ru', 'en').catch(e => e)
+    expect(error).toBeInstanceOf(ModelSlow)
+    expect(error).toMatchObject({ model: 'accurate', limit: 0.3 })
+    expect(cancelled).toContain('Долго.')
+    expect(timed.length).toBe(before)
+    expect(server.run).toHaveBeenCalled()
   })
 
   it('a level on CUDA downloads its two zips into one folder and runs every layer on the card', async () => {

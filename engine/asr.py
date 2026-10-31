@@ -34,6 +34,11 @@ STYLE = {
 # A language Whisper hears that is neither of the ones expected (the person's own,
 # English) is taken only when it is this sure; else the likelier expected one.
 SURE_OTHER = 0.7
+# Speech heard as neither English nor an expected language is taken for English only when
+# English is this likely: told to expect English, Whisper writes any other speech as an
+# English translation (2026-10-31: Russian dictated with Ukrainian and English expected came
+# out in English). The person's own language is closer.
+PLAUSIBLE_ENGLISH = 0.2
 
 
 def _cuda_dirs() -> list[Path]:
@@ -77,6 +82,22 @@ def gpu() -> bool:
         return ctranslate2.get_cuda_device_count() > 0
     except Exception:
         return False
+
+
+def card_free_mb() -> int | None:
+    """The NVIDIA cards' free memory now, in MB, all together (nvidia-smi, which the driver puts in
+    System32); None when it cannot say."""
+    exe = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "nvidia-smi.exe"
+    if not exe.is_file():
+        return None
+    import subprocess
+
+    try:
+        out = subprocess.run([str(exe), "--query-gpu=memory.free", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    values = [int(v) for v in out.stdout.split() if v.isdigit()]
+    return sum(values) if values else None
 
 
 WHISPER_DIR = MODELS_DIR / "whisper"
@@ -162,6 +183,8 @@ def pick_language(probs: dict[str, float], expected: tuple[str, ...] | list[str]
     speech is a mistake there, however sure), so the likeliest of them, always."""
     top = max(probs, key=probs.get)
     pool = [c for c in expected if c in probs]
+    if top != "en" and top not in pool and probs.get("en", 0.0) < PLAUSIBLE_ENGLISH and any(c != "en" for c in pool):
+        pool = [c for c in pool if c != "en"]
     if strict:
         if pool:
             return max(pool, key=lambda c: probs[c])

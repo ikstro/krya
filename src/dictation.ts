@@ -31,6 +31,8 @@ const BADGE = { width: 360, min: 64, max: 180 }
 /** How soon after it shows, then how often while it is up, the badge asks whether Windows shows it too. */
 const LOOK_MS = { first: 500, every: 2000 }
 const NOTE_WAIT_MS = 5 * 60_000
+/** How long the badge says something of a phrase it typed (Fast translated it). */
+const NOTE_SHOWN_MS = 3000
 /** The most languages the engine weighs a phrase against. */
 const MOST_EXPECTED = 8
 
@@ -41,7 +43,8 @@ export type DictationOptions = {
   /** Types the text in the program in front, the clipboard kept. */
   paste: (text: string) => Promise<void>
   /** The text in English; `from` is the language the engine heard. */
-  toEnglish: (text: string, from: string) => Promise<string>
+  /** The phrase in English; `note`, said in the badge after it is typed (Fast translated it, the model too slow just now). */
+  toEnglish: (text: string, from: string) => Promise<{ text: string; note?: string }>
   /** Practice: a phrase spoken in English, shown checked (Check my English) instead of typed. */
   check: (text: string) => void
   /** The languages the person uses (their own, English, the others they named): a phrase is taken as one of them, never another. */
@@ -198,6 +201,7 @@ export class Dictation {
   private async typeHeard(mode: DictationMode, heard: string, language: string, sure: number): Promise<void> {
     if (this.state !== 'working') return
     let text = heard.trim()
+    let note: string | undefined
     if (!text) return this.fail('Nothing was heard')
     if (mode === 'check') {
       this.badge?.hide()
@@ -207,14 +211,17 @@ export class Dictation {
     try {
       // Whisper unsure, or a model that does not say (Parakeet): the language by the text's letters and words.
       const spoken = language && sure >= 0.5 ? language : this.o.languageOf(text)
-      if (mode === 'english' && spoken !== 'en') text = await this.o.toEnglish(text, spoken)
+      if (mode === 'english' && spoken !== 'en') ({ text, note } = await this.o.toEnglish(text, spoken))
     } catch (error) {
       return this.fail(`Could not translate: ${error instanceof Error ? error.message : String(error)}`)
     }
-    this.badge?.hide()
+    // Said in the badge a moment after it is typed; else the badge goes at once.
+    if (note) this.send({ type: 'dictationDone', text, note })
+    else this.badge?.hide()
     this.over()
     // A space after it, so the next phrase or word goes on without one typed by hand.
     await this.o.paste(`${text} `)
+    if (note) this.hideSoon(NOTE_SHOWN_MS)
     this.o.log.add(mode === 'english' ? { mode, text, heard } : { mode: 'type', text })
     this.o.logged()
   }

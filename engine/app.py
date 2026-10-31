@@ -202,6 +202,14 @@ def health(request: Request):
     return {**health_view(), **({"proof": auth.proof(TOKEN, nonce)} if auth.nonce_ok(nonce) else {})}
 
 
+def loaded_now() -> list[dict]:
+    """The models in memory now and where (Krya's Models page says what it holds of the card right now)."""
+    out = [{"model": t.name, "device": t.device} for t in (worker.transcriber, worker.dictator, worker.parakeet) if t.loaded]
+    if worker.diarizer.loaded:
+        out.append({"model": "speakers", "device": worker.diarizer.device})
+    return out
+
+
 def health_view() -> dict:
     s = settings.get()
     bench = s["bench"]
@@ -213,6 +221,7 @@ def health_view() -> dict:
         "whisper": whisper_status(s["model"]),
         "models": {"transcripts": planned("transcripts"), "dictation": planned("dictation")},
         "downloaded": [m for m in ALL_MODELS if asr.downloaded(m)],
+        "loaded": loaded_now(),
         "fallback": worker.fallback,
         "calibration": calibrator.status(),
         "bench": {"fingerprint": bench.get("fingerprint", ""), "runs": bench.get("runs", {})},

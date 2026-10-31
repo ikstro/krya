@@ -30,12 +30,14 @@ import vocab
 from asr import CudaFailed, Parakeet, Transcriber
 from bench import Bench
 from diarize import Diarizer, NeedsPart, NeedsToken
-from settings import CPU_DICTATION, Settings
+from settings import ALL_MODELS, CPU_DICTATION, Settings
 from store import Store
 
 log = logging.getLogger("krya.jobs")
 
-IDLE_UNLOAD = 600     # seconds without work before the models leave the GPU
+IDLE_UNLOAD = 600     # seconds without work before the processor's models are let go
+CARD_IDLE = 180       # the graphics card's sooner: it is the person's programs' (2026-10-31)
+CARD_HEADROOM_MB = 512  # what a model on the card leaves free for them, as Krya's src/resources.ts
 # Seconds without a phrase before dictation's model is let go: longer when there is memory to spare.
 DICTATION_IDLE = {"roomy": 1800, "tight": 600}
 YIELD_LONGEST = 60    # seconds a transcription on the processor waits at most for a dictation to finish
@@ -147,14 +149,32 @@ class Worker:
         device = device or ("cuda" if self.use_cuda() else "cpu")
         planned = self.settings["plan"].get(device, {}).get(feature)
         if planned:
-            return device, planned
+            # A processor-only model in the card's plan (Parakeet dictating, the card left to the person's programs) runs on the processor.
+            runs_on = ALL_MODELS.get(planned["model"], {}).get("devices") or [device]
+            return (device if device in runs_on else runs_on[0]), planned
         model = self.settings["model"]
         if feature == "dictation" and device == "cpu":
             model = CPU_DICTATION
         return device, {"model": model}
 
+    def _card_full(self, t: Transcriber, entry: dict) -> str | None:
+        """Why the card cannot take this model whole now (another program holds its memory), or None.
+        A model already on it holds its memory, and a card that cannot say is tried as before."""
+        if t.loaded and t.device == "cuda" and t.name == entry["model"]:
+            return None
+        need = ALL_MODELS.get(entry["model"], {}).get("vramMb", {}).get(entry.get("compute") or "float16", 0)
+        free = asr.card_free_mb()
+        if free is None or not need or free >= need + CARD_HEADROOM_MB:
+            return None
+        return f"the graphics card has {free} MB free, {entry['model']} needs {need}"
+
     def _load(self, t: Transcriber, feature: str) -> tuple[str, dict]:
         device, entry = self.entry(feature)
+        # The card is the person's programs' (2026-10-31): too little of it free, this one on the processor.
+        full = self._card_full(t, entry) if device == "cuda" else None
+        if full:
+            log.info("%s: %s; on the processor this time", feature, full)
+            device, entry = self.entry(feature, "cpu")
         try:
             t.load(entry["model"], device, entry.get("compute"), self.threads())
         except CudaFailed as error:
@@ -240,18 +260,29 @@ class Worker:
                 self.submit(row["id"])
         now = time.monotonic()
         keep = DICTATION_IDLE["roomy" if ram_gb() >= 12 else "tight"]
-        dictating = now - self.last_dictation < keep
-        if now - self.last_work > IDLE_UNLOAD:
-            # The transcripts' model goes, unless dictation shares it and is still in use.
-            shared = self.transcriber.loaded and self.transcriber.name == self.entry("dictation")[1]["model"]
-            if self.diarizer.loaded:
-                self.diarizer.unload()
-            if self.transcriber.loaded and not (shared and dictating):
-                self.transcriber.unload()
-            if not dictating and (self.dictator.loaded or self.parakeet.loaded):
-                self.dictator.unload()
-                self.parakeet.unload()
-                log.info("dictation's model unloaded after %d s without a phrase", keep)
+
+        # The graphics card is the person's (2026-10-31): a model on it goes after a few idle minutes, as llama.cpp's.
+        def resting(device: str | None) -> bool:
+            return now - self.last_work > (CARD_IDLE if device == "cuda" else IDLE_UNLOAD)
+
+        def dictating(device: str | None) -> bool:
+            return now - self.last_dictation < (CARD_IDLE if device == "cuda" else keep)
+
+        gone = []
+        if self.diarizer.loaded and resting(self.diarizer.device):
+            self.diarizer.unload()
+            gone.append("speakers")
+        # The transcripts' model goes, unless dictation shares it and is still in use.
+        shared = self.transcriber.loaded and self.transcriber.name == self.entry("dictation")[1]["model"]
+        if self.transcriber.loaded and resting(self.transcriber.device) and not (shared and dictating(self.transcriber.device)):
+            gone.append(f"{self.transcriber.name} ({self.transcriber.device})")
+            self.transcriber.unload()
+        for t in (self.dictator, self.parakeet):
+            if t.loaded and not dictating(t.device):
+                gone.append(f"{t.name} for dictation ({t.device})")
+                t.unload()
+        if gone:
+            log.info("unloaded after resting: %s", ", ".join(gone))
             gc.collect()
 
     def _process(self, id: str) -> None:

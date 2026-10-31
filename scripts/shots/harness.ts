@@ -40,7 +40,17 @@ function win(page: string, width: number, height: number, bg: string, query?: Re
 
 const send = (w: BrowserWindow, message: unknown) => w.webContents.send('to-view', message)
 async function shot(w: BrowserWindow, name: string): Promise<void> {
-  const image = await w.webContents.capturePage()
+  // An offscreen window resized just now may have no frame yet (UnknownVizError): a moment later it has.
+  let image: Electron.NativeImage | undefined
+  for (let attempt = 1; !image; attempt++) {
+    try {
+      image = await w.webContents.capturePage()
+    } catch (error) {
+      if (attempt >= 4) throw error
+      w.webContents.invalidate()
+      await sleep(400 * attempt)
+    }
+  }
   writeFileSync(`${OUT}/${name}.png`, image.toPNG())
   log.push(`${name} ${image.getSize().width}x${image.getSize().height}`)
 }
@@ -212,6 +222,17 @@ async function cardShots(theme: 'dark' | 'light'): Promise<void> {
   card(8, 'selection', { status: 'done', html: englishHtml(listenLines), translation: { status: 'ready', html: translationHtml(listenLines), drafts: 2 } }, 'accurate')
   await fit()
   await shot(w, `card-${theme}-listen-draft`)
+
+  // The model too slow just now (another program on the card): Fast's translation stands, the card says so and offers the model.
+  const busyPairs = [{ prefix: '', pairs: srcs.map((src, i) => ({ src, out: drafts[i]! })) }]
+  const busyResult = { status: 'ready', text: drafts.join(' '), from: 'ru', to: 'en', html: textOutHtml(busyPairs), sentences: srcs, busy: 'card' }
+  card(9, 'translate', { status: 'text', text: built, from: 'ru', to: 'en', languages: ['en', 'ru', 'uk', 'de'], mine: ['ru', 'en'], result: busyResult, canPaste: true }, 'accurate')
+  await fit()
+  await shot(w, `card-${theme}-busy`)
+  const listenFast = await translateLines(splitText(english, 'Russian'), 'Russian', fake)
+  card(10, 'selection', { status: 'done', html: englishHtml(listenFast), translation: { status: 'ready', html: translationHtml(listenFast), busy: 'processor' } }, 'accurate')
+  await fit()
+  await shot(w, `card-${theme}-listen-busy`)
 
   // Check my English: the owner's sentence checked, its mistakes marked and the main one said in Russian; then a right one.
   const mine = 'I want to learn English and can we made tutor option? I dictate or tupe in English and you show my my mistake.'

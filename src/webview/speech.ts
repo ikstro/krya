@@ -6,7 +6,8 @@
 
 import { cardText, mainCard, nvidiaCard, shortCpu } from '../hardware'
 import type { AppView, Choice, Feature, SpeechHealth, SpeechPart, SpeechResult } from '../protocol'
-import { BASIS_TEXT, estimateText, minutes, seconds, type FeaturePlan } from '../speechplan'
+import { LEVEL_NAMES } from '../settings'
+import { BASIS_TEXT, estimateText, minutes, MODELS, seconds, type FeaturePlan } from '../speechplan'
 import { el, icon } from './dom'
 import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, post, radioRow, recommended, row, seg, toggleKnob } from './ui'
 
@@ -287,7 +288,16 @@ export function speechChoiceRows(v: AppView, feature: Feature): HTMLElement[] {
   const out: HTMLElement[] = [
     radioRow(
       el('span', {}, 'Automatic', recommended()),
-      [`the most accurate model that is quick enough here: ${budget}`, p.pinned ? null : `uses ${p.chosen.label} now`],
+      [
+        `the most accurate model that is quick enough here: ${budget}`,
+        p.pinned ? null : `uses ${p.chosen.label} now`,
+        // Dictation leaves the card to the person's programs (speechplan.ts forDevice).
+        feature === 'dictation' && plan.device === 'cuda' && (p.chosen.device === 'cpu' || p.better?.device === 'cpu')
+          ? p.chosen.device === 'cpu'
+            ? 'on the processor: leaves the graphics card to your programs'
+            : `moves to ${p.better?.label} on the processor once it is downloaded, leaving the graphics card to your programs`
+          : null,
+      ],
       !p.pinned,
       () => pin(feature, ''),
     ),
@@ -400,7 +410,31 @@ export function computerRows(v: AppView): HTMLElement[] {
       running(v) && !t ? linkBtn(v.speech.test.agreed && plan.measured ? 'Test again' : 'Test', () => post({ type: 'testSpeech' }), v.speech.test.runs === 0 && !plan.dictation.choices.some(c => c.downloaded)) : null,
     ),
     ...(t ? [t] : []),
+    row('Right now', [heldNow(v)]),
   ]
+}
+
+/**
+ * What Krya holds right now, said plainly (resources.ts: Krya is a guest on
+ * the computer): each model in memory and where, the graphics card's first;
+ * a model leaves it after three idle minutes.
+ */
+export function heldNow(v: AppView): string {
+  const card: string[] = []
+  const processor: string[] = []
+  const l = v.llmLoaded
+  if (l) {
+    const mb = v.modelSpeed[l.model]?.card
+    ;(l.onCard ? card : processor).push(`${LEVEL_NAMES[l.model]}${l.onCard && mb ? ` (${size(mb)})` : ''}`)
+  }
+  for (const m of v.speech.health?.loaded ?? []) {
+    const name = m.model === 'speakers' ? 'Who spoke when' : (MODELS.find(c => c.name === m.model)?.label ?? m.model)
+    ;(m.device === 'cuda' ? card : processor).push(name)
+  }
+  if (!card.length && !processor.length) return 'nothing loaded: the graphics card and the memory are free for your programs'
+  return [card.length ? `on the graphics card: ${card.join(', ')}` : 'nothing on the graphics card', processor.length ? `on the processor: ${processor.join(', ')}` : null, card.length ? 'let go after 3 idle minutes' : null]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** What the graphics card does for speech, said plainly. */
