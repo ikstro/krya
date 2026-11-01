@@ -110,6 +110,7 @@ export class KeyboardHelper {
         ['note', s.noteKey],
         ['again', s.againKey],
         ['practice', s.practiceKey],
+        ['talk', s.talkKey],
         ['pause', s.pauseKey],
         ['window', s.windowKey],
       ] as const) {

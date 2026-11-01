@@ -18,7 +18,7 @@ import { DOUBLE_MS, HotkeyRecorder, hotkeyLabel, type Recorded } from '../hotkey
 import type { AppTab, AppView, DiffPart, Feature, KeyboardLayout, MistakeEntry, SavedWord, Settings, StorageId, StoragePart, StorageView, ToView, TutorHost } from '../protocol'
 import { LANGUAGES } from '../languages'
 import { translationAdvice, type LevelFit } from '../hardware'
-import { DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, RATES, type AppRule, type LlmModel, type ThemeMode, type TranslationLevel } from '../settings'
+import { DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, RATES, TALK_ABOUT_MAX, TALK_LEVEL_NAMES, TALK_LEVELS, type AppRule, type LlmModel, type TalkLevel, type ThemeMode, type TranslationLevel } from '../settings'
 import type { AppPart } from '../typist'
 import { parseEntry } from '../vocabulary'
 import { changesOf, wordDiff } from '../worddiff'
@@ -32,6 +32,8 @@ import { seconds } from '../speechplan'
 import { recommend, recommendedModels } from '../setup'
 import { resetSetup, setupNodes } from './setup'
 import { api, computerRows, DEVICE_NAMES, diarizationOf, engineRows, engineSettings, fault, forgetEngine, gpuRow, hasPart, installed, onRedraw, pickKb, preferRow, running, saveEngine, size as speechSize, speakerRows, speechChoiceRows, testOffer, toast } from './speech'
+import { TOPICS } from '../topics'
+import { withMarks } from './marks'
 import { backToList, enterTranscripts, leaveTranscripts, newRows, openTranscript, setTranscriptHooks, transcriptsBody, transcriptsCap } from './transcripts'
 
 declare global {
@@ -46,14 +48,15 @@ const RELEASES = 'https://github.com/ikstro/krya/releases'
 /** Where a problem report goes by email (report.ts writes to it). */
 const REPORT_EMAIL = 'ikstro.design@gmail.com'
 
-type Action = 'listen' | 'translate' | 'check' | 'screen' | 'dictate' | 'transcribe' | 'keyboard'
+type Action = 'talk' | 'listen' | 'translate' | 'check' | 'screen' | 'dictate' | 'transcribe' | 'keyboard'
 type Page = Action | 'words' | 'mistakes' | 'transcripts' | 'translations' | 'phrases' | 'vocabulary' | 'kept' | 'learned' | 'programs' | 'layouts' | 'settings' | 'models' | 'storage' | 'about' | 'report' | 'search'
 
-const ACTIONS: readonly Action[] = ['listen', 'translate', 'check', 'screen', 'dictate', 'transcribe', 'keyboard']
+const ACTIONS: readonly Action[] = ['talk', 'listen', 'translate', 'check', 'screen', 'dictate', 'transcribe', 'keyboard']
 const isAction = (name: Page): name is Action => (ACTIONS as readonly string[]).includes(name)
 /** Each action's icon, on its Home card and its page. */
-const ICONS: Record<Action, LucideName> = { listen: 'volume-2', translate: 'languages', check: 'graduation-cap', screen: 'scan', dictate: 'mic', transcribe: 'audio-lines', keyboard: 'keyboard' }
+const ICONS: Record<Action, LucideName> = { talk: 'bird', listen: 'volume-2', translate: 'languages', check: 'graduation-cap', screen: 'scan', dictate: 'mic', transcribe: 'audio-lines', keyboard: 'keyboard' }
 const TITLES: Record<Page, string> = {
+  talk: 'Talk',
   listen: 'Listen',
   translate: 'Translate',
   check: 'Check',
@@ -152,6 +155,8 @@ type KeyLine = { label: string; hotkey: string; chain?: 'listen' | 'translate' |
 /** The keys an action shows by its name, the person's own; the chain marks the three the moment lights. */
 function keyLines(action: Action, s: Settings): KeyLine[] {
   switch (action) {
+    case 'talk':
+      return [{ label: 'talk', hotkey: s.talkKey }]
     case 'listen':
       // One action: its key, else Ctrl+C twice.
       return [{ label: 'selection', hotkey: s.selectKey || (s.doubleCopy ? COPY_TWICE : ''), chain: 'listen' }]
@@ -222,6 +227,8 @@ function engineCap(v: AppView): string {
 function actionText(action: Action, v: AppView): { title: string; cap: string; desc: string } {
   const title = TITLES[action]
   switch (action) {
+    case 'talk':
+      return { title, cap: talkCap(v), desc: 'Speak English with the duck: it answers aloud, and your mistakes are marked.' }
     case 'listen':
       return { title, cap: naturalOn(v) ? 'natural voice' : 'Windows voice', desc: 'Reads English text aloud and shows its translation.' }
     case 'translate':
@@ -1060,6 +1067,8 @@ function bodyOf(v: AppView): HTMLElement[] {
   if (!open) return []
   if (open.sub) return SUBS[open.sub].body(v)
   switch (open.name) {
+    case 'talk':
+      return talkPage(v)
     case 'listen':
       return listenPage(v)
     case 'translate':
@@ -1263,6 +1272,7 @@ type KeyName =
   | 'noteKey'
   | 'againKey'
   | 'practiceKey'
+  | 'talkKey'
   | 'pauseKey'
   | 'windowKey'
 
@@ -1282,6 +1292,7 @@ const KEY_USE: Record<KeyName, string> = {
   noteKey: 'dictating a note',
   againKey: 'typing the last phrase again',
   practiceKey: 'checking what you say',
+  talkKey: 'talking to the duck',
   pauseKey: 'pausing Krya',
   windowKey: 'opening Krya',
 }
@@ -1599,7 +1610,13 @@ const MODEL_ABOUT: Record<LlmModel, string> = {
 /** Where a language model runs here and how long it takes, translating and checking: measured, once it has been, else expected. */
 function llmFitText(fit: LevelFit, speed: AppView['modelSpeed'][LlmModel]): string {
   if (!speed || (speed.sentence === undefined && speed.text === undefined)) return levelFitText(fit, speed)
-  const times = [speed.sentence !== undefined ? `${seconds(speed.sentence)} per sentence` : '', speed.text !== undefined ? `${seconds(speed.text)} per text checked` : ''].filter(Boolean).join(', ')
+  const times = [
+    speed.sentence !== undefined ? `${seconds(speed.sentence)} per sentence` : '',
+    speed.text !== undefined ? `${seconds(speed.text)} per text checked` : '',
+    speed.reply !== undefined ? `${seconds(speed.reply)} per answer in Talk` : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
   const slow = (speed.sentence ?? 0) > SLOW_SENTENCE_S || (speed.text ?? 0) > SLOW_CHECK_S
   return `${slow ? 'slow here' : 'here'}: ${times}, ${FIT_WHERE[fit.where]}${startText(speed.start)}`
 }
@@ -1873,6 +1890,112 @@ const TRY_CHECK = 'I want to learn English and can we made tutor option? I dicta
 /** A text slower than this to check reads as slow. */
 const SLOW_CHECK_S = 4
 
+// ---------------------------------------------------------------- talk
+// The talk itself and its history are the talk window's (webview/talk.ts);
+// this page holds its settings and opens it.
+
+/** A topic's name (topics.ts); an unknown one, as it was saved. */
+const topicTitle = (id: string) => TOPICS.find(t => t.id === id)?.title ?? id
+
+/** The Talk page and Home: what stands in the way, else what it does. */
+function talkCap(v: AppView): string {
+  if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== 'card') return 'needs a graphics card'
+  const t = v.models[v.settings.model]
+  if (t.status === 'downloading') return `downloading ${Math.round(t.progress * 100)}%`
+  if (t.status !== 'ready') return 'downloads once'
+  return `English · notes in ${v.settings.native}`
+}
+
+/** What keeps the talk window from working here, said on its page with what to do. */
+function talkNotice(v: AppView): HTMLElement | null {
+  const model = v.settings.model
+  const files = v.models[model]
+  if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== 'card')
+    return el('div', { class: 'row notice' }, lucide('cpu'), el('div', { class: 'l' }, 'Talk needs a graphics card with 4 GB of its own memory or more', el('small', {}, 'On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.')))
+  if (files.status !== 'ready') {
+    const fetching = files.status === 'downloading'
+    return el(
+      'div',
+      { class: 'row notice' },
+      lucide('download'),
+      el(
+        'div',
+        { class: 'l' },
+        `The duck needs its model: ${LEVEL_NAMES[model]}, ${speechSize(files.size)}`,
+        el('small', {}, fetching ? 'downloading; the talk starts once it is here' : files.status === 'failed' ? 'the download failed' : 'downloaded once; Check my English and Translate can use it too'),
+        fetching ? bar(files.progress) : null,
+      ),
+      fetching ? el('span', { class: 'pct' }, `${Math.round(files.progress * 100)}%`) : btn(files.status === 'failed' ? 'Try again' : 'Download', () => post({ type: 'useModel', model }), 'primary'),
+    )
+  }
+  if (!installed(v))
+    return el('div', { class: 'row notice' }, lucide('mic'), el('div', { class: 'l' }, 'Talk hears you through the speech engine', el('small', {}, 'Until it is here, type to the duck. Download it on the Dictate page; it is the same one Dictate uses.')), linkBtn('Open Dictate', () => go('dictate')))
+  return null
+}
+
+/** What the person types about themselves, saved a moment after they stop (and at once when they leave the field). */
+let aboutTimer: number | undefined
+
+function aboutField(value: string): HTMLTextAreaElement {
+  const field = el('textarea', {
+    class: 'field report about',
+    rows: 3,
+    maxlength: TALK_ABOUT_MAX,
+    placeholder: 'A few words the duck can talk about: your name, your work, what you like. "I am Alex, a designer. I love hiking and progressive metal."',
+    'aria-label': 'About you',
+    'data-live': 'about',
+  })
+  field.value = value
+  const store = () => {
+    window.clearTimeout(aboutTimer)
+    aboutTimer = undefined
+    if (field.value !== view?.settings.talkAbout) save({ talkAbout: field.value })
+  }
+  field.addEventListener('input', () => {
+    window.clearTimeout(aboutTimer)
+    aboutTimer = window.setTimeout(store, 600)
+  })
+  field.addEventListener('blur', () => aboutTimer !== undefined && store())
+  return field
+}
+
+/** The Talk page: the window's button, then its settings. */
+function talkPage(v: AppView): HTMLElement[] {
+  const s = v.settings
+  const going = v.talk
+  const level = TALK_LEVEL_NAMES[s.talkLevel]
+  const keyNote = !installed(v) ? 'needs the speech engine (see Dictate)' : s.talkKey ? `from any program: ${usage(s.talkKey)} opens the talk and listens, again sends` : 'one key from any program: it opens the talk and listens, again sends'
+  return [
+    el(
+      'div',
+      { class: 'row notice talk-open' },
+      tile(36),
+      el('div', { class: 'l' }, 'Talk to the duck', el('small', {}, going ? `in its own window · going on: ${topicTitle(going.topic)}, ${going.lines} lines` : 'in its own window: speak English, the duck answers aloud, your mistakes are marked')),
+      btn([lucide('message-square'), 'Open Talk'], () => post({ type: 'talkOpen' }), 'primary'),
+    ),
+    talkNotice(v),
+    grp('You'),
+    el('div', { class: 'row add' }, el('div', { class: 'l' }, 'About you'), aboutField(s.talkAbout), el('small', {}, 'The duck reads it in every talk, to ask about your life and work. Kept only on this computer.')),
+    row(
+      'Your English level',
+      [`${level.name}: the duck speaks in ${level.note}`],
+      seg(s.talkLevel, TALK_LEVELS.map(l => [l, l] as [TalkLevel, string]), talkLevel => save({ talkLevel }), true),
+    ),
+    grp('Keys'),
+    keyRow('talkKey', 'Talk to the duck', keyNote, !v.speech.keysOk.talk, 'bird'),
+    fixedKey('In the talk window: talk, then send', 'Space'),
+    fixedKey('Drop the line, or quiet the duck', 'Escape'),
+    grp('The duck'),
+    toggleCard('volume-2', 'Read the duck aloud', s.talkAloud, talkAloud => save({ talkAloud }), 'its answers are read as they come; a tap on a line reads it again'),
+    toggleCard('pin', 'Keep the talk on top', s.talkOnTop, talkOnTop => save({ talkOnTop }), 'over other windows, as with the pin in its bar'),
+    navCard('boxes', 'Model', 'answers and finds your mistakes; the same one as Check my English', checkValue(v), () => go('models', 'forCheck'), 'models'),
+    navCard('volume-2', 'Voice', 'the duck speaks with the Listen voice', voiceValue(v), () => go('models', 'forVoice'), 'models'),
+    grp('Kept'),
+    aside('history', 'Your talks are in the talk window: its history button lists them, to go on with one or delete it. Kept 30 days on this computer, 50 at most.'),
+    navCard('list-checks', 'Mistakes', 'each line of yours with a mistake is kept there', v.mistakes.length ? String(v.mistakes.length) : 'none', () => go('mistakes'), 'mistakes'),
+  ].filter((n): n is HTMLElement => !!n)
+}
+
 /** What the checker does, for the bar and Home: the language it checks, or its model's download. */
 function checkCap(v: AppView): string {
   const t = v.models[v.settings.model]
@@ -1906,15 +2029,6 @@ function partsOf(e: MistakeEntry): DiffPart[] {
   let parts = diffs.get(key)
   if (!parts) diffs.set(key, (parts = wordDiff(e.text, e.corrected)))
   return parts
-}
-
-/** A text with its mistakes, as the card marks them: struck out, then set right. */
-function withMarks(parts: readonly DiffPart[]): Node[] {
-  return parts.flatMap((p, i) =>
-    p.kind === 'same'
-      ? [document.createTextNode(p.text)]
-      : [el(p.kind, {}, p.text), ...(p.kind === 'del' && parts[i + 1]?.kind === 'ins' ? [document.createTextNode(' ')] : [])],
-  )
 }
 
 /** One change on its own: "made → make", "+ a", "about" struck out. */
@@ -3039,6 +3153,8 @@ function restartRow(v: AppView): HTMLElement {
 
 /** A place asked for by the tray or a second start; Home is a fresh opening, with no way back. */
 function showTab(tab: AppTab): void {
+  // The talk window's model: the choice of the model Check my English and the duck use.
+  if (tab === 'checkModel') return go('models', 'forCheck')
   if (tab !== 'home' && tab !== 'howto') {
     go(tab)
     // From the tray's Your words: the word is typed at once.
@@ -3057,7 +3173,7 @@ function start(v: AppView): void {
   const asked = askedTab && askedTab !== 'home' && askedTab !== 'howto' ? askedTab : undefined
   // A place asked for wins; the moment waits for an opening that starts at Home.
   if (askedTranscript) return openTranscript(askedTranscript)
-  if (asked) return go(asked)
+  if (asked) return showTab(asked)
   if (FROZEN_T !== undefined) return playMoment(false, FROZEN_T)
   if (v.settings.introSeen) return
   if (reduced.matches) return save({ introSeen: true })

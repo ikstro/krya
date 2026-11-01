@@ -9,6 +9,7 @@ describe('backup', () => {
     learned: { fixedOnce: [], alwaysFix: [{ word: 'ghbdtn', lang: 'ru' }], myWords: [{ word: 'Krya', lang: 'en' }] },
     translations: [],
     dictation: [{ at: '2026-10-30T10:00:00.000Z', mode: 'type', text: 'Привет' }],
+    talks: [{ id: 'a1', topic: 'cafe', started: '2026-11-01T10:00:00.000Z', ended: '2026-11-01T10:05:00.000Z', turns: [] }],
   }
 
   it('reads back what it wrote, and says what it holds', () => {
@@ -16,7 +17,7 @@ describe('backup', () => {
     expect(file).toMatchObject({ kind: 'krya-backup', version: '0.10.2', exported: '2026-10-30T12:00:00.000Z' })
     const read = readBackup(file)
     expect(read).toEqual({ settings: { theme: 'dark' }, ...parts })
-    expect(backupSummary(read)).toBe('settings, 1 word, 1 mistake, 2 learned words, 1 dictated phrase')
+    expect(backupSummary(read)).toBe('settings, 1 word, 1 mistake, 2 learned words, 1 dictated phrase, 1 talk')
   })
 
   it('takes a settings file from before backups as the settings alone', () => {

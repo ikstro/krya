@@ -9,6 +9,8 @@ import type { LlmModel, Settings, TranslationLevel } from './settings'
 import type { SpeechPackState, SpeechPart } from './speechpack'
 import type { Choice, Feature, FeaturePlan, SpeechPlan } from './speechplan'
 import type { SpeechHealth, SpeechResult, SpeechServiceState } from './speechservice'
+import type { TalkState, TalkTurn } from './talk'
+import type { TalkRecord, TalkSummary } from './talks'
 import type { TranslationEntry } from './translationlog'
 import type { TranslatorState } from './translator'
 import type { MistakeEntry } from './mistakes'
@@ -19,7 +21,7 @@ import type { SavedWord } from './words'
 /** The word dictionary for the person's language: here, none for the language, coming, failed, or not downloaded yet. */
 export type DictionaryStatus = 'ready' | 'none' | 'downloading' | 'failed' | 'absent'
 
-export type { Choice, DeviceProfile, DictationEntry, DiffPart, Feature, FeaturePlan, Gloss, MistakeEntry, NaturalState, SavedWord, Settings, SpeechHealth, SpeechPackState, SpeechPart, SpeechPlan, SpeechResult, WordTime }
+export type { Choice, DeviceProfile, DictationEntry, DiffPart, Feature, FeaturePlan, Gloss, MistakeEntry, NaturalState, SavedWord, Settings, SpeechHealth, SpeechPackState, SpeechPart, SpeechPlan, SpeechResult, TalkRecord, TalkSummary, TalkTurn, WordTime }
 
 /**
  * What the card is for, and where the text came from. To listen to it, in
@@ -125,8 +127,8 @@ export type WordHintMode = 'shift' | 'hover' | 'off'
 
 export type ViewConfig = { voice: string; rate: number; wordHint: WordHintMode; rareWords: boolean; oneAtATime: boolean }
 
-/** The app window's places: Home (always first), its action pages, and Words, Mistakes, Settings, About; 'howto' is the old name of Home. */
-export type AppTab = 'home' | 'listen' | 'translate' | 'check' | 'screen' | 'dictate' | 'transcribe' | 'keyboard' | 'words' | 'mistakes' | 'transcripts' | 'vocabulary' | 'kept' | 'settings' | 'models' | 'storage' | 'about' | 'report' | 'howto'
+/** The app window's places: Home (always first), its action pages, and Words, Mistakes, Settings, About; 'checkModel' is Models › Check my English; 'howto' is the old name of Home. */
+export type AppTab = 'home' | 'talk' | 'listen' | 'translate' | 'check' | 'screen' | 'dictate' | 'transcribe' | 'keyboard' | 'words' | 'mistakes' | 'transcripts' | 'vocabulary' | 'kept' | 'settings' | 'models' | 'checkModel' | 'storage' | 'about' | 'report' | 'howto'
 
 export type HostVoice = { name: string; lang: string }
 
@@ -171,8 +173,43 @@ export type SpeechView = {
   /** The speed test: offered now (the person has not agreed, and something is still unmeasured), agreed once, models it would measure. */
   test: { offer: boolean; agreed: boolean; runs: number }
   /** The dictation keys are registered (false: another program holds one). */
-  keysOk: { dictate: boolean; note: boolean; english: boolean; again: boolean; practice: boolean }
+  keysOk: { dictate: boolean; note: boolean; english: boolean; again: boolean; practice: boolean; talk: boolean }
 }
+
+/**
+ * What the talk window draws (webview/talk.ts): the talk (talk.ts), the
+ * settings it reads, and what stands in its way. `engine`: the speech engine
+ * that hears the person; `model`: the local model that checks and answers,
+ * named; `needsCard`: this computer's graphics card cannot hold Accurate
+ * whole, so no talk is offered; `slow`: the model picked runs partly on the
+ * card or on the processor here; `busy`: another program holds the card or
+ * the processor now; `keyTaken`: the Talk key could not be registered;
+ * `talks`: the history panel's list; `maximized`: the window fills the screen.
+ */
+export type TalkWindowView = {
+  talk: TalkState
+  talks: TalksView
+  maximized: boolean
+  talkKey: string
+  talkAloud: boolean
+  onTop: boolean
+  voice: string
+  rate: number
+  wordHint: Settings['wordHint']
+  rareWords: boolean
+  native: string
+  natural: NaturalState['status']
+  engine: 'absent' | 'starting' | 'ready'
+  /** `full`: the model's own name ("Gemma 4 E4B"), for the bar's tooltip. */
+  model: { name: string; full: string } & TranslatorState
+  needsCard: boolean
+  slow: boolean
+  busy?: BusyPart
+  keyTaken: boolean
+}
+
+/** The talks (talks.ts): the one going on and those put away, newest first, for the talk window's history. */
+export type TalksView = { current?: TalkSummary; past: TalkSummary[] }
 
 /** Everything the app window shows, sent whole whenever any of it changes. */
 export type AppView = {
@@ -220,16 +257,19 @@ export type AppView = {
   models: Record<LlmModel, TranslatorState>
   /**
    * Seconds a local model takes here, each once measured a few times: a
-   * sentence translated, a text checked, and loading the model after it was
-   * let go; `card`: the MB of the graphics card it holds while loaded.
+   * sentence translated, a text checked, the duck's answer in Talk, and
+   * loading the model after it was let go; `card`: the MB of the graphics
+   * card it holds while loaded.
    */
-  modelSpeed: Partial<Record<LlmModel, { sentence?: number; text?: number; start?: number; card?: number }>>
+  modelSpeed: Partial<Record<LlmModel, { sentence?: number; text?: number; reply?: number; start?: number; card?: number }>>
   /** The local model loaded now, and whether on the graphics card (Models › This computer says what Krya holds right now). */
   llmLoaded?: { model: LlmModel; onCard: boolean }
   /** The word dictionary for the person's language. */
   dictionary: { status: DictionaryStatus }
   /** The mistakes checked texts had, newest first (mistakes.ts). */
   mistakes: MistakeEntry[]
+  /** The talk going on, for the Talk page's line. */
+  talk?: TalkSummary
   /** What Krya keeps on this computer, measured once the Storage page was opened. */
   storage?: StorageView
 }
@@ -252,7 +292,7 @@ export type OldFolder = { dir: string; why?: string; moving: boolean }
 /** What the tray's panel shows, sent whole whenever any of it changes. */
 export type TrayView = {
   /** The keys of its commands, hotkey.ts notation ("Control+C*2" for Ctrl+C twice); empty when there is none. */
-  keys: { listenCopied: string; typeToTranslate: string; checkEnglish: string; snipListen: string; snipTranslate: string; switch: string }
+  keys: { listenCopied: string; typeToTranslate: string; checkEnglish: string; talk: string; snipListen: string; snipTranslate: string; switch: string }
   /** The quick settings' switches: fixing as one types, the switch key, the badge, the layout in the tray's icon, Ctrl+C twice, Krya paused. */
   autoFix: boolean
   switchOn: boolean
@@ -273,7 +313,7 @@ export type TrayView = {
 }
 
 /** What the tray's panel can do; each puts the panel away first. */
-export type TrayCommand = 'listenCopied' | 'translateCopied' | 'typeToTranslate' | 'checkEnglish' | 'listenScreen' | 'translateScreen' | 'note' | 'transcripts' | 'vocabulary' | 'kept' | 'settings' | 'report' | 'open' | 'quit'
+export type TrayCommand = 'listenCopied' | 'translateCopied' | 'typeToTranslate' | 'checkEnglish' | 'talk' | 'listenScreen' | 'translateScreen' | 'note' | 'transcripts' | 'vocabulary' | 'kept' | 'settings' | 'report' | 'open' | 'quit'
 
 /**
  * Why a word has no meanings: no dictionary exists for the person's language,
@@ -311,6 +351,10 @@ export type ToView =
   | { type: 'openTranscript'; id: string }
   /** A report was made at `file` for the person to attach, or could not be. */
   | { type: 'reported'; file?: string; error?: string }
+  /** The Talk key, pressed anywhere: the talk window listens, sends what was said, or stops the duck and listens; `hidden`: the window was closed or minimized, the microphone and the voice stop. */
+  | { type: 'talk'; command: 'toggle' | 'hidden' }
+  /** The talk window's snapshot. */
+  | { type: 'talkView'; view: TalkWindowView }
   /**
    * The dictation badge: record, then stop (and type it, or keep it as a note), or throw away.
    * `session`: the engine's dictation heard while spoken (engine/stream.py), when the engine has them;
@@ -377,8 +421,26 @@ export type ToHost =
   | { type: 'openLink'; url: string }
   /** The app window's own buttons: it has no Windows frame. Close hides it, as Krya lives in the tray. */
   | { type: 'window'; action: 'minimize' | 'maximize' | 'close' }
-  /** The Transcribe page's microphone recording began or ended: the tray shows it. */
+  /** The Transcribe page's microphone recording (or Talk's listening) began or ended: the tray shows it. */
   | { type: 'micRecording'; on: boolean }
+  /** Talk (talk.ts), from the talk window: a new talk on a topic, a line said or typed, the duck's answer under way dropped, New talk; `talkListen`: it began listening, so the model loads meanwhile. */
+  | { type: 'talkStart'; topic: string }
+  | { type: 'talkSay'; text: string }
+  | { type: 'talkInterrupt' }
+  | { type: 'talkClear' }
+  | { type: 'talkListen' }
+  /**
+   * The talk window's page is ready for its snapshot; its pin; its bar's buttons: closed, maximized or put back, its settings (the app
+   * window's Talk page) or its model (Models › Check my English) asked for; from its history, a talk put away continued or removed, every one forgotten.
+   */
+  | { type: 'talkReady' }
+  | { type: 'talkPin'; on: boolean }
+  | { type: 'talkWindow'; action: 'close' | 'maximize' | 'settings' | 'model' }
+  | { type: 'talkContinue'; id: string }
+  | { type: 'talkDelete'; id: string }
+  | { type: 'talksClear' }
+  /** From the app window's Talk page: open the talk window. */
+  | { type: 'talkOpen' }
   // The tray's panel.
   | { type: 'trayReady' }
   /** The panel's content is this tall, in CSS pixels; the window follows. */

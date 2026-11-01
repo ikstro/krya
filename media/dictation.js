@@ -293,6 +293,60 @@
     return error instanceof Error ? error.message : String(error);
   }
 
+  // src/webview/wave.ts
+  var WAVE = 60;
+  var STEP = 3;
+  var BAR = 2;
+  var Wave = class {
+    canvas = el("canvas", { class: "wave" });
+    levels = new Array(WAVE).fill(0);
+    frame;
+    /** New levels came in since the wave was last drawn. */
+    fresh = true;
+    /** How loud the next 50 ms were, 0…1. */
+    hear(level) {
+      this.levels.push(level);
+      if (this.levels.length > WAVE) this.levels.shift();
+      this.fresh = true;
+    }
+    /** Drawn at each frame from now on, flat to begin with: nothing of the last phrase's sound. */
+    start() {
+      this.stop();
+      this.levels.fill(0);
+      this.fresh = true;
+      this.frame = requestAnimationFrame(() => this.draw());
+    }
+    stop() {
+      if (this.frame !== void 0) cancelAnimationFrame(this.frame);
+      this.frame = void 0;
+    }
+    draw() {
+      this.frame = requestAnimationFrame(() => this.draw());
+      const wave2 = this.canvas;
+      const ratio = devicePixelRatio || 1;
+      const w = wave2.clientWidth;
+      const h = wave2.clientHeight;
+      const sized = wave2.width === Math.round(w * ratio) && wave2.height === Math.round(h * ratio);
+      if (!this.fresh && sized) return;
+      this.fresh = false;
+      if (!sized) {
+        wave2.width = Math.round(w * ratio);
+        wave2.height = Math.round(h * ratio);
+      }
+      const c = wave2.getContext("2d");
+      if (!c) return;
+      c.setTransform(ratio, 0, 0, ratio, 0, 0);
+      c.clearRect(0, 0, w, h);
+      c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--mark").trim();
+      c.globalAlpha = 0.7;
+      const shown = Math.min(WAVE, Math.floor(w / STEP));
+      for (let i = 0; i < shown; i++) {
+        const bar = Math.max(2, Math.round(this.levels[WAVE - shown + i] * h));
+        c.fillRect(w - (shown - i) * STEP, (h - bar) / 2, BAR, bar);
+      }
+    }
+  };
+
   // src/webview/dictation.ts
   var host = window.tutorHost;
   var root = document.getElementById("badge");
@@ -340,69 +394,31 @@
     dot.classList.toggle("behind", status.pending > BEHIND);
     dot.title = status.pending > BEHIND ? "catching up" : "";
   }
-  var WAVE = 60;
-  var STEP = 3;
-  var BAR = 2;
-  var levels = new Array(WAVE).fill(0);
   var wave;
-  var frame;
-  var fresh = false;
-  function hear(level) {
-    levels.push(level);
-    if (levels.length > WAVE) levels.shift();
-    fresh = true;
-  }
-  function draw() {
-    frame = requestAnimationFrame(draw);
-    if (!wave) return;
-    const ratio = devicePixelRatio || 1;
-    const w = wave.clientWidth;
-    const h = wave.clientHeight;
-    const sized = wave.width === Math.round(w * ratio) && wave.height === Math.round(h * ratio);
-    if (!fresh && sized) return;
-    fresh = false;
-    if (!sized) {
-      wave.width = Math.round(w * ratio);
-      wave.height = Math.round(h * ratio);
-    }
-    const c = wave.getContext("2d");
-    if (!c) return;
-    c.setTransform(ratio, 0, 0, ratio, 0, 0);
-    c.clearRect(0, 0, w, h);
-    c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--mark").trim();
-    c.globalAlpha = 0.7;
-    const shown = Math.min(WAVE, Math.floor(w / STEP));
-    for (let i = 0; i < shown; i++) {
-      const bar = Math.max(2, Math.round(levels[WAVE - shown + i] * h));
-      c.fillRect(w - (shown - i) * STEP, (h - bar) / 2, BAR, bar);
-    }
-  }
   function quiet() {
     clearInterval(timer);
     timer = void 0;
-    if (frame !== void 0) cancelAnimationFrame(frame);
-    frame = void 0;
+    wave?.stop();
     wave = void 0;
   }
   function recording() {
     quiet();
     time = el("span", { class: "time" }, "0:00");
-    wave = el("canvas", { class: "wave" });
+    const heard = new Wave();
+    wave = heard;
     dot = el("span", { class: "dot" });
     words = wordsOf("", "Listening\u2026");
     said = "";
     fetching = false;
-    show("rec", words, dot, el("span", { class: "what" }, TITLES[mode]), time, wave);
+    show("rec", words, dot, el("span", { class: "what" }, TITLES[mode]), time, heard.canvas);
     postHeight(true);
-    levels.fill(0);
-    fresh = true;
     timer = window.setInterval(() => {
       if (!recorder || !time) return;
       if (!fetching) time.textContent = clock(recorder.seconds);
-      if (recorder instanceof StreamRecorder) for (const level of recorder.levels()) hear(level);
-      else hear(recorder.level());
+      if (recorder instanceof StreamRecorder) for (const level of recorder.levels()) heard.hear(level);
+      else heard.hear(recorder.level());
     }, 50);
-    frame = requestAnimationFrame(draw);
+    heard.start();
   }
   async function start(next, session, expected = []) {
     mode = next;

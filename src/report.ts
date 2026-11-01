@@ -59,13 +59,15 @@ export function cleanText(text: string, names: Names): string {
   return out
 }
 
-/** The settings with the person's own lists counted: what was kept as typed, the words to spell, the programs. */
+/** The settings with the person's own lists counted (what was kept as typed, the words to spell, the programs), what they told the duck only measured. */
 export function settingsSummary(settings: object): Record<string, unknown> {
   const out: Record<string, unknown> = { ...settings }
   for (const key of OWN_LISTS) {
     const list = out[key]
     if (Array.isArray(list)) out[key] = `${list.length} not shown`
   }
+  // What they told the duck about themselves: only how long it is.
+  if (typeof out.talkAbout === 'string') out.talkAbout = `${out.talkAbout.length} characters, not shown`
   return out
 }
 

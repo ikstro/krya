@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { englishHtml, textOutHtml, translationHtml } from '../../src/render'
 import { splitText, translateLines, translatePairs, type Translate } from '../../src/translate'
 import { wordDiff } from '../../src/worddiff'
-import { appView, trayView } from './view'
+import { appView, CAFE, talkWindowView, trayView } from './view'
 
 import { resolve } from 'node:path'
 
@@ -69,7 +69,7 @@ const colors = () => (nativeTheme.shouldUseDarkColors ? { bg: '#202020', surface
 // The pages' answers from "main": copies, Chrome, the speech engine's streaming session.
 /** Seconds of sound the engine has yet to recognize, as its answer to each chunk says (the amber dot past 4). */
 let pending = 0
-const heard = 'Привет, это проверка диктовки: бейдж показывает фразу целиком, пока её слышит движок'
+let heard = 'Привет, это проверка диктовки: бейдж показывает фразу целиком, пока её слышит движок'
 ipcMain.handle('host-call', async (_e, r: { call: string; method?: string; route?: string }) => {
   log.push(`host-call ${JSON.stringify(r).slice(0, 120)}`)
   if (r.call === 'speech') {
@@ -293,6 +293,7 @@ async function appShots(theme: 'dark' | 'light', narrow = false): Promise<void> 
     await page('settings')
     await page('models')
   } else if (theme === 'dark') {
+    await page('talk')
     await page('listen')
     await page('translate')
     await page('check')
@@ -351,6 +352,7 @@ async function appShots(theme: 'dark' | 'light', narrow = false): Promise<void> 
     await home()
     await page('transcribe', ['speakers'], 'tr-switch')
   } else {
+    await page('talk')
     await page('transcribe', ['meet'])
     await page('keyboard', ['fixing'])
     await focused('kept')
@@ -457,6 +459,75 @@ async function trayShots(theme: 'dark' | 'light'): Promise<void> {
   w.destroy()
 }
 
+// ---------------------------------------------------------------- the talk window
+
+async function talkShots(theme: 'dark' | 'light'): Promise<void> {
+  nativeTheme.themeSource = theme
+  const w = win('talk.html', 440, 640, colors().bg)
+  await new Promise<void>(r => w.webContents.once('did-finish-load', () => r()))
+  await sleep(300)
+  send(w, { type: 'common', words: readFileSync(`${ROOT}/media/common-en.txt`, 'utf8').split(/\r?\n/).filter(Boolean) })
+  const tag = (n: string) => `talk-${theme}-${n}`
+  const view = async (over: Parameters<typeof talkWindowView>[0], name: string, wait = 400) => {
+    send(w, { type: 'talkView', view: talkWindowView(over) })
+    await sleep(wait)
+    await shot(w, tag(name))
+  }
+  // The café talk, at its last line.
+  await view({}, 'talk', 600)
+  // The duck thinking of an answer, the line just said being checked.
+  const asked: typeof CAFE = [...CAFE, { id: 8, who: 'me', text: 'Not really, it is my first time here.', checking: true }]
+  await view({ talk: { status: 'thinking', topic: 'cafe', turns: asked } }, 'thinking')
+  // Listening: the words heard so far in the dashed line, the wave.
+  heard = 'I would like to try the cheesecake too, if you still have it'
+  log.push(`talk mic: ${await click(w, '.mic')}`)
+  await sleep(1800)
+  await shot(w, tag('listening'))
+  await esc(w)
+  await sleep(300)
+  // A long talk scrolled up: a new line shows the ↓.
+  const long = [...CAFE, ...CAFE.map(t => ({ ...t, id: t.id + 7 })), ...CAFE.map(t => ({ ...t, id: t.id + 14 }))]
+  await view({ talk: { status: 'idle', topic: 'cafe', turns: long } }, 'long')
+  await js(w, `document.querySelector('.feed').scrollTo(0, 0), 'ok'`)
+  await sleep(200)
+  await view({ talk: { status: 'idle', topic: 'cafe', turns: [...long, { id: 22, who: 'duck', text: 'And one more thing: we close at nine tonight.' }] } }, 'scrolled')
+  // A new talk: the topics; pinned on top.
+  await view({ talk: { status: 'idle', topic: 'free', turns: [] }, onTop: true }, 'empty')
+  // No speech engine yet: typing only.
+  await view({ talk: { status: 'idle', topic: 'free', turns: [] }, engine: 'absent' }, 'no-engine')
+  // A computer whose graphics card cannot hold the model: no talk offered.
+  await view({ talk: { status: 'idle', topic: 'free', turns: [] }, needsCard: true }, 'needs-card')
+  // The model on its way.
+  await view({ talk: { status: 'idle', topic: 'free', turns: [] }, model: { name: 'Accurate', full: 'Gemma 4 E4B', status: 'downloading', progress: 0.37, size: 5155 } }, 'downloading')
+  // The history over a narrow talk: the clock in the bar opens it; Esc closes it.
+  await view({}, 'talk-again', 300)
+  log.push(`talk history: ${await click(w, '.bar .ib[aria-label="Your talks"]')}`)
+  await sleep(300)
+  log.push(`talk history open: ${await js(w, `document.querySelector('.talk').classList.contains('history-open')`)}`)
+  await shot(w, tag('history'))
+  // Clear all asks once more.
+  log.push(`talk clear: ${await click(w, '.hclear')}`)
+  await sleep(200)
+  await shot(w, tag('history-sure'))
+  await esc(w)
+  await sleep(300)
+  log.push(`talk history after esc: ${await js(w, `document.querySelector('.talk').classList.contains('history-open')`)}`)
+  // A wide window: the history beside the talk; maximized: the talk in its column.
+  w.setSize(980, 680)
+  await sleep(500)
+  await view({}, 'wide', 400)
+  w.setSize(1400, 860)
+  await sleep(500)
+  await view({ maximized: true }, 'maximized', 400)
+  log.push(`talk hide history: ${await click(w, '.bar .ib[aria-label="Your talks"]')}`)
+  await sleep(300)
+  await shot(w, tag('maximized-alone'))
+  // Back as it was for the next run: the history beside a wide talk.
+  await click(w, '.bar .ib[aria-label="Your talks"]')
+  heard = 'Привет, это проверка диктовки: бейдж показывает фразу целиком, пока её слышит движок'
+  w.destroy()
+}
+
 async function badgeShots(theme: 'dark' | 'light'): Promise<void> {
   nativeTheme.themeSource = theme
   // A slate desktop behind the see-through window: the pill's round corners show against it, with no square behind them.
@@ -509,6 +580,8 @@ app.whenReady().then(async () => {
       await trayShots('light')
       await badgeShots('dark')
       await badgeShots('light')
+      await talkShots('dark')
+      await talkShots('light')
     }
   } catch (error) {
     log.push(`ERROR ${error instanceof Error ? error.stack ?? error.message : String(error)}`)

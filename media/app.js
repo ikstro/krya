@@ -272,6 +272,13 @@
 
   // src/settings.ts
   var RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
+  var TALK_LEVELS = ["A2", "B1", "B2"];
+  var TALK_LEVEL_NAMES = {
+    A2: { name: "Elementary", note: "short sentences of everyday words, simple tenses, no idioms" },
+    B1: { name: "Intermediate", note: "everyday words and common phrasal verbs; a rarer word explained" },
+    B2: { name: "Upper-intermediate", note: "natural speech: longer sentences, phrasal verbs, an idiom now and then" }
+  };
+  var TALK_ABOUT_MAX = 500;
   var LEVEL_NAMES = { fast: "Fast", accurate: "Accurate", most: "Most accurate" };
   var DEFAULTS = {
     native: "Russian",
@@ -319,6 +326,12 @@
     noteKey: "Control+Alt+N",
     againKey: "",
     practiceKey: "",
+    talkKey: "",
+    talkAloud: true,
+    talkOnTop: false,
+    talkLevel: "B1",
+    talkAbout: "",
+    talkBounds: null,
     dictationBadge: { dx: 0, dy: 0 },
     vocabulary: [],
     translationLevel: "fast",
@@ -556,6 +569,12 @@
     "house": '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /> <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
     "info": '<circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" />',
     "settings": '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" />',
+    "bird": '<path d="M16 7h.01" /> <path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 20" /> <path d="m20 7 2 .5-2 .5" /> <path d="M10 18v3" /> <path d="M14 17.75V21" /> <path d="M7 18a6 6 0 0 0 3.84-10.61" />',
+    "send-horizontal": '<path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z" /> <path d="M6 12h16" />',
+    "mic-off": '<path d="M12 19v3" /> <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" /> <path d="M16.95 16.95A7 7 0 0 1 5 12v-2" /> <path d="M18.89 13.23A7 7 0 0 0 19 12v-2" /> <path d="m2 2 20 20" /> <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />',
+    "pin": '<path d="M12 17v5" /> <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />',
+    "square-pen": '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /> <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />',
+    "history": '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /> <path d="M12 7v5l4 2" />',
     "list-ordered": '<path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" />',
     "message-square-text": '<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" /> <path d="M7 11h10" /> <path d="M7 15h6" /> <path d="M7 7h8" />',
     "arrow-left": '<path d="m12 19-7-7 7-7" /> <path d="M19 12H5" />',
@@ -1935,6 +1954,61 @@
     return row2;
   }
 
+  // src/topics.ts
+  var TOPICS = [
+    {
+      id: "free",
+      title: "Free talk",
+      role: "This is a free talk about anything.",
+      plan: "Follow the learner: their questions come first. Answer them fully, with what you really know, then add a thought of your own or ask about theirs.",
+      openers: ["Hi! What would you like to talk about today?", "Hey there! How is your day going so far?"]
+    },
+    {
+      id: "day",
+      title: "My day",
+      role: "This talk is about the learner's day.",
+      plan: "Ask what they did, what is next and how they feel about it, one thing at a time. React to what they tell you, and now and then share a small, funny thing from your own day as a duck.",
+      openers: ["So, how was your day? Tell me one thing that happened.", "What have you been up to today?"]
+    },
+    {
+      id: "trip",
+      title: "A trip",
+      role: "This talk is about a trip the learner took or wants to take.",
+      plan: "Ask about the places, the plans, the food and the people. Share what you know about the places they name: what to see, what to eat, what it is like there.",
+      openers: ["Tell me about a trip you remember. Where did you go?", "If you could go anywhere next month, where would you go?"]
+    },
+    {
+      id: "cafe",
+      title: "At a caf\xE9",
+      role: "A role play: you are a friendly barista in a small caf\xE9, and the learner is a customer. Stay in the role to the end.",
+      leads: true,
+      plan: "Take the order step by step: what they would like, the size or other details, here or to go, anything to eat, then the price and how they pay, and wish them a nice day. If they talk about something else, answer as a barista would and come back to the order.",
+      openers: ["Hi, welcome in! What can I get for you today?", "Good morning! Are you having it here or to go?"]
+    },
+    {
+      id: "interview",
+      title: "Job interview",
+      role: "A role play: you interview the learner for a job they want. Stay in the role to the end: kind, professional, and interested in their answers.",
+      leads: true,
+      plan: "Ask one question at a time and never ask one twice. Find out which job it is first, if they have not said. Then go through their experience, a strength, a problem they solved, why they want this job, and whether they have questions for you. After about six questions, tell them in two or three sentences how the interview went: what came across well and what to say more about next time. Speak about what they said, never about their grammar.",
+      openers: ["Thanks for coming in today. Could you tell me a little about yourself?", "Nice to meet you. What made you apply for this job?"]
+    },
+    {
+      id: "work",
+      title: "My work",
+      role: "This talk is about the learner's work or studies.",
+      plan: "Ask what they do, what they are working on and what is hard about it, one thing at a time. Share what you know about their field, and ask about the details.",
+      openers: ["What do you do for work, or what are you studying?", "What are you working on these days?"]
+    }
+  ];
+
+  // src/webview/marks.ts
+  function withMarks(parts) {
+    return parts.flatMap(
+      (p, i) => p.kind === "same" ? [document.createTextNode(p.text)] : [el(p.kind, {}, p.text), ...p.kind === "del" && parts[i + 1]?.kind === "ins" ? [document.createTextNode(" ")] : []]
+    );
+  }
+
   // src/webview/recorder.ts
   async function microphone(close) {
     return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: close, noiseSuppression: close, autoGainControl: true, channelCount: 1 } });
@@ -2857,10 +2931,11 @@
   var save = (patch2) => post({ type: "saveSettings", patch: patch2 });
   var RELEASES = "https://github.com/ikstro/krya/releases";
   var REPORT_EMAIL = "ikstro.design@gmail.com";
-  var ACTIONS = ["listen", "translate", "check", "screen", "dictate", "transcribe", "keyboard"];
+  var ACTIONS = ["talk", "listen", "translate", "check", "screen", "dictate", "transcribe", "keyboard"];
   var isAction = (name) => ACTIONS.includes(name);
-  var ICONS = { listen: "volume-2", translate: "languages", check: "graduation-cap", screen: "scan", dictate: "mic", transcribe: "audio-lines", keyboard: "keyboard" };
+  var ICONS = { talk: "bird", listen: "volume-2", translate: "languages", check: "graduation-cap", screen: "scan", dictate: "mic", transcribe: "audio-lines", keyboard: "keyboard" };
   var TITLES = {
+    talk: "Talk",
     listen: "Listen",
     translate: "Translate",
     check: "Check",
@@ -2922,6 +2997,8 @@
   var MEET_KEY = "Alt+Shift+M";
   function keyLines(action, s) {
     switch (action) {
+      case "talk":
+        return [{ label: "talk", hotkey: s.talkKey }];
       case "listen":
         return [{ label: "selection", hotkey: s.selectKey || (s.doubleCopy ? COPY_TWICE : ""), chain: "listen" }];
       case "translate":
@@ -2978,6 +3055,8 @@
   function actionText(action, v) {
     const title = TITLES[action];
     switch (action) {
+      case "talk":
+        return { title, cap: talkCap(v), desc: "Speak English with the duck: it answers aloud, and your mistakes are marked." };
       case "listen":
         return { title, cap: naturalOn(v) ? "natural voice" : "Windows voice", desc: "Reads English text aloud and shows its translation." };
       case "translate":
@@ -3634,6 +3713,8 @@
     if (!open) return [];
     if (open.sub) return SUBS[open.sub].body(v);
     switch (open.name) {
+      case "talk":
+        return talkPage(v);
       case "listen":
         return listenPage(v);
       case "translate":
@@ -3805,6 +3886,7 @@
     noteKey: "dictating a note",
     againKey: "typing the last phrase again",
     practiceKey: "checking what you say",
+    talkKey: "talking to the duck",
     pauseKey: "pausing Krya",
     windowKey: "opening Krya"
   };
@@ -4051,7 +4133,11 @@
   };
   function llmFitText(fit, speed) {
     if (!speed || speed.sentence === void 0 && speed.text === void 0) return levelFitText(fit, speed);
-    const times = [speed.sentence !== void 0 ? `${seconds(speed.sentence)} per sentence` : "", speed.text !== void 0 ? `${seconds(speed.text)} per text checked` : ""].filter(Boolean).join(", ");
+    const times = [
+      speed.sentence !== void 0 ? `${seconds(speed.sentence)} per sentence` : "",
+      speed.text !== void 0 ? `${seconds(speed.text)} per text checked` : "",
+      speed.reply !== void 0 ? `${seconds(speed.reply)} per answer in Talk` : ""
+    ].filter(Boolean).join(", ");
     const slow = (speed.sentence ?? 0) > SLOW_SENTENCE_S || (speed.text ?? 0) > SLOW_CHECK_S;
     return `${slow ? "slow here" : "here"}: ${times}, ${FIT_WHERE[fit.where]}${startText(speed.start)}`;
   }
@@ -4265,6 +4351,97 @@ ${e.translation}` }, e.translation),
   }
   var TRY_CHECK = "I want to learn English and can we made tutor option? I dictate or tupe in English and you show my my mistake.";
   var SLOW_CHECK_S = 4;
+  var topicTitle = (id) => TOPICS.find((t) => t.id === id)?.title ?? id;
+  function talkCap(v) {
+    if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== "card") return "needs a graphics card";
+    const t = v.models[v.settings.model];
+    if (t.status === "downloading") return `downloading ${Math.round(t.progress * 100)}%`;
+    if (t.status !== "ready") return "downloads once";
+    return `English \xB7 notes in ${v.settings.native}`;
+  }
+  function talkNotice(v) {
+    const model = v.settings.model;
+    const files = v.models[model];
+    if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== "card")
+      return el("div", { class: "row notice" }, lucide("cpu"), el("div", { class: "l" }, "Talk needs a graphics card with 4 GB of its own memory or more", el("small", {}, "On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.")));
+    if (files.status !== "ready") {
+      const fetching = files.status === "downloading";
+      return el(
+        "div",
+        { class: "row notice" },
+        lucide("download"),
+        el(
+          "div",
+          { class: "l" },
+          `The duck needs its model: ${LEVEL_NAMES[model]}, ${size(files.size)}`,
+          el("small", {}, fetching ? "downloading; the talk starts once it is here" : files.status === "failed" ? "the download failed" : "downloaded once; Check my English and Translate can use it too"),
+          fetching ? bar(files.progress) : null
+        ),
+        fetching ? el("span", { class: "pct" }, `${Math.round(files.progress * 100)}%`) : btn(files.status === "failed" ? "Try again" : "Download", () => post({ type: "useModel", model }), "primary")
+      );
+    }
+    if (!installed(v))
+      return el("div", { class: "row notice" }, lucide("mic"), el("div", { class: "l" }, "Talk hears you through the speech engine", el("small", {}, "Until it is here, type to the duck. Download it on the Dictate page; it is the same one Dictate uses.")), linkBtn("Open Dictate", () => go("dictate")));
+    return null;
+  }
+  var aboutTimer;
+  function aboutField(value) {
+    const field = el("textarea", {
+      class: "field report about",
+      rows: 3,
+      maxlength: TALK_ABOUT_MAX,
+      placeholder: 'A few words the duck can talk about: your name, your work, what you like. "I am Alex, a designer. I love hiking and progressive metal."',
+      "aria-label": "About you",
+      "data-live": "about"
+    });
+    field.value = value;
+    const store = () => {
+      window.clearTimeout(aboutTimer);
+      aboutTimer = void 0;
+      if (field.value !== view?.settings.talkAbout) save({ talkAbout: field.value });
+    };
+    field.addEventListener("input", () => {
+      window.clearTimeout(aboutTimer);
+      aboutTimer = window.setTimeout(store, 600);
+    });
+    field.addEventListener("blur", () => aboutTimer !== void 0 && store());
+    return field;
+  }
+  function talkPage(v) {
+    const s = v.settings;
+    const going = v.talk;
+    const level = TALK_LEVEL_NAMES[s.talkLevel];
+    const keyNote = !installed(v) ? "needs the speech engine (see Dictate)" : s.talkKey ? `from any program: ${usage(s.talkKey)} opens the talk and listens, again sends` : "one key from any program: it opens the talk and listens, again sends";
+    return [
+      el(
+        "div",
+        { class: "row notice talk-open" },
+        tile(36),
+        el("div", { class: "l" }, "Talk to the duck", el("small", {}, going ? `in its own window \xB7 going on: ${topicTitle(going.topic)}, ${going.lines} lines` : "in its own window: speak English, the duck answers aloud, your mistakes are marked")),
+        btn([lucide("message-square"), "Open Talk"], () => post({ type: "talkOpen" }), "primary")
+      ),
+      talkNotice(v),
+      grp("You"),
+      el("div", { class: "row add" }, el("div", { class: "l" }, "About you"), aboutField(s.talkAbout), el("small", {}, "The duck reads it in every talk, to ask about your life and work. Kept only on this computer.")),
+      row(
+        "Your English level",
+        [`${level.name}: the duck speaks in ${level.note}`],
+        seg(s.talkLevel, TALK_LEVELS.map((l) => [l, l]), (talkLevel) => save({ talkLevel }), true)
+      ),
+      grp("Keys"),
+      keyRow("talkKey", "Talk to the duck", keyNote, !v.speech.keysOk.talk, "bird"),
+      fixedKey("In the talk window: talk, then send", "Space"),
+      fixedKey("Drop the line, or quiet the duck", "Escape"),
+      grp("The duck"),
+      toggleCard("volume-2", "Read the duck aloud", s.talkAloud, (talkAloud) => save({ talkAloud }), "its answers are read as they come; a tap on a line reads it again"),
+      toggleCard("pin", "Keep the talk on top", s.talkOnTop, (talkOnTop) => save({ talkOnTop }), "over other windows, as with the pin in its bar"),
+      navCard("boxes", "Model", "answers and finds your mistakes; the same one as Check my English", checkValue(v), () => go("models", "forCheck"), "models"),
+      navCard("volume-2", "Voice", "the duck speaks with the Listen voice", voiceValue(v), () => go("models", "forVoice"), "models"),
+      grp("Kept"),
+      aside("history", "Your talks are in the talk window: its history button lists them, to go on with one or delete it. Kept 30 days on this computer, 50 at most."),
+      navCard("list-checks", "Mistakes", "each line of yours with a mistake is kept there", v.mistakes.length ? String(v.mistakes.length) : "none", () => go("mistakes"), "mistakes")
+    ].filter((n) => !!n);
+  }
   function checkCap(v) {
     const t = v.models[v.settings.model];
     if (t.status === "downloading") return `downloading ${Math.round(t.progress * 100)}%`;
@@ -4294,11 +4471,6 @@ ${e.translation}` }, e.translation),
     let parts = diffs.get(key);
     if (!parts) diffs.set(key, parts = wordDiff(e.text, e.corrected));
     return parts;
-  }
-  function withMarks(parts) {
-    return parts.flatMap(
-      (p, i) => p.kind === "same" ? [document.createTextNode(p.text)] : [el(p.kind, {}, p.text), ...p.kind === "del" && parts[i + 1]?.kind === "ins" ? [document.createTextNode(" ")] : []]
-    );
   }
   function changeText(wrong, right) {
     return el("span", { class: "said marks" }, wrong ? el("del", {}, wrong) : "+", " ", right ? el("ins", {}, right) : "");
@@ -5232,6 +5404,7 @@ Said: ${e.heard}` : e.text }, e.text), el("small", {}, whenSaid(e.at, Date.now()
     return row("Restart the speech engine", [`Dictate and Transcribe run in it \xB7 ${state}`, sp.trouble ? bad(sp.trouble) : null], linkBtn("Restart", () => post({ type: "restartSpeech" }), sp.pack.status !== "ready"));
   }
   function showTab(tab) {
+    if (tab === "checkModel") return go("models", "forCheck");
     if (tab !== "home" && tab !== "howto") {
       go(tab);
       if (tab === "vocabulary" || tab === "kept") pBody.querySelector("input[data-live]")?.focus();
@@ -5245,7 +5418,7 @@ Said: ${e.heard}` : e.text }, e.text), el("small", {}, whenSaid(e.at, Date.now()
     if (!v.settings.setupDone) return;
     const asked = askedTab && askedTab !== "home" && askedTab !== "howto" ? askedTab : void 0;
     if (askedTranscript) return openTranscript(askedTranscript);
-    if (asked) return go(asked);
+    if (asked) return showTab(asked);
     if (FROZEN_T !== void 0) return playMoment(false, FROZEN_T);
     if (v.settings.introSeen) return;
     if (reduced.matches) return save({ introSeen: true });

@@ -7,6 +7,7 @@
 import type { DictationMode, ToView, TutorHost } from '../protocol'
 import { el } from './dom'
 import { ChunkRecorder, micTrouble, PhraseRecorder, StreamRecorder, type StreamStatus } from './recorder'
+import { Wave } from './wave'
 
 declare global {
   interface Window {
@@ -77,82 +78,38 @@ function onStatus(status: StreamStatus): void {
   dot.title = status.pending > BEHIND ? 'catching up' : ''
 }
 
-/** The wave: the last three seconds of sound, one bar per 50 ms. */
-const WAVE = 60
-const STEP = 3
-const BAR = 2
-const levels: number[] = new Array<number>(WAVE).fill(0)
-let wave: HTMLCanvasElement | undefined
-let frame: number | undefined
-/** New levels came in since the wave was last drawn. */
-let fresh = false
-
-function hear(level: number): void {
-  levels.push(level)
-  if (levels.length > WAVE) levels.shift()
-  fresh = true
-}
-
-/** Each bar mirrored round the middle, newest at the right edge; silence is a row of 2 px dots. */
-function draw(): void {
-  frame = requestAnimationFrame(draw)
-  if (!wave) return
-  const ratio = devicePixelRatio || 1
-  const w = wave.clientWidth
-  const h = wave.clientHeight
-  const sized = wave.width === Math.round(w * ratio) && wave.height === Math.round(h * ratio)
-  if (!fresh && sized) return
-  fresh = false
-  if (!sized) {
-    wave.width = Math.round(w * ratio)
-    wave.height = Math.round(h * ratio)
-  }
-  const c = wave.getContext('2d')
-  if (!c) return
-  c.setTransform(ratio, 0, 0, ratio, 0, 0)
-  c.clearRect(0, 0, w, h)
-  // A mark that only has to be seen (--mark): the duck's marigold on light, its yellow on dark.
-  c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--mark').trim()
-  c.globalAlpha = 0.7
-  const shown = Math.min(WAVE, Math.floor(w / STEP))
-  for (let i = 0; i < shown; i++) {
-    const bar = Math.max(2, Math.round(levels[WAVE - shown + i]! * h))
-    c.fillRect(w - (shown - i) * STEP, (h - bar) / 2, BAR, bar)
-  }
-}
+/** The wave of the last three seconds of sound (wave.ts). */
+let wave: Wave | undefined
 
 /** The clock, the levels and the wave stop together. */
 function quiet(): void {
   clearInterval(timer)
   timer = undefined
-  if (frame !== undefined) cancelAnimationFrame(frame)
-  frame = undefined
+  wave?.stop()
   wave = undefined
 }
 
 function recording(): void {
   quiet()
   time = el('span', { class: 'time' }, '0:00')
-  wave = el('canvas', { class: 'wave' })
+  const heard = new Wave()
+  wave = heard
   dot = el('span', { class: 'dot' })
   words = wordsOf('', 'Listening…')
   said = ''
   fetching = false
-  show('rec', words, dot, el('span', { class: 'what' }, TITLES[mode]), time, wave)
+  show('rec', words, dot, el('span', { class: 'what' }, TITLES[mode]), time, heard.canvas)
   // A new phrase's window starts at its smallest: told the panel's height even when it is the last one's.
   postHeight(true)
-  // A new phrase starts flat: nothing of the last one's sound.
-  levels.fill(0)
-  fresh = true
   // One tick per 50 ms: the clock, and the levels. A stream hands over every 50 ms it heard;
   // the others are asked how loud it is now.
   timer = window.setInterval(() => {
     if (!recorder || !time) return
     if (!fetching) time.textContent = clock(recorder.seconds)
-    if (recorder instanceof StreamRecorder) for (const level of recorder.levels()) hear(level)
-    else hear(recorder.level())
+    if (recorder instanceof StreamRecorder) for (const level of recorder.levels()) heard.hear(level)
+    else heard.hear(recorder.level())
   }, 50)
-  frame = requestAnimationFrame(draw)
+  heard.start()
 }
 
 async function start(next: DictationMode, session?: string, expected: string[] = []): Promise<void> {

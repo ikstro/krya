@@ -39,12 +39,13 @@ import { execFile, execFileSync } from 'node:child_process'
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, Tray, type Rectangle } from 'electron'
 
 import { backupSummary, makeBackup, readBackup, type BackupRead } from './backup'
-import { callAllowed, messageAllowed, openable, pageOf, patchAllowed } from './bridge'
+import { callAllowed, messageAllowed, openable, pageOf, patchAllowed, type Page } from './bridge'
 import { createChecker, type Checker } from './checker'
 import { openInChrome } from './chrome'
 import { DoubleCopy } from './clipboard'
 import { ClipboardGuard } from './clipguard'
 import { Dictation } from './dictation'
+import { createDuck, type Duck } from './duck'
 import { DictationLog } from './dictationlog'
 import { DOWNLOADABLE, DictionaryStore } from './dictstore'
 import { openStream } from './download'
@@ -59,7 +60,7 @@ import { convertText, layoutsAfter, nextLayout, sourceLayout, type KeyTable } fr
 import { LearnStore } from './learning'
 import { lookup, type Dictionary } from './lemma'
 import { LlamaServer } from './llama'
-import { createLlmFiles, llmPaths, type LlmFiles } from './llmfiles'
+import { createLlmFiles, LLM_MODELS, llmPaths, type LlmFiles } from './llmfiles'
 import { createLlmTranslators, ModelSlow, type LlmTranslators } from './llmtranslator'
 import { BUSY_MS, busyName, slowAfter, tryAgain, type ModelBusy } from './modelbusy'
 import { cardRoom, sharedReading } from './resources'
@@ -71,7 +72,7 @@ import { pickLines } from './ocrpick'
 import { adoptLocalFolder, adoptOldFolders, freeFolder, hasToMove, leftIn, moveDownloads, partDir, removeOldUpdaterCaches, type LeftPart, type Warn } from './oldfolder'
 import { paragraphsOf } from './ocrtext'
 import { placeByTray, placeNear, resize, type Point } from './placement'
-import type { AppTab, AppView, BusyPart, CardKind, CardState, CheckResult, DictationMode, DictionaryStatus, GlossMissing, HostCall, HostVoice, StorageId, StoragePart, StorageView, TextResult, ToHost, ToView, TranslationState, TrayCommand, TrayView, ViewConfig } from './protocol'
+import type { AppTab, AppView, BusyPart, CardKind, CardState, CheckResult, DictationMode, DictionaryStatus, GlossMissing, HostCall, HostVoice, StorageId, StoragePart, StorageView, TalkWindowView, TextResult, ToHost, ToView, TranslationState, TrayCommand, TrayView, ViewConfig } from './protocol'
 import { draftsIn, englishHtml, textOutHtml, translationHtml } from './render'
 import { issueUrl, mailUrl, makeReport, namesHere, reportName, type ReportFacts } from './report'
 import { addKept, CARD_WIDTH, DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, normalize, TARGET, type LlmModel, type Settings, type TranslationLevel } from './settings'
@@ -83,6 +84,8 @@ import { recommendedModels } from './setup'
 import { cleanable, markAway, measureParts, partPackages, speechModelDir, splitSpeech, withUse, type Place, type UseContext } from './storage'
 import { NaturalSpeaker } from './synth'
 import { system32 } from './system32'
+import { Talk } from './talk'
+import { summaryOf, TalkStore } from './talks'
 import {
   drafted,
   englishReady,
@@ -192,8 +195,8 @@ const LINKS = new Set([
   'https://huggingface.co/settings/tokens',
 ])
 
-/** The settings that are Dictate's keys: registered only once the speech engine is installed. */
-const DICTATION_KEYS: readonly (keyof Settings)[] = ['dictateKey', 'englishKey', 'noteKey', 'againKey', 'practiceKey']
+/** The settings that are Dictate's keys (and Talk's, which listens as dictation does): registered only once the speech engine is installed. */
+const DICTATION_KEYS: readonly (keyof Settings)[] = ['dictateKey', 'englishKey', 'noteKey', 'againKey', 'practiceKey', 'talkKey']
 
 // One Krya at a time, whichever folder it keeps its things in: the lock is taken on Krya's own
 // folder first, before a test run moves to its own. A second copy (another start, `npm start`, a test
@@ -263,7 +266,7 @@ let appWin: BrowserWindow | undefined
 let appReady = false
 let quitting = false
 let keysOk = { snip: true, select: true, translate: true, text: true, inPlace: true, check: true, type: true, typeCheck: true, pause: true, window: true }
-let speechKeysOk = { dictate: true, note: true, english: true, again: true, practice: true }
+let speechKeysOk = { dictate: true, note: true, english: true, again: true, practice: true, talk: true }
 let speech: SpeechHost
 let dictation: Dictation
 /** What a click on the tray's balloon does, for the balloon shown last. */
@@ -318,6 +321,23 @@ let pinnedBefore = false
 let pendingTab: AppTab | undefined
 /** The transcript it shows then (a note left in Transcripts, from its balloon). */
 let pendingTranscript: string | undefined
+/** The Talk key was pressed before the talk window's page was ready: it listens once it is. */
+let pendingTalk = false
+/** The talk with the duck (talk.ts), the duck's answers (duck.ts), and the talks kept on disk (talks.ts). */
+let talk: Talk
+let duck: Duck
+let talks: TalkStore
+/** The talk window (media/talk.html), made when first opened and hidden between uses. */
+let talkWin: BrowserWindow | undefined
+let talkReady = false
+/**
+ * The page that reads aloud now, the card or the talk window: the natural
+ * voice's audio and the system voice's progress go to it. The page that asked
+ * for a word's meanings last gets them.
+ */
+let voiceSink: VoicePage = 'card'
+let glossSink: VoicePage = 'card'
+type VoicePage = 'card' | 'talk'
 let words: WordStore
 let dictationLog: DictationLog
 /** The most common English words, for the card's dotted lines; read once. */
@@ -413,6 +433,7 @@ function saveSettings(patch: Partial<Settings>): void {
   if ('theme' in patch) applyTheme()
   // The speech models are chosen from these (speechplan.ts), and the words to spell go with the plan: sent to the engine again.
   if (speech && (['native', 'speechPrefer', 'dictationModel', 'transcriptsModel', 'speechTestAgreed', 'vocabulary'] as const).some(k => k in patch)) speech.replan()
+  if ('talkOnTop' in patch) talkWin?.setAlwaysOnTop(settings.talkOnTop)
   refreshTray()
   if (shown) postCard()
   postApp()
@@ -460,6 +481,10 @@ function applyColors(): void {
     trayPanel.setBackgroundColor(appColor())
     frameWindow(trayPanel, { corner: 'round', border: borderColor() })
   }
+  if (talkWin && !talkWin.isDestroyed()) {
+    talkWin.setBackgroundColor(cardColor())
+    frameWindow(talkWin, { corner: 'round', border: borderColor() })
+  }
   // The dictation badge needs nothing: its page draws its ground and edge, and follows the theme itself.
 }
 
@@ -470,10 +495,22 @@ let natural: NaturalSpeaker
 let voiceStore: VoiceStore
 let dictionaries: DictionaryStore
 
+/** A message for the card or the talk window, whichever is meant. */
+function toPage(page: VoicePage, message: ToView): void {
+  if (page === 'card') post(message)
+  else postTalkWindow(message)
+}
+
+/** Reading moves to `page`: the other page's reading was cut, and its player is told so. */
+function voiceTo(page: VoicePage): void {
+  if (voiceSink !== page) toPage(voiceSink, { type: 'stop' })
+  voiceSink = page
+}
+
 function setUpSpeech(): void {
   speaker = new Speaker({
-    progress: (id, pos, len) => post({ type: 'progress', id, pos, len }),
-    done: id => post({ type: 'speakDone', id }),
+    progress: (id, pos, len) => toPage(voiceSink, { type: 'progress', id, pos, len }),
+    done: id => toPage(voiceSink, { type: 'speakDone', id }),
   })
   voiceStore = new VoiceStore({
     manifest: manifest as VoiceManifest,
@@ -492,10 +529,10 @@ function setUpSpeech(): void {
     unpacked('dist', 'voice-worker.js'),
     () => voiceStore.paths,
     {
-      audio: (id, index, samples, words) => post({ type: 'naturalAudio', id, index, samples, words }),
-      failed: (id, message) => post({ type: 'naturalFailed', id, message }),
+      audio: (id, index, samples, words) => toPage(voiceSink, { type: 'naturalAudio', id, index, samples, words }),
+      failed: (id, message) => toPage(voiceSink, { type: 'naturalFailed', id, message }),
       phonemes: (text, ipa) => {
-        if (ipa) post({ type: 'ipa', word: text, ipa })
+        if (ipa) toPage(glossSink, { type: 'ipa', word: text, ipa })
       },
       made: (took, seconds) => voiceMade(took, seconds),
     },
@@ -510,7 +547,7 @@ function setUpSpeech(): void {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return new Uint8Array(await res.arrayBuffer())
     },
-    onReady: () => post({ type: 'dictReady' }),
+    onReady: () => (post({ type: 'dictReady' }), toPage('talk', { type: 'dictReady' })),
     // The setup page follows the download: started, here or failed.
     onChange: () => postApp(),
   })
@@ -536,7 +573,7 @@ let modelSpeeds: ModelSpeeds = {}
 /** Shown once a few were timed. */
 const LEVEL_SURE_AFTER = 3
 
-function modelTimed(model: LlmModel, timed: { sentence?: number; text?: number; start?: number }): void {
+function modelTimed(model: LlmModel, timed: { sentence?: number; text?: number; reply?: number; start?: number }): void {
   modelSpeeds = { ...modelSpeeds, [model]: nextModelSpeed(modelSpeeds[model], timed) }
   saveModelSpeeds(deviceFile(), modelSpeeds)
   postApp()
@@ -548,7 +585,7 @@ function modelSpeedView(): AppView['modelSpeed'] {
   const out: AppView['modelSpeed'] = {}
   for (const model of ['accurate', 'most'] as const) {
     const s = modelSpeeds[model]
-    const view = { sentence: sure(s?.sentence), text: sure(s?.text), start: sure(s?.start), card: s?.card }
+    const view = { sentence: sure(s?.sentence), text: sure(s?.text), reply: sure(s?.reply), start: sure(s?.start), card: s?.card }
     const known = Object.fromEntries(Object.entries(view).filter(([, n]) => n !== undefined))
     if (Object.keys(known).length) out[model] = known
   }
@@ -592,7 +629,9 @@ function dictionary(): Dictionary | undefined {
   return state.status === 'ready' ? state.dict : undefined
 }
 
-function lookupWord(word: string): void {
+function lookupWord(word: string, page: VoicePage = 'card'): void {
+  glossSink = page
+  const post = (message: ToView) => toPage(page, message)
   // The natural voice's phonemizer says how the word sounds; it answers as `ipa`.
   if (voiceStore.state.status === 'ready') natural.phonemes(word)
   const miss = (missing: GlossMissing) => post({ type: 'gloss', word, missing, saved: words.has(word) })
@@ -612,7 +651,9 @@ function saveWord(word: string, sentence: string): void {
   const dict = dictionary()
   const gloss = dict ? lookup(dict, word) : undefined
   words.add({ word, base: gloss?.base ?? word.toLowerCase(), senses: gloss?.entries.flatMap(e => e.senses) ?? [], sentence })
+  // Both pages with a word card hear of it: the star follows wherever the word shows.
   post({ type: 'saved', word, saved: true })
+  toPage('talk', { type: 'saved', word, saved: true })
   postApp()
 }
 
@@ -620,6 +661,7 @@ function unsaveWord(word: string): void {
   const dict = dictionary()
   words.removeBase((dict && lookup(dict, word)?.base) ?? word)
   post({ type: 'saved', word, saved: false })
+  toPage('talk', { type: 'saved', word, saved: false })
   postApp()
 }
 
@@ -649,6 +691,7 @@ async function exportBackup(): Promise<void> {
     learned: learned.lists(),
     translations: translationLog.list(),
     dictation: dictationLog.list(),
+    talks: talks.list(),
   })
   fs.writeFileSync(filePath, JSON.stringify(backup, null, 2) + '\n', 'utf8')
 }
@@ -725,8 +768,9 @@ async function importBackup(): Promise<void> {
   learned.merge(read.learned)
   translationLog.merge(read.translations)
   dictationLog.merge(read.dictation)
-  // All of the settings saved: the keys and the keyboard are applied again, the learned words with them.
-  saveSettings(normalize({ ...settings, ...read.settings, dictationBadge: settings.dictationBadge, setupDone: true }, settings.native))
+  talks.merge(read.talks)
+  // All of the settings saved: the keys and the keyboard are applied again, the learned words with them; this computer's window places stay.
+  saveSettings(normalize({ ...settings, ...read.settings, dictationBadge: settings.dictationBadge, talkBounds: settings.talkBounds, setupDone: true }, settings.native))
   postApp()
 }
 
@@ -1141,6 +1185,7 @@ function appView(): AppView {
     ...llmLoadedView(),
     dictionary: { status: dictionaryStatus() },
     mistakes: mistakes.list(),
+    ...(talks.current() ? { talk: summaryOf(talks.current()!) } : {}),
     ...(storage ? { storage: storageView(storage) } : {}),
     layouts: keyboardLayouts(),
     ...(keyboardTrouble ? { keyboardTrouble } : {}),
@@ -1158,6 +1203,7 @@ function appView(): AppView {
 
 function postApp(): void {
   if (appWin && appReady && !appWin.isDestroyed()) appWin.webContents.send('to-view', { type: 'app', view: appView() } satisfies ToView)
+  postTalk()
 }
 
 function createAppWindow(): BrowserWindow {
@@ -1249,6 +1295,8 @@ function openCard(kind: CardKind, state: CardState, at: Point, via?: string): nu
   const id = ++seq
   shown = { id, kind, state, ...(via ? { via } : {}) }
   stopSpeaking()
+  // A new card reads its own text: the duck, if it spoke, goes quiet.
+  voiceTo('card')
   postCard()
   const win = card
   if (!win) return id
@@ -1279,7 +1327,8 @@ function hideCard(): void {
   if (state?.status === 'text' && state.result.status === 'ready' && !state.result.drafts && card?.isVisible()) logTranslation(state.text, state.result.text, state.result.from, state.result.to)
   // A checked text with a mistake goes into Mistakes once, as the card closes.
   if (state?.status === 'check' && state.result.status === 'ready' && card?.isVisible()) logMistake(state.result)
-  stopSpeaking()
+  // The voice is the card's to stop only while it reads for the card: the duck in the app window goes on.
+  if (voiceSink === 'card') stopSpeaking()
   // The card plays the natural voice's audio, and its own voices, itself: they stop there.
   post({ type: 'stop' })
   pinned = false
@@ -1361,8 +1410,10 @@ function setCardHeight(px: number): void {
   fitCard()
 }
 
-function onMessage(message: ToHost): void {
+/** `page`: who sent it (bridge.ts), which the voice and the word card answer. */
+function onMessage(message: ToHost, page: Page): void {
   if (dictation?.onMessage(message)) return
+  const asker: VoicePage = page === 'talk' ? 'talk' : 'card'
   switch (message.type) {
     case 'clearDictation':
       dictation.clearLog()
@@ -1475,10 +1526,12 @@ function onMessage(message: ToHost): void {
       void sendHostVoices()
       return
     case 'speak':
+      voiceTo(asker)
       natural.stop()
       speaker.speak(message.id, message.items.join(message.separator), message.lang, systemVoiceName(settings.voice), settings.rate)
       return
     case 'speakNatural':
+      voiceTo(asker)
       speaker.stop()
       natural.speak(message.id, message.items, message.voice, message.rate, message.ahead)
       return
@@ -1493,7 +1546,8 @@ function onMessage(message: ToHost): void {
       post({ type: 'natural', state: naturalState() })
       return
     case 'stop':
-      stopSpeaking()
+      // A page stops its own reading, never the other's.
+      if (asker === voiceSink) stopSpeaking()
       return
     case 'openSpeechSettings':
       void shell.openExternal('ms-settings:speech')
@@ -1534,7 +1588,7 @@ function onMessage(message: ToHost): void {
       pasteTranslation(message.id, message.text).catch(error => console.warn('Krya: could not paste the translation', error))
       return
     case 'lookup':
-      lookupWord(message.word)
+      lookupWord(message.word, asker)
       return
     case 'saveWord':
       saveWord(message.word, message.sentence)
@@ -1592,6 +1646,65 @@ function onMessage(message: ToHost): void {
       micRecording = message.on
       refreshTray()
       return
+    case 'talkStart':
+      // A topic starts a new talk: the one going on, if any, is put away first.
+      talks.archive()
+      talk.start(String(message.topic))
+      return
+    case 'talkSay':
+      talk.say(String(message.text ?? ''))
+      return
+    case 'talkInterrupt':
+      talk.interrupt()
+      return
+    case 'talkClear':
+      // New talk: the talk goes into the history.
+      talks.archive()
+      talk.clear()
+      return
+    case 'talkListen':
+      // The model loads while the person speaks: its 3 s start would else come after the line.
+      warmModel('check')
+      return
+    case 'talkReady':
+      talkReady = true
+      postTalk()
+      // The duck's words are dotted and read as the card's are.
+      postTalkWindow({ type: 'common', words: commonWords() })
+      if (hostVoices) postTalkWindow({ type: 'hostVoices', voices: hostVoices, canSpeak: Speaker.canSpeak(), platform: process.platform })
+      if (pendingTalk) postTalkWindow({ type: 'talk', command: 'toggle' })
+      pendingTalk = false
+      return
+    case 'talkPin':
+      saveSettings({ talkOnTop: message.on === true })
+      return
+    case 'talkWindow':
+      if (message.action === 'settings') openApp('talk')
+      else if (message.action === 'model') openApp('checkModel')
+      else if (message.action === 'maximize') {
+        if (talkWin?.isMaximized()) talkWin.unmaximize()
+        else talkWin?.maximize()
+      } else talkWin?.hide()
+      return
+    case 'talkOpen':
+      openTalk()
+      return
+    case 'talkContinue': {
+      // The talk going on is put away, this one goes on in the talk window.
+      const going = talks.continue(String(message.id))
+      if (!going) return
+      talk.restore(going)
+      openTalk()
+      return
+    }
+    case 'talkDelete':
+      talks.remove(String(message.id))
+      postTalk()
+      return
+    case 'talksClear':
+      talks.clear()
+      postTalk()
+      return
     case 'trayReady':
       trayReady = true
       refreshTray()
@@ -1624,7 +1737,9 @@ async function sendHostVoices(): Promise<void> {
     refreshTray()
     postApp()
   }
-  post({ type: 'hostVoices', voices: hostVoices, canSpeak: Speaker.canSpeak(), platform: process.platform })
+  const message: ToView = { type: 'hostVoices', voices: hostVoices, canSpeak: Speaker.canSpeak(), platform: process.platform }
+  post(message)
+  toPage('talk', message)
 }
 
 // ---------------------------------------------------------------- translating
@@ -2091,6 +2206,141 @@ function practice(text: string): void {
   checkWindow(text, screen.getCursorScreenPoint(), foreground().hwnd, settings.practiceKey, focusedField(), ' ')
 }
 
+/**
+ * The Talk key, from anywhere: the window on Talk, and the page listens (or,
+ * listening, sends what was said; while the duck speaks, stops it and listens).
+ */
+function talkPressed(): void {
+  openTalk()
+  if (talkReady) postTalkWindow({ type: 'talk', command: 'toggle' })
+  else pendingTalk = true
+}
+
+// ---------------------------------------------------------------- the talk window
+// A window of its own for the talk (media/talk.html, webview/talk.ts), opened
+// by the Talk key, the tray and the Talk page; the app window's Talk page holds
+// its settings. Closing hides it; the talk itself is talk.ts's, here in main.
+
+/** The talk window's size when it first opens, and the least it may be. */
+const TALK_SIZE = { width: 440, height: 640 }
+const TALK_MIN = { width: 360, height: 420 }
+
+function createTalkWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    ...talkPlace(),
+    minWidth: TALK_MIN.width,
+    minHeight: TALK_MIN.height,
+    show: false,
+    // The page draws its own bar (the duck, the history, the pin, the settings, maximize, close); the edges still resize, and a double click on the bar maximizes.
+    frame: false,
+    resizable: true,
+    maximizable: true,
+    fullscreenable: false,
+    alwaysOnTop: settings.talkOnTop,
+    title: 'Talk to the duck',
+    icon: path.join(app.getAppPath(), 'media', 'icon.png'),
+    backgroundColor: cardColor(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      spellcheck: false,
+      // The duck's voice and the microphone go on while another window is in front.
+      backgroundThrottling: false,
+    },
+  })
+  frameWindow(win, { corner: 'round', border: borderColor() })
+  win.removeMenu()
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', event => event.preventDefault())
+  // Moved or sized by the person: it opens there next time (filling the screen is not a size to keep).
+  const keep = () => {
+    if (!win.isDestroyed() && !win.isMinimized() && !win.isMaximized()) saveSettings({ talkBounds: win.getBounds() })
+  }
+  win.on('moved', keep)
+  win.on('resized', keep)
+  // Its maximize button shows Maximize or Restore, whichever way the window got there.
+  win.on('maximize', () => postTalk())
+  win.on('unmaximize', () => postTalk())
+  logPageErrors(win, 'talk window')
+  // Its page keeps its timers behind other windows (the voice, the microphone), so it is told when it goes out of sight.
+  win.on('hide', () => postTalkWindow({ type: 'talk', command: 'hidden' }))
+  win.on('minimize', () => postTalkWindow({ type: 'talk', command: 'hidden' }))
+  win.on('close', event => {
+    if (quitting) return
+    event.preventDefault()
+    win.hide()
+  })
+  win.on('closed', () => {
+    talkWin = undefined
+    talkReady = false
+  })
+  void win.loadFile(path.join(app.getAppPath(), 'media', 'talk.html'), frameQuery)
+  return win
+}
+
+/** Where the talk window opens: where it was left, while that is still on a screen; else by the bottom right of the work area of the pointer's screen. */
+function talkPlace(): Rectangle {
+  const kept = settings.talkBounds
+  if (kept) {
+    const area = screen.getDisplayMatching(kept).workArea
+    const seen = Math.min(kept.x + kept.width, area.x + area.width) - Math.max(kept.x, area.x) >= 120 && Math.min(kept.y + kept.height, area.y + area.height) - Math.max(kept.y, area.y) >= 60
+    if (seen) return kept
+  }
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+  const width = Math.min(TALK_SIZE.width, area.width)
+  const height = Math.min(TALK_SIZE.height, area.height)
+  return { x: area.x + area.width - width - 16, y: area.y + area.height - height - 16, width, height }
+}
+
+/** Shows the talk window, made the first time. */
+function openTalk(): void {
+  if (!talkWin || talkWin.isDestroyed()) talkWin = createTalkWindow()
+  if (talkWin.isMinimized()) talkWin.restore()
+  talkWin.show()
+  talkWin.focus()
+}
+
+function postTalkWindow(message: ToView): void {
+  if (talkWin && talkReady && !talkWin.isDestroyed()) talkWin.webContents.send('to-view', message)
+}
+
+function postTalk(): void {
+  if (talkWin && talkReady && talk) postTalkWindow({ type: 'talkView', view: talkWindowView() })
+}
+
+/** What the talk window draws: the talk, the settings it reads, and what stands in its way here. */
+function talkWindowView(): TalkWindowView {
+  const s = settings
+  const view = speech?.view(speechKeysOk)
+  const installed = !!view?.pack.parts.includes('core')
+  const fit = translationAdvice(speech?.profile)
+  const probed = !!speech?.profile?.at
+  const busy = busyFor(s.model)
+  const current = talks.current()
+  return {
+    talk: talk.state(),
+    talks: { ...(current ? { current: summaryOf(current) } : {}), past: talks.list().map(summaryOf) },
+    maximized: !!talkWin?.isMaximized(),
+    talkKey: s.talkKey,
+    talkAloud: s.talkAloud,
+    onTop: s.talkOnTop,
+    voice: s.voice,
+    rate: s.rate,
+    wordHint: s.wordHint,
+    rareWords: s.rareWords,
+    native: s.native,
+    natural: naturalState().status,
+    engine: !installed ? 'absent' : view?.service === 'ready' ? 'ready' : 'starting',
+    model: { name: LEVEL_NAMES[s.model], full: LLM_MODELS[s.model].name, ...llmFiles.state(s.model) },
+    needsCard: probed && fit.accurate.where !== 'card',
+    slow: probed && fit[s.model].where !== 'card',
+    ...(busy ? { busy } : {}),
+    keyTaken: !speechKeysOk.talk,
+  }
+}
+
 /** Checks the card's text, as it stands; its model downloaded first, the first time. */
 async function checkCard(id: number, text: string): Promise<void> {
   const set = (result: CheckResult) => {
@@ -2397,7 +2647,7 @@ function registerShortcuts(): void {
   // Paused: no key but the pause key, and none is "taken".
   if (settings.paused) {
     keysOk = { snip: true, select: true, translate: true, text: true, inPlace: true, check: true, type: true, typeCheck: true, pause: register(settings.pauseKey, togglePause), window: true }
-    speechKeysOk = { dictate: true, english: true, note: true, again: true, practice: true }
+    speechKeysOk = { dictate: true, english: true, note: true, again: true, practice: true, talk: true }
     return
   }
   keysOk = {
@@ -2420,6 +2670,7 @@ function registerShortcuts(): void {
     note: dictate('note', settings.noteKey),
     again: speech?.installed ? register(settings.againKey, () => dictation.typeAgain()) : true,
     practice: dictate('check', settings.practiceKey),
+    talk: speech?.installed ? register(settings.talkKey, talkPressed) : true,
   }
   const taken = [
     !keysOk.snip && settings.snipKey,
@@ -2437,6 +2688,7 @@ function registerShortcuts(): void {
     !speechKeysOk.note && settings.noteKey,
     !speechKeysOk.again && settings.againKey,
     !speechKeysOk.practice && settings.practiceKey,
+    !speechKeysOk.talk && settings.talkKey,
   ].filter((k): k is string => !!k)
   // The settings window shows the trouble itself; the balloon is for a start without it.
   if (taken.length > 0 && !(appWin?.isVisible() ?? false)) {
@@ -2453,7 +2705,7 @@ function applyKeyboard(): void {
   keyboardTrouble = undefined
   try {
     // Dictate's keys work only once the engine is installed, here as with Electron's shortcuts; paused, the helper keeps the pause key alone.
-    keyboard.apply(speech?.installed ? settings : { ...settings, dictateKey: '', englishKey: '', noteKey: '', againKey: '', practiceKey: '' }, learned.forThread())
+    keyboard.apply(speech?.installed ? settings : { ...settings, dictateKey: '', englishKey: '', noteKey: '', againKey: '', practiceKey: '', talkKey: '' }, learned.forThread())
   } catch (error) {
     keyboardTrouble = messageOf(error)
   }
@@ -2608,7 +2860,15 @@ function keyLabel(hotkey: string): string {
 /** What the tray's panel shows. */
 function trayView(): TrayView {
   return {
-    keys: { listenCopied: settings.doubleCopy ? DOUBLE_COPY : '', typeToTranslate: settings.typeKey, checkEnglish: settings.typeCheckKey, snipListen: settings.snipKey, snipTranslate: settings.textKey, switch: settings.switchKey },
+    keys: {
+      listenCopied: settings.doubleCopy ? DOUBLE_COPY : '',
+      typeToTranslate: settings.typeKey,
+      checkEnglish: settings.typeCheckKey,
+      talk: settings.talkKey,
+      snipListen: settings.snipKey,
+      snipTranslate: settings.textKey,
+      switch: settings.switchKey,
+    },
     autoFix: settings.autoFix,
     switchOn: settings.switchOn,
     layoutBadge: settings.layoutBadge,
@@ -2842,6 +3102,9 @@ function runTrayCommand(command: TrayCommand): void {
       return
     case 'checkEnglish':
       typeInto('check')
+      return
+    case 'talk':
+      openTalk()
       return
     case 'listenScreen':
       snip('listen')
@@ -3101,6 +3364,23 @@ function start(): void {
   setInterval(watchModel, FULL_SCREEN_LOOK_MS)
   checker = createChecker({ files: llmFiles, model: () => settings.model, onTimed: modelTimed })
   mistakes = new MistakeStore(path.join(userDir(), 'mistakes.json'))
+  // Talk: the same model checks each line and the duck answers it (talk.ts, duck.ts).
+  duck = createDuck({ files: llmFiles, model: () => settings.model, onTimed: modelTimed })
+  // The talk going on survives a restart; New talk puts it away in the talk window's history.
+  talks = new TalkStore(path.join(userDir(), 'talks.json'))
+  talk = new Talk({
+    check: text => checker.check(text, langCode(settings.native)),
+    reply: (turns, topic, signal) => duck.reply(turns, { native: langCode(settings.native), level: settings.talkLevel, about: settings.talkAbout }, topic, signal),
+    mistake: (text, corrected, note) => void (mistakes.add({ text, corrected, note }) && postApp()),
+    onChange: () => {
+      const now = talk.state()
+      talks.keep(now.topic, now.turns)
+      postApp()
+    },
+    log,
+  })
+  const kept = talks.current()
+  if (kept) talk.restore(kept)
   modelSpeeds = loadModelSpeeds(deviceFile())
   tray = createTray()
   tray.on('balloon-click', () => balloonClick?.())
@@ -3141,6 +3421,7 @@ function start(): void {
       else if (action === 'note') dictation.press('note', settings.noteKey)
       else if (action === 'again') dictation.typeAgain()
       else if (action === 'practice') dictation.press('check', settings.practiceKey)
+      else if (action === 'talk') talkPressed()
       else if (action === 'select') selection('listen', settings.selectKey)
       else if (action === 'translate') selection('translate', settings.translateKey)
       else if (action === 'inPlace') selection('inPlace', settings.inPlaceKey)
@@ -3177,7 +3458,7 @@ function start(): void {
   // Each page only what it does (bridge.ts): a page that shows text from outside never opens, removes or exports.
   ipcMain.on('to-host', (event, message: ToHost) => {
     const page = pageOf(event.sender.getURL())
-    if (messageAllowed(page, message?.type) && (message.type !== 'saveSettings' || patchAllowed(page, message.patch))) onMessage(message)
+    if (messageAllowed(page, message?.type) && (message.type !== 'saveSettings' || patchAllowed(page, message.patch))) onMessage(message, page)
     else log(`bridge: ${page} may not send ${String(message?.type)}`)
   })
   ipcMain.handle('host-call', (event, request: HostCall) => {
@@ -3240,6 +3521,7 @@ if (!theOnlyOne) {
       ['translation models', () => llmFiles?.dispose()],
       ['keyboard', () => keyboard?.dispose()],
       ['learning', () => learned?.flush()],
+      ['talks', () => talks?.flush()],
     ]
     for (const [name, step] of steps) {
       try {

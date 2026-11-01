@@ -34,6 +34,7 @@ describe('settingsSummary', () => {
       apps: '1 not shown',
       languages: ['uk'],
     })
+    expect(settingsSummary({ talkAbout: 'I am Alex, a designer.', talkLevel: 'B1' })).toEqual({ talkAbout: '22 characters, not shown', talkLevel: 'B1' })
   })
 })
 

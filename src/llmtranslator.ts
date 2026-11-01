@@ -103,7 +103,8 @@ export function createLlmTranslators(o: LlmOptions): LlmTranslators {
           // Each sentence is heard of as it comes, so the card can show it before the rest.
           const out = await mapLimit(sentences, PARALLEL, async (s, i) => {
             if (cancel.signal.aborted) throw new ModelSlow(level, limit ?? 0)
-            const late = limit === undefined ? undefined : AbortSignal.timeout(limit * 1000)
+            // Whole milliseconds: AbortSignal.timeout throws on a fraction (5× a median of 1.43 s is 7163.57 ms).
+            const late = limit === undefined ? undefined : AbortSignal.timeout(Math.ceil(limit * 1000))
             const signal = AbortSignal.any([AbortSignal.timeout(REQUEST_MS), cancel.signal, ...(late ? [late] : [])])
             let done: string | undefined
             try {

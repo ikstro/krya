@@ -43,7 +43,7 @@ import {
 import type { Press } from './winkbd'
 
 /** What a key does: switch or fix the layout here, or go to one layout; the others are the main process's. */
-export type KeyAction = 'switch' | 'fix' | 'layout' | 'select' | 'snip' | 'translate' | 'text' | 'inPlace' | 'check' | 'type' | 'typeCheck' | 'dictate' | 'english' | 'note' | 'again' | 'practice' | 'pause' | 'window'
+export type KeyAction = 'switch' | 'fix' | 'layout' | 'select' | 'snip' | 'translate' | 'text' | 'inPlace' | 'check' | 'type' | 'typeCheck' | 'dictate' | 'english' | 'note' | 'again' | 'practice' | 'talk' | 'pause' | 'window'
 
 /** The parts of the keyboard helper a program can be left out of: fixing as one types, the switch and layout keys, the badge, every key of Krya's. */
 export type AppPart = 'fix' | 'switch' | 'badge' | 'keys'

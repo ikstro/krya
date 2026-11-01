@@ -6,7 +6,7 @@ const at = (page: string) => `file:///C:/Users/you/AppData/Local/Programs/krya/r
 
 describe('which page sent a message', () => {
   test('each of Krya\'s pages by its file; anything else is another', () => {
-    expect([pageOf(at('app.html')), pageOf(at('card.html')), pageOf(at('tray.html')), pageOf(at('dictation.html'))]).toEqual(['app', 'card', 'tray', 'dictation'])
+    expect([pageOf(at('app.html')), pageOf(at('card.html')), pageOf(at('tray.html')), pageOf(at('dictation.html')), pageOf(at('talk.html'))]).toEqual(['app', 'card', 'tray', 'dictation', 'talk'])
     expect(pageOf(at('badge.html'))).toBe('other')
     expect(pageOf('https://evil.example/app.html')).toBe('other')
     expect(pageOf('')).toBe('other')
@@ -15,7 +15,7 @@ describe('which page sent a message', () => {
 
 describe('a page that shows text from outside opens, removes and exports nothing', () => {
   const dangerous = ['openPath', 'showInFolder', 'openLink', 'installSpeech', 'removeStored', 'cleanUp', 'useRecommended', 'moveToKrya', 'importBackup', 'exportBackup', 'resetSettings', 'restartSpeech', 'reportProblem', 'openLogs']
-  test.each(['card', 'tray', 'dictation'] as const)('the %s', page => {
+  test.each(['card', 'tray', 'dictation', 'talk'] as const)('the %s', page => {
     for (const type of dangerous) expect(messageAllowed(page, type), type).toBe(false)
   })
   test('the app window may', () => {
@@ -25,6 +25,19 @@ describe('a page that shows text from outside opens, removes and exports nothing
     for (const type of ['ready', 'speak', 'speakNatural', 'stop', 'close', 'pin', 'maximize', 'height', 'copyText', 'pasteText', 'translateText', 'checkText', 'lookup', 'saveWord', 'unsaveWord', 'saveSettings', 'downloadNatural', 'openSpeechSettings']) expect(messageAllowed('card', type), type).toBe(true)
     for (const type of ['trayReady', 'trayHeight', 'trayClose', 'tray', 'keepWord', 'saveSettings']) expect(messageAllowed('tray', type), type).toBe(true)
     for (const type of ['dictationReady', 'dictationText', 'dictationAudio', 'dictationNote', 'dictationHeight', 'dictationCancelled', 'dictationFailed']) expect(messageAllowed('dictation', type), type).toBe(true)
+  })
+  test('only the talk window talks to the duck: a model\'s words in the card cannot start a talk or speak for the person', () => {
+    for (const type of ['talkStart', 'talkSay', 'talkInterrupt', 'talkClear', 'talkListen', 'talkReady', 'talkPin', 'talkWindow', 'talkContinue', 'talkDelete', 'talksClear']) {
+      expect(messageAllowed('talk', type), type).toBe(true)
+      for (const page of ['app', 'card', 'tray', 'dictation'] as const) expect(messageAllowed(page, type), `${page} ${type}`).toBe(false)
+    }
+    // It reads aloud, opens the word card, keeps a word and shows the red dot as the card and the Transcribe page do.
+    for (const type of ['speak', 'speakNatural', 'stop', 'lookup', 'saveWord', 'unsaveWord', 'micRecording']) expect(messageAllowed('talk', type), type).toBe(true)
+    expect(messageAllowed('card', 'micRecording')).toBe(false)
+  })
+  test('the talk window is opened from the app window only', () => {
+    expect(messageAllowed('app', 'talkOpen')).toBe(true)
+    for (const page of ['card', 'tray', 'dictation', 'talk'] as const) expect(messageAllowed(page, 'talkOpen'), page).toBe(false)
   })
   test('an unknown page sends nothing', () => {
     expect(messageAllowed('other', 'ready')).toBe(false)
@@ -61,6 +74,12 @@ describe('calls with an answer', () => {
       expect(callAllowed('dictation', speech('GET', route)), route).toBe(false)
     }
     expect(callAllowed('dictation', { call: 'exportTranscript', id: 'x', format: 'txt', name: 'x' })).toBe(false)
+  })
+  test('the talk window only dictates: no note, no settings, no transcripts', () => {
+    expect(callAllowed('talk', speech('POST', '/dictate/sessions'))).toBe(true)
+    expect(callAllowed('talk', speech('PUT', '/dictate/sessions/a1/3'))).toBe(true)
+    expect(callAllowed('talk', speech('POST', '/dictate?language=auto&expected=en&strict=1&format=pcm16'))).toBe(true)
+    for (const route of ['/recordings', '/settings', '/transcripts', '/dictate/%2e%2e/transcripts', '/dictateX']) expect(callAllowed('talk', speech('GET', route)), route).toBe(false)
   })
   test('the card and the tray panel call nothing; the app window everything', () => {
     for (const page of ['card', 'tray', 'other'] as const) expect(callAllowed(page, speech('GET', '/health'))).toBe(false)

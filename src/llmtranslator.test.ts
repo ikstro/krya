@@ -164,6 +164,17 @@ describe('createLlmTranslators', () => {
     expect(server.run).toHaveBeenCalled()
   })
 
+  it('takes a limit in fractions of a second: 5× a median of 1.43 s, which AbortSignal.timeout refused before', async () => {
+    const { files } = setup(() => 'vulkan')
+    await files.prepare('accurate', () => undefined)
+    const quick = vi.fn(async (_url: string, init: RequestInit) => {
+      const { messages } = JSON.parse(String(init.body)) as { messages: { content: string }[] }
+      return new Response(JSON.stringify({ choices: [{ message: { content: `[${messages[1]!.content}]` } }] }))
+    })
+    const llm = createLlmTranslators({ files, fetch: quick as unknown as typeof fetch })
+    expect(await llm.accurate.hurried(5 * 1.4327142857142856)(['Да.'], 'ru', 'en')).toEqual(['[Да.]'])
+  })
+
   it('a level on CUDA downloads its two zips into one folder and runs every layer on the card', async () => {
     const { llm, open, asked, paths } = setup()
     expect(llm.most.state('ru')).toMatchObject({ status: 'absent' })

@@ -3006,3 +3006,28 @@ li + li > .ti::before {
 .row.phrase .said.translated {
   color: var(--translation);
 }
+
+/* ---------------------------------------------------------------- talk
+   The Talk page opens the talk window (talk.css); Library › Talks reads a talk
+   put away, its lines drawn as in the window (turns.css). */
+
+.row.notice.talk-open {
+  gap: 14px;
+  padding: 16px;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.row.notice.talk-open .l {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--strong);
+}
+
+.row.notice.talk-open .l small {
+  font-weight: 400;
+}
+
+/* What the person tells the duck about themselves: a few lines. */
+.field.report.about {
+  min-height: 84px;
+}

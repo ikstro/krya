@@ -1,17 +1,17 @@
 // What each of Krya's pages may ask the main process for. Every page shares one
 // preload (window.tutorHost), so main asks who sent a message before acting on
-// it: the card, the tray panel and the dictation badge show text from outside
-// (a copied text, the screen, a model's answer); were one of them ever made to
-// run a script, it still could not install, remove, open or export anything,
-// nor reach the speech engine beyond dictating.
+// it: the card, the tray panel, the dictation badge and the talk window show
+// text from outside (a copied text, the screen, a model's answer); were one of
+// them ever made to run a script, it still could not install, remove, open or
+// export anything, nor reach the speech engine beyond dictating.
 
 import * as path from 'node:path'
 
 import type { HostCall, ToHost } from './protocol'
 
-export type Page = 'app' | 'card' | 'tray' | 'dictation' | 'other'
+export type Page = 'app' | 'card' | 'tray' | 'dictation' | 'talk' | 'other'
 
-const PAGES: Record<string, Page> = { 'app.html': 'app', 'card.html': 'card', 'tray.html': 'tray', 'dictation.html': 'dictation' }
+const PAGES: Record<string, Page> = { 'app.html': 'app', 'card.html': 'card', 'tray.html': 'tray', 'dictation.html': 'dictation', 'talk.html': 'talk' }
 
 /** The page a window shows, by its file (media/<page>.html, with or without a query); 'other' for anything else. */
 export function pageOf(url: string): Page {
@@ -54,12 +54,31 @@ const APP_ONLY: ReadonlySet<ToHost['type']> = new Set<ToHost['type']>([
   'copyWords',
   'openLink',
   'micRecording',
+  'talkOpen',
   'reportProblem',
   'openLogs',
 ])
 
+/** Messages only the talk window sends: the talk itself, its history and its own window. */
+const TALK_ONLY: ReadonlySet<ToHost['type']> = new Set<ToHost['type']>([
+  'talkStart',
+  'talkSay',
+  'talkInterrupt',
+  'talkClear',
+  'talkListen',
+  'talkReady',
+  'talkPin',
+  'talkWindow',
+  'talkContinue',
+  'talkDelete',
+  'talksClear',
+])
+
 export function messageAllowed(page: Page, type: string): boolean {
   if (page === 'other') return false
+  if (TALK_ONLY.has(type as ToHost['type'])) return page === 'talk'
+  // The talk window listens too: the tray shows the red dot meanwhile.
+  if (type === 'micRecording') return page === 'app' || page === 'talk'
   return page === 'app' || !APP_ONLY.has(type as ToHost['type'])
 }
 
@@ -85,11 +104,13 @@ function reached(route: string): string {
   }
 }
 
-/** The dictation badge dictates and records a note; the app window does everything; the others call nothing. */
+/** The dictation badge dictates and records a note; the talk window only dictates; the app window does everything; the others call nothing. */
 export function callAllowed(page: Page, request: HostCall): boolean {
   if (page === 'app') return true
   const dictating = /^\/(dictate|recordings)([/?]|$)/
   if (page === 'dictation') return request.call === 'speech' && dictating.test(request.route) && dictating.test(reached(request.route))
+  const hearing = /^\/dictate([/?]|$)/
+  if (page === 'talk') return request.call === 'speech' && hearing.test(request.route) && hearing.test(reached(request.route))
   return false
 }
 

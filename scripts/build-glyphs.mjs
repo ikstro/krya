@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url'
 
 const NAMES = [
   // actions and pages
-  'volume-2', 'languages', 'graduation-cap', 'scan', 'mic', 'audio-lines', 'keyboard', 'file-text', 'notebook-pen', 'book-open', 'list-checks', 'house', 'info', 'settings',
+  'volume-2', 'languages', 'graduation-cap', 'scan', 'mic', 'audio-lines', 'keyboard', 'file-text', 'notebook-pen', 'book-open', 'list-checks', 'house', 'info', 'settings', 'bird',
+  // Talk's window: send a line, keep it on top, a new talk, its history
+  'send-horizontal', 'mic-off', 'pin', 'square-pen', 'history',
   // the sidebar
   'list-ordered', 'message-square-text', 'arrow-left', 'bug',
   // rows

@@ -218,6 +218,7 @@ function render(v: TrayView): void {
       command('translateCopied', 'languages', 'Translate the copied text', 'translateCopied'),
       command('typeToTranslate', 'pencil-line', 'Type to translate…', 'typeToTranslate', v.keys.typeToTranslate),
       command('checkEnglish', 'graduation-cap', 'Check my English…', 'checkEnglish', v.keys.checkEnglish),
+      v.speech.installed ? command('talk', 'bird', 'Talk to the duck…', 'talk', v.keys.talk) : null,
       command('listenScreen', 'monitor-speaker', 'Listen to a screen snip', 'listenScreen', v.keys.snipListen),
       command('translateScreen', 'scan-text', 'Translate a screen snip', 'translateScreen', v.keys.snipTranslate),
       v.speech.installed ? command('note', 'notebook-pen', v.speech.recording ? 'Save the note' : 'New note', 'note', v.speech.noteKey) : null,

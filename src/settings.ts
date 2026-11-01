@@ -22,6 +22,17 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 /** Krya's local language models (llmfiles.ts): Accurate is Gemma 4 E4B, Most accurate Gemma 4 12B; each translates and checks English. */
 export type LlmModel = 'accurate' | 'most'
 export type TranslationLevel = 'fast' | LlmModel
+/** The learner's English for Talk, on the common European scale (CEFR): the duck keeps to it (duck.ts LEVELS). */
+export type TalkLevel = 'A2' | 'B1' | 'B2'
+export const TALK_LEVELS: readonly TalkLevel[] = ['A2', 'B1', 'B2']
+/** Each level's name and what the duck does there, for the Talk page; the model's own rules are duck.ts LEVELS. */
+export const TALK_LEVEL_NAMES: Readonly<Record<TalkLevel, { name: string; note: string }>> = {
+  A2: { name: 'Elementary', note: 'short sentences of everyday words, simple tenses, no idioms' },
+  B1: { name: 'Intermediate', note: 'everyday words and common phrasal verbs; a rarer word explained' },
+  B2: { name: 'Upper-intermediate', note: 'natural speech: longer sentences, phrasal verbs, an idiom now and then' },
+}
+/** What the learner tells the duck about themselves, at most. */
+export const TALK_ABOUT_MAX = 500
 
 /** The levels (and the models) as the pages and the card name them. */
 export const LEVEL_NAMES: Readonly<Record<TranslationLevel, string>> = { fast: 'Fast', accurate: 'Accurate', most: 'Most accurate' }
@@ -117,6 +128,18 @@ export type Settings = {
   againKey: string
   /** Practice: a phrase spoken in English, checked in the card (Check my English) instead of typed. */
   practiceKey: string
+  /** Talk to the duck (talk.ts): opens the window on Talk and listens; pressed again, sends what was said; while the duck speaks, stops it and listens. */
+  talkKey: string
+  /** Talk: the duck's answers are read aloud as they come. */
+  talkAloud: boolean
+  /** The talk window (webview/talk.ts) stays over other windows: its pin. */
+  talkOnTop: boolean
+  /** Talk: the learner's English level, which the duck speaks at. */
+  talkLevel: TalkLevel
+  /** Talk: what the learner told the duck about themselves (a name, work, interests); the duck reads it in every talk. */
+  talkAbout: string
+  /** Where the talk window was last left, in screen pixels; none until it is moved or sized (it opens by the bottom right of the screen). */
+  talkBounds: { x: number; y: number; width: number; height: number } | null
   /**
    * Where the dictation badge sits: its bottom centre from the bottom centre of
    * the work area of the screen being typed in, in CSS pixels, as the person
@@ -211,6 +234,12 @@ export const DEFAULTS: Settings = {
   noteKey: 'Control+Alt+N',
   againKey: '',
   practiceKey: '',
+  talkKey: '',
+  talkAloud: true,
+  talkOnTop: false,
+  talkLevel: 'B1',
+  talkAbout: '',
+  talkBounds: null,
   dictationBadge: { dx: 0, dy: 0 },
   vocabulary: [],
   translationLevel: 'fast',
@@ -294,6 +323,14 @@ function layoutKeys(raw: unknown): Record<string, string> {
   return out
 }
 
+/** A window's place as whole numbers, or none when the file held anything else; main.ts checks it is still on a screen. */
+function windowBounds(v: unknown): Settings['talkBounds'] {
+  const r = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>
+  const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= 20000 ? Math.round(x) : undefined)
+  const [x, y, width, height] = [n(r.x), n(r.y), n(r.width), n(r.height)]
+  return x === undefined || y === undefined || !width || !height || width < 0 || height < 0 ? null : { x, y, width, height }
+}
+
 /** The badge's offset as numbers, whatever the file held; a screen is never wider than this. */
 function badgeOffset(v: unknown): Settings['dictationBadge'] {
   const r = (v && typeof v === 'object' ? v : {}) as { dx?: unknown; dy?: unknown }
@@ -371,6 +408,12 @@ export function normalize(raw: unknown, native = DEFAULTS.native): Settings {
     noteKey: key(r.noteKey, DEFAULTS.noteKey),
     againKey: key(r.againKey, DEFAULTS.againKey),
     practiceKey: key(r.practiceKey, DEFAULTS.practiceKey),
+    talkKey: key(r.talkKey, DEFAULTS.talkKey),
+    talkAloud: flag(r.talkAloud, DEFAULTS.talkAloud),
+    talkOnTop: flag(r.talkOnTop, DEFAULTS.talkOnTop),
+    talkLevel: TALK_LEVELS.includes(r.talkLevel as TalkLevel) ? (r.talkLevel as TalkLevel) : DEFAULTS.talkLevel,
+    talkAbout: typeof r.talkAbout === 'string' ? r.talkAbout.slice(0, TALK_ABOUT_MAX) : DEFAULTS.talkAbout,
+    talkBounds: windowBounds(r.talkBounds),
     dictationBadge: badgeOffset(r.dictationBadge),
     vocabulary: vocabularyLines(r.vocabulary),
     ...levelAndModel(r.translationLevel, r.model),

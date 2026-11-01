@@ -73,6 +73,8 @@ export type WordHoverOptions = {
   speak: (word: string) => void
   /** The sentence around a word in a text not cut into sentence spans (a field). */
   sentenceAt?: (range: Range) => string | undefined
+  /** How far down the page's own bar reaches: the card goes under a word rather than over it. The card's bar by default. */
+  ceiling?: () => number
 }
 
 export class WordHover {
@@ -306,7 +308,7 @@ export class WordHover {
     const left = Math.max(8, Math.min(rect.left - 8, window.innerWidth - width - 8))
     card.style.left = `${left}px`
     const height = card.offsetHeight
-    const headerBottom = document.querySelector('.bar')?.getBoundingClientRect().bottom ?? 0
+    const headerBottom = this.options.ceiling?.() ?? document.querySelector('.bar')?.getBoundingClientRect().bottom ?? 0
     const above = rect.top - height - 6
     card.style.top = `${above >= headerBottom + 4 ? above : rect.bottom + 6}px`
   }

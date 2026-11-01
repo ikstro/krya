@@ -2,9 +2,10 @@
 // (a real plan from planSpeech, an i9 with an RTX 2080 SUPER, the engine running).
 import type { DeviceProfile } from '../../src/hardware'
 import { LANGUAGES } from '../../src/languages'
-import type { AppView, TrayView } from '../../src/protocol'
+import type { AppView, TalkSummary, TalksView, TalkTurn, TalkWindowView, TrayView } from '../../src/protocol'
 import { DEFAULTS } from '../../src/settings'
 import { planSpeech } from '../../src/speechplan'
+import { wordDiff } from '../../src/worddiff'
 
 const i9: DeviceProfile = {
   cpu: { name: 'Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz', cores: 8, threads: 16 },
@@ -15,6 +16,60 @@ const i9: DeviceProfile = {
 }
 
 const downloaded = ['large-v3-turbo', 'small', 'base', 'parakeet-tdt-0.6b-v3']
+
+/** A line of the person's in a talk, checked: marked as Talk marks it. */
+function said(id: number, text: string, corrected: string, note: string): TalkTurn {
+  return { id, who: 'me', text, corrected, parts: wordDiff(text, corrected), note }
+}
+
+/** A talk at the café: two lines of the person's with a mistake each, marked; the duck's answers. */
+export const CAFE: TalkTurn[] = [
+  { id: 1, who: 'duck', text: 'Hi, welcome in! What can I get for you today?' },
+  said(2, 'I want a coffee with milk, and can I has a croissant?', 'I want a coffee with milk, and can I have a croissant?', 'has → have: после can глагол стоит в начальной форме.'),
+  { id: 3, who: 'duck', text: 'Sure! One coffee with milk and a croissant. Would you like the croissant warm?' },
+  said(4, 'Yes, please. How much it costs?', 'Yes, please. How much does it cost?', 'does … cost: в вопросе нужен does, а глагол без -s.'),
+  { id: 5, who: 'duck', text: 'That is six dollars fifty. Are you having it here, or is it to go?' },
+  { id: 6, who: 'me', text: 'Here, please. I like this place, it is very cozy.' },
+  { id: 7, who: 'duck', text: 'Thank you! Have a seat anywhere. Do you come here often?' },
+]
+
+const HOUR = 3600e3
+const now = Date.now()
+
+/** The café talk going on; four put away: one this morning, one yesterday, two before. */
+export const TALKS: TalksView & { current: TalkSummary } = {
+  current: { id: 'now', topic: 'cafe', started: new Date(now - 300e3).toISOString(), ended: new Date(now - 60e3).toISOString(), lines: 7, marked: 2, first: 'I want a coffee with milk, and can I has a croissant?' },
+  past: [
+    { id: 'free-2', topic: 'free', started: new Date(now - 2.2 * HOUR).toISOString(), ended: new Date(now - 2 * HOUR).toISOString(), lines: 12, marked: 3, first: 'What do you know about the metal band Dream Theater?' },
+    { id: 'day-1', topic: 'day', started: new Date(now - 26.2 * HOUR).toISOString(), ended: new Date(now - 26 * HOUR).toISOString(), lines: 7, marked: 1, first: 'I was at work all day, we fixed a big bug in the morning.' },
+    { id: 'job-1', topic: 'interview', started: new Date(now - 74 * HOUR).toISOString(), ended: new Date(now - 73.6 * HOUR).toISOString(), lines: 18, marked: 4, first: 'Hello, I am applying for the designer position.' },
+    { id: 'free-1', topic: 'free', started: new Date(now - 9 * 24 * HOUR).toISOString(), ended: new Date(now - 9 * 24 * HOUR + 300e3).toISOString(), lines: 6, marked: 0, first: 'Hi duck! Let us talk about music.' },
+  ],
+}
+
+/** The talk window as main.ts sends it: the café talk, Accurate here, the engine running. */
+export function talkWindowView(over: Partial<TalkWindowView> = {}): TalkWindowView {
+  return {
+    talk: { status: 'idle', topic: 'cafe', turns: CAFE },
+    talks: TALKS,
+    maximized: false,
+    talkKey: 'RightAlt*2',
+    talkAloud: true,
+    onTop: false,
+    voice: '',
+    rate: 1,
+    wordHint: 'shift',
+    rareWords: true,
+    native: 'Russian',
+    natural: 'ready',
+    engine: 'ready',
+    model: { name: 'Accurate', full: 'Gemma 4 E4B', status: 'ready', progress: 1, size: 5155 },
+    needsCard: false,
+    slow: false,
+    keyTaken: false,
+    ...over,
+  }
+}
 
 export function appView(over: Partial<AppView['settings']> = {}, fresh = false): AppView {
   const plan = planSpeech({
@@ -67,6 +122,7 @@ function full(over: Partial<AppView['settings']>, plan: AppView['speech']['plan'
       // Changed from Ctrl+Alt+N: its line shows ↺.
       noteKey: 'Control+Shift+N',
       typeCheckKey: 'RightControl*2',
+      talkAbout: 'I am Alex, a product designer from Kyiv. I love hiking and progressive metal.',
       ...over,
     },
     version: '0.11.0',
@@ -131,7 +187,7 @@ function full(over: Partial<AppView['settings']>, plan: AppView['speech']['plan'
       device: i9,
       plan,
       test: { offer: false, agreed: true, runs: 1 },
-      keysOk: { dictate: true, note: true, english: true, again: true, practice: true },
+      keysOk: { dictate: true, note: true, english: true, again: true, practice: true, talk: true },
     },
     dictation: {
       recent: [
@@ -143,7 +199,9 @@ function full(over: Partial<AppView['settings']>, plan: AppView['speech']['plan'
     // Fast in use; Accurate (the one model, which checks) here and timed; Most accurate on its way.
     translation: { fast: { status: 'ready', progress: 1, size: 84 }, accurate: { status: 'ready', progress: 1, size: 5155 }, most: { status: 'downloading', progress: 0.42, size: 6976 } },
     models: { accurate: { status: 'ready', progress: 1, size: 5155 }, most: { status: 'downloading', progress: 0.42, size: 6976 } },
-    modelSpeed: { accurate: { sentence: 0.71, text: 0.7, start: 3.2 } },
+    modelSpeed: { accurate: { sentence: 0.71, text: 0.7, reply: 2.6, start: 3.2 } },
+    // The café talk going on.
+    talk: TALKS.current,
     dictionary: { status: 'ready' },
     // "can … made" twice: it shows under You repeat.
     mistakes: [
@@ -181,7 +239,7 @@ function full(over: Partial<AppView['settings']>, plan: AppView['speech']['plan'
 
 export function trayView(over: Partial<TrayView> = {}): TrayView {
   return {
-    keys: { listenCopied: 'Control+C*2', typeToTranslate: '', checkEnglish: 'RightControl*2', snipListen: 'Control+Alt+S', snipTranslate: 'Control+Alt+T', switch: 'LeftControl' },
+    keys: { listenCopied: 'Control+C*2', typeToTranslate: '', checkEnglish: 'RightControl*2', snipListen: 'Control+Alt+S', snipTranslate: 'Control+Alt+T', switch: 'LeftControl', talk: '' },
     autoFix: true,
     switchOn: true,
     layoutBadge: true,

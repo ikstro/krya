@@ -195,7 +195,8 @@ export async function probeDevice(): Promise<DeviceProfile> {
 export type VoiceSpeed = { rtf: number; n: number }
 /** How fast a local model works here, in seconds, the latest few of each: a sentence translated and a text checked on the model already loaded, and loading it. */
 /** `card`: the MB of the graphics card the model held while loaded, measured once (nvidia-smi, before and after it was let go). */
-export type ModelSpeed = { sentence: number[]; text: number[]; start: number[]; card?: number }
+/** `reply`: the duck's answer in Talk (duck.ts), kept once there is one. */
+export type ModelSpeed = { sentence: number[]; text: number[]; start: number[]; reply?: number[]; card?: number }
 export type ModelSpeeds = Partial<Record<LlmModel, ModelSpeed>>
 /** Until 0.10.1: TranslateGemma's levels, and the checker (Gemma 4 E4B, Accurate now) with its seconds a text in `sentence`. */
 type OldSpeeds = Partial<Record<'accurate' | 'most' | 'check', { sentence: number[]; start: number[] }>>
@@ -265,7 +266,14 @@ export function loadModelSpeeds(file: string): ModelSpeeds {
   }
   for (const model of ['accurate', 'most'] as const) {
     const s = f.models[model]
-    if (s) out[model] = { sentence: numbers(s.sentence), text: numbers(s.text), start: numbers(s.start), ...(typeof s.card === 'number' ? { card: s.card } : {}) }
+    if (s)
+      out[model] = {
+        sentence: numbers(s.sentence),
+        text: numbers(s.text),
+        start: numbers(s.start),
+        ...(numbers(s.reply).length ? { reply: numbers(s.reply) } : {}),
+        ...(typeof s.card === 'number' ? { card: s.card } : {}),
+      }
   }
   return out
 }
@@ -274,11 +282,12 @@ export function saveModelSpeeds(file: string, speeds: ModelSpeeds): void {
   writeDeviceFile(file, { models: speeds, translate: undefined })
 }
 
-/** A translation or a check timed: seconds a sentence or a text, and the seconds it waited for the model to load, when it did. */
-export function nextModelSpeed(old: ModelSpeed | undefined, timed: { sentence?: number; text?: number; start?: number }): ModelSpeed {
+/** A translation, a check or the duck's answer timed: seconds a sentence, a text or an answer, and the seconds it waited for the model to load, when it did. */
+export function nextModelSpeed(old: ModelSpeed | undefined, timed: { sentence?: number; text?: number; reply?: number; start?: number }): ModelSpeed {
   const keep = (list: number[], value: number | undefined) => (value === undefined || value <= 0 ? list : [...list, value].slice(-LEVEL_KEPT))
   const card = old?.card !== undefined ? { card: old.card } : {}
-  return { sentence: keep(old?.sentence ?? [], timed.sentence), text: keep(old?.text ?? [], timed.text), start: keep(old?.start ?? [], timed.start), ...card }
+  const reply = keep(old?.reply ?? [], timed.reply)
+  return { sentence: keep(old?.sentence ?? [], timed.sentence), text: keep(old?.text ?? [], timed.text), start: keep(old?.start ?? [], timed.start), ...(reply.length ? { reply } : {}), ...card }
 }
 
 export function median(values: readonly number[]): number | undefined {
