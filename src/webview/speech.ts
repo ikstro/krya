@@ -129,7 +129,7 @@ const ABOUT: Record<string, Key> = {
   'large-v3': 'speech.aboutLarge',
   'parakeet-tdt-0.6b-v3': 'speech.aboutParakeet',
 }
-const aboutOf = (c: Choice) => (ABOUT[c.model] ? t(ABOUT[c.model] as Key) : c.about)
+export const aboutOf = (c: Choice) => (ABOUT[c.model] ? t(ABOUT[c.model] as Key) : c.about)
 
 /** speechplan.ts's reasons a model cannot run here, in the interface's language. */
 const WHY: Record<string, Key> = {

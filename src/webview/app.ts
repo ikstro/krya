@@ -33,7 +33,7 @@ import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, listPage, liv
 import { minutes, seconds } from '../speechplan'
 import { recommend, recommendedModels } from '../setup'
 import { resetSetup, setupNodes } from './setup'
-import { api, computerRows, diarizationOf, engineRows, engineSettings, fault, forgetEngine, gpuRow, hasPart, installed, onRedraw, pickKb, preferRow, running, saveEngine, size as speechSize, speakerRows, speechChoiceRows, testOffer, toast } from './speech'
+import { aboutOf, api, computerRows, diarizationOf, engineRows, engineSettings, fault, forgetEngine, gpuRow, hasPart, installed, onRedraw, pickKb, preferRow, running, saveEngine, size as speechSize, speakerRows, speechChoiceRows, testOffer, toast } from './speech'
 import { TOPICS } from '../topics'
 import { withMarks } from './marks'
 import { backToList, enterTranscripts, leaveTranscripts, newRows, openTranscript, setTranscriptHooks, transcriptsBody, transcriptsCap } from './transcripts'
@@ -2880,7 +2880,10 @@ function storedName(v: AppView, p: StoragePart): string {
 
 /** What a part is, on its line. */
 function storedNote(v: AppView, p: StoragePart): string {
-  if (p.id === 'speechModel') return t('storage.speechToText', { about: speechChoice(v, p.item ?? '')?.about ?? STORED.speechModel.note })
+  if (p.id === 'speechModel') {
+    const choice = speechChoice(v, p.item ?? '')
+    return t('storage.speechToText', { about: choice ? aboutOf(choice) : STORED.speechModel.note })
+  }
   if (p.id === 'llama' && p.item === 'cuda') return t('storage.cudaNote')
   return STORED[p.id].note
 }
