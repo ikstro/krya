@@ -63,25 +63,25 @@ async function closeOffscreen() {
 function titleOf(tab) {
   const title = (tab.title || '').trim()
   const meet = title.match(/^Meet\s*[–-]\s*(.+)$/)
-  if (!meet) return title || 'Tab recording'
-  return /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(meet[1]) ? `Meeting ${meet[1]}` : meet[1]
+  if (!meet) return title || chrome.i18n.getMessage('tabRecording')
+  return /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(meet[1]) ? chrome.i18n.getMessage('meeting', [meet[1]]) : meet[1]
 }
 
 async function start(tab) {
-  if (await current()) return { ok: false, error: 'Already recording' }
-  if (!tab || !tab.id || !/^https?:/.test(tab.url || '')) return { ok: false, error: 'This tab cannot be recorded' }
+  if (await current()) return { ok: false, error: chrome.i18n.getMessage('errAlready') }
+  if (!tab || !tab.id || !/^https?:/.test(tab.url || '')) return { ok: false, error: chrome.i18n.getMessage('errTab') }
   if (!(await engineReady())) return { ok: false, error: "Krya's speech engine is not running: open Krya → Transcribe to install or start it" }
   let streamId
   try {
     streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
   } catch (error) {
-    return { ok: false, error: `Chrome did not give the tab's sound: ${error.message}` }
+    return { ok: false, error: chrome.i18n.getMessage('errNoSound', [error.message]) }
   }
   await ensureOffscreen()
   const answer = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'start', streamId, title: titleOf(tab), port: await port() })
   if (!answer || !answer.ok) {
     await closeOffscreen()
-    return answer || { ok: false, error: 'The recording did not start' }
+    return answer || { ok: false, error: chrome.i18n.getMessage('errNoStart') }
   }
   const recording = { tabId: tab.id, id: answer.id, title: titleOf(tab), startedAt: Date.now(), mic: answer.mic }
   await chrome.storage.session.set({ recording })
@@ -92,7 +92,7 @@ async function start(tab) {
 
 async function stop() {
   const recording = await current()
-  if (!recording) return { ok: false, error: 'Not recording' }
+  if (!recording) return { ok: false, error: chrome.i18n.getMessage('errNotRecording') }
   let answer
   try {
     answer = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' })
@@ -102,7 +102,7 @@ async function stop() {
   await chrome.storage.session.remove('recording')
   await chrome.action.setBadgeText({ text: '' })
   await closeOffscreen()
-  return answer || { ok: false, error: 'The recording did not stop' }
+  return answer || { ok: false, error: chrome.i18n.getMessage('errNoStop') }
 }
 
 async function toggle(tab) {

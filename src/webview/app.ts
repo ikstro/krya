@@ -18,8 +18,10 @@ import { DOUBLE_MS, HotkeyRecorder, hotkeyLabel, type Recorded } from '../hotkey
 import type { AppTab, AppView, DiffPart, Feature, KeyboardLayout, MistakeEntry, SavedWord, Settings, StorageId, StoragePart, StorageView, ToView, TutorHost } from '../protocol'
 import { LANGUAGES } from '../languages'
 import { translationAdvice, type LevelFit } from '../hardware'
-import { DEFAULTS, keptForm, LEVEL_NAMES, myLanguages, RATES, TALK_ABOUT_MAX, TALK_LEVEL_NAMES, TALK_LEVELS, type AppRule, type LlmModel, type TalkLevel, type ThemeMode, type TranslationLevel } from '../settings'
+import { DEFAULTS, keptForm, myLanguages, RATES, TALK_ABOUT_MAX, TALK_LEVELS, type AppRule, type LlmModel, type TalkLevel, type ThemeMode, type TranslationLevel } from '../settings'
 import type { AppPart } from '../typist'
+// app.ts has a languageName of its own (a code's English name); the interface's is langName here.
+import { formatDate, languageName as langName, levelName, setUiLanguage, t, uiLanguage, type Key } from '../i18n'
 import { parseEntry } from '../vocabulary'
 import { changesOf, wordDiff } from '../worddiff'
 import { logo, tile } from './brand'
@@ -28,10 +30,10 @@ import { glyph } from './glyphs'
 import { caps, COPY_TWICE } from './keycaps'
 import { lucide, type LucideName } from './lucide'
 import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, listPage, liveField, navCard, post, row, seg, select, radioRow, recommended, toggle, toggleCard, toggleKnob, uiLanguageCard, warn } from './ui'
-import { seconds } from '../speechplan'
+import { minutes, seconds } from '../speechplan'
 import { recommend, recommendedModels } from '../setup'
 import { resetSetup, setupNodes } from './setup'
-import { api, computerRows, DEVICE_NAMES, diarizationOf, engineRows, engineSettings, fault, forgetEngine, gpuRow, hasPart, installed, onRedraw, pickKb, preferRow, running, saveEngine, size as speechSize, speakerRows, speechChoiceRows, testOffer, toast } from './speech'
+import { api, computerRows, diarizationOf, engineRows, engineSettings, fault, forgetEngine, gpuRow, hasPart, installed, onRedraw, pickKb, preferRow, running, saveEngine, size as speechSize, speakerRows, speechChoiceRows, testOffer, toast } from './speech'
 import { TOPICS } from '../topics'
 import { withMarks } from './marks'
 import { backToList, enterTranscripts, leaveTranscripts, newRows, openTranscript, setTranscriptHooks, transcriptsBody, transcriptsCap } from './transcripts'
@@ -48,6 +50,16 @@ const RELEASES = 'https://github.com/ikstro/krya/releases'
 /** Where a problem report goes by email (report.ts writes to it). */
 const REPORT_EMAIL = 'ikstro.design@gmail.com'
 
+/**
+ * Phrases read each time they are used, so a constant table follows the
+ * language a page is drawn in (the search draws every page in English too, linesOf).
+ */
+function phrases<K extends string>(keys: Record<K, Key>): Record<K, string> {
+  const out = {} as Record<K, string>
+  for (const k of Object.keys(keys) as K[]) Object.defineProperty(out, k, { get: () => t(keys[k]), enumerable: true })
+  return out
+}
+
 type Action = 'talk' | 'listen' | 'translate' | 'check' | 'screen' | 'dictate' | 'transcribe' | 'keyboard'
 type Page = Action | 'words' | 'mistakes' | 'transcripts' | 'translations' | 'phrases' | 'vocabulary' | 'kept' | 'learned' | 'programs' | 'layouts' | 'settings' | 'models' | 'storage' | 'about' | 'report' | 'search'
 
@@ -55,32 +67,32 @@ const ACTIONS: readonly Action[] = ['talk', 'listen', 'translate', 'check', 'scr
 const isAction = (name: Page): name is Action => (ACTIONS as readonly string[]).includes(name)
 /** Each action's icon, on its Home card and its page. */
 const ICONS: Record<Action, LucideName> = { talk: 'bird', listen: 'volume-2', translate: 'languages', check: 'graduation-cap', screen: 'scan', dictate: 'mic', transcribe: 'audio-lines', keyboard: 'keyboard' }
-const TITLES: Record<Page, string> = {
-  talk: 'Talk',
-  listen: 'Listen',
-  translate: 'Translate',
-  check: 'Check',
-  screen: 'Screen',
-  dictate: 'Dictate',
-  transcribe: 'Transcribe',
-  keyboard: 'Keyboard',
-  words: 'Words',
-  mistakes: 'Mistakes',
-  transcripts: 'Transcripts',
-  translations: 'Translations',
-  phrases: 'Phrases',
-  vocabulary: 'Words to spell',
-  kept: 'Kept as typed',
-  learned: 'Learned words',
-  programs: 'Programs',
-  layouts: 'Layouts',
-  settings: 'Settings',
-  models: 'Models',
-  storage: 'Storage',
-  about: 'About',
-  report: 'Report a problem',
-  search: 'Search',
-}
+const TITLES: Record<Page, string> = phrases({
+  talk: 'nav.talk',
+  listen: 'nav.listen',
+  translate: 'nav.translate',
+  check: 'nav.check',
+  screen: 'nav.screen',
+  dictate: 'nav.dictate',
+  transcribe: 'nav.transcribe',
+  keyboard: 'nav.keyboard',
+  words: 'nav.words',
+  mistakes: 'nav.mistakes',
+  transcripts: 'nav.transcripts',
+  translations: 'nav.translations',
+  phrases: 'nav.phrases',
+  vocabulary: 'nav.vocabulary',
+  kept: 'nav.kept',
+  learned: 'nav.learned',
+  programs: 'nav.programs',
+  layouts: 'nav.layouts',
+  settings: 'nav.settings',
+  models: 'nav.models',
+  storage: 'nav.storage',
+  about: 'nav.about',
+  report: 'nav.report',
+  search: 'nav.search',
+})
 
 let view: AppView | undefined
 /** A place asked for before the first `app` message. */
@@ -143,9 +155,12 @@ const SAMPLES: Record<string, Sample> = {
 const sampleOf = (native: string): Sample => SAMPLES[native] ?? (SAMPLES.Russian as Sample)
 
 /** A hotkey in a sentence: "Ctrl + C twice", "Left Ctrl twice", "Ctrl+Alt+T". */
-const said = (hotkey: string) => (hotkey === COPY_TWICE ? 'Ctrl + C twice' : hotkeyLabel(hotkey))
+const said = (hotkey: string) =>
+  hotkey === COPY_TWICE ? t('keys.copyTwice') : hotkey.endsWith('*2') ? t('keys.twice', { key: hotkeyLabel(hotkey.slice(0, -2)) }) : hotkeyLabel(hotkey)
+/** A modifier alone, tapped (once or twice) rather than pressed with another key. */
+const isTap = (hotkey: string) => /^(Left|Right)(Control|Shift|Alt|Super)(\*2)?$/.test(hotkey)
 /** How a key is used, in a few words: a modifier alone is tapped, anything else pressed. */
-const usage = (hotkey: string) => `${/^(Left|Right)(Control|Shift|Alt|Super)(\*2)?$/.test(hotkey) ? 'tap' : 'press'} ${said(hotkey)}`
+const usage = (hotkey: string) => t(isTap(hotkey) ? 'keys.tap' : 'keys.press', { key: said(hotkey) })
 
 /** The Chrome extension's key for recording a meeting (extension/manifest.json). */
 const MEET_KEY = 'Alt+Shift+M'
@@ -156,38 +171,38 @@ type KeyLine = { label: string; hotkey: string; chain?: 'listen' | 'translate' |
 function keyLines(action: Action, s: Settings): KeyLine[] {
   switch (action) {
     case 'talk':
-      return [{ label: 'talk', hotkey: s.talkKey }]
+      return [{ label: t('keys.talk'), hotkey: s.talkKey }]
     case 'listen':
       // One action: its key, else Ctrl+C twice.
-      return [{ label: 'selection', hotkey: s.selectKey || (s.doubleCopy ? COPY_TWICE : ''), chain: 'listen' }]
+      return [{ label: t('keys.selection'), hotkey: s.selectKey || (s.doubleCopy ? COPY_TWICE : ''), chain: 'listen' }]
     case 'translate':
       return [
-        { label: 'selection', hotkey: s.translateKey, chain: 'translate' },
-        ...(s.typeKey ? [{ label: 'type', hotkey: s.typeKey }] : []),
-        { label: 'paste back', hotkey: 'Enter' },
+        { label: t('keys.selection'), hotkey: s.translateKey, chain: 'translate' },
+        ...(s.typeKey ? [{ label: t('keys.type'), hotkey: s.typeKey }] : []),
+        { label: t('keys.pasteBack'), hotkey: 'Enter' },
       ]
     case 'check':
       return [
-        { label: 'selection', hotkey: s.checkKey },
-        ...(s.typeCheckKey ? [{ label: 'type', hotkey: s.typeCheckKey }] : []),
-        { label: 'by voice', hotkey: s.practiceKey },
+        { label: t('keys.selection'), hotkey: s.checkKey },
+        ...(s.typeCheckKey ? [{ label: t('keys.type'), hotkey: s.typeCheckKey }] : []),
+        { label: t('keys.byVoice'), hotkey: s.practiceKey },
       ]
     case 'screen':
       return [
-        { label: 'listen', hotkey: s.snipKey },
-        { label: 'translate', hotkey: s.textKey },
+        { label: t('keys.listen'), hotkey: s.snipKey },
+        { label: t('keys.translate'), hotkey: s.textKey },
       ]
     case 'dictate':
       return [
-        { label: 'dictate', hotkey: s.dictateKey },
-        { label: 'note', hotkey: s.noteKey },
+        { label: t('keys.dictate'), hotkey: s.dictateKey },
+        { label: t('keys.note'), hotkey: s.noteKey },
       ]
     case 'transcribe':
-      return [{ label: 'in Meet', hotkey: MEET_KEY }]
+      return [{ label: t('keys.inMeet'), hotkey: MEET_KEY }]
     case 'keyboard':
       return [
-        { label: 'switch', hotkey: s.switchKey },
-        { label: 'fix', hotkey: s.fixKey, chain: 'fix' },
+        { label: t('keys.switch'), hotkey: s.switchKey },
+        { label: t('keys.fix'), hotkey: s.fixKey, chain: 'fix' },
       ]
   }
 }
@@ -211,16 +226,16 @@ function cycleOf(v: AppView): KeyboardLayout[] {
 
 /** The natural voice reads: it is here and chosen (Automatic picks it). */
 const naturalOn = (v: AppView) => v.natural.status === 'ready' && (v.settings.voice === '' || v.settings.voice.startsWith(NATURAL_PREFIX))
-const pairOf = (v: AppView) => `${v.settings.native} ⇄ English`
+const pairOf = (v: AppView) => t('lang.pairEnglish', { lang: langName(v.settings.native) })
 
 /** What Dictate runs on, and how quick it is here: the speech engine's model, once the engine is here. */
 function engineCap(v: AppView): string {
   const p = v.speech.pack
-  if (p.status === 'installing' && !installed(v)) return `downloading ${Math.round((p.progress ?? 0) * 100)}%`
-  if (!installed(v)) return 'downloads once'
-  if (!running(v)) return 'speech to text'
+  if (p.status === 'installing' && !installed(v)) return t('home.downloadingPct', { pct: Math.round((p.progress ?? 0) * 100) })
+  if (!installed(v)) return t('home.downloadsOnce')
+  if (!running(v)) return t('home.speechToText')
   const c = v.speech.plan.dictation.chosen
-  return `speech to text · on your ${c.device === 'cuda' ? 'graphics card' : 'processor'}`
+  return t(c.device === 'cuda' ? 'home.speechOnCard' : 'home.speechOnProcessor')
 }
 
 /** What an action is called, what it runs on, and what it does. */
@@ -228,26 +243,26 @@ function actionText(action: Action, v: AppView): { title: string; cap: string; d
   const title = TITLES[action]
   switch (action) {
     case 'talk':
-      return { title, cap: talkCap(v), desc: 'Speak English with the duck: it answers aloud, and your mistakes are marked.' }
+      return { title, cap: talkCap(v), desc: t('home.talkDesc') }
     case 'listen':
-      return { title, cap: naturalOn(v) ? 'natural voice' : 'Windows voice', desc: 'Reads English text aloud and shows its translation.' }
+      return { title, cap: t(naturalOn(v) ? 'home.natural' : 'home.windowsVoice'), desc: t('home.listenDesc') }
     case 'translate':
-      return { title, cap: pairOf(v), desc: 'Translates the selected text; Enter pastes the translation back.' }
+      return { title, cap: pairOf(v), desc: t('home.translateDesc') }
     case 'check':
-      return { title, cap: checkCap(v), desc: 'Marks the mistakes in your English and shows the fix.' }
+      return { title, cap: checkCap(v), desc: t('home.checkDesc') }
     case 'screen':
-      return { title, cap: 'text from the screen', desc: 'Draw a box around text you can’t select, then listen or translate.' }
+      return { title, cap: t('home.screenCap'), desc: t('home.screenDesc') }
     case 'dictate':
-      return { title, cap: engineCap(v), desc: `Speak and it types where the cursor is. Speak ${v.settings.native}, get English.` }
+      return { title, cap: engineCap(v), desc: t('home.dictateDesc', { lang: langName(v.settings.native) }) }
     case 'transcribe':
-      return { title, cap: 'files · microphone · Meet', desc: 'Talks and meetings into text, speaker by speaker.' }
+      return { title, cap: t('home.transcribeCap'), desc: t('home.transcribeDesc') }
     case 'keyboard':
       return {
         title,
         cap: cycleOf(v)
           .map(l => l.short)
           .join(' · '),
-        desc: v.settings.autoFix ? 'Fixes words typed in the wrong layout as you type.' : 'Switches the layout and fixes text typed in the wrong one.',
+        desc: t(v.settings.autoFix ? 'home.keyboardAuto' : 'home.keyboardDesc'),
       }
   }
 }
@@ -263,46 +278,46 @@ type NavItem = { page: Page | 'home'; icon: LucideName; title: string; value?: (
 const many = (n: number) => (n ? String(n) : '')
 
 const NAV: { label: string; items: NavItem[] }[] = [
-  { label: '', items: [{ page: 'home', icon: 'house', title: 'Home' }] },
-  { label: 'Actions', items: ACTIONS.map(a => ({ page: a, icon: ICONS[a], title: TITLES[a] })) },
+  { label: '', items: [{ page: 'home', icon: 'house', title: t('nav.home') }] },
+  { label: t('nav.actions'), items: ACTIONS.map(a => ({ page: a, icon: ICONS[a], title: TITLES[a] })) },
   {
-    label: 'Library',
+    label: t('nav.library'),
     items: [
-      { page: 'words', icon: 'book-open', title: 'Words', value: v => many(v.words.length) },
-      { page: 'mistakes', icon: 'list-checks', title: 'Mistakes', value: v => many(v.mistakes.length) },
-      { page: 'transcripts', icon: 'file-text', title: 'Transcripts' },
-      { page: 'translations', icon: 'clock', title: 'Translations', value: v => many(v.translations.length) },
-      { page: 'phrases', icon: 'message-square-text', title: 'Phrases', value: v => many(v.dictation.recent.length) },
+      { page: 'words', icon: 'book-open', title: TITLES.words, value: v => many(v.words.length) },
+      { page: 'mistakes', icon: 'list-checks', title: TITLES.mistakes, value: v => many(v.mistakes.length) },
+      { page: 'transcripts', icon: 'file-text', title: TITLES.transcripts },
+      { page: 'translations', icon: 'clock', title: TITLES.translations, value: v => many(v.translations.length) },
+      { page: 'phrases', icon: 'message-square-text', title: TITLES.phrases, value: v => many(v.dictation.recent.length) },
     ],
   },
   {
-    label: 'Your lists',
+    label: t('nav.lists'),
     items: [
-      { page: 'vocabulary', icon: 'spell-check', title: 'Words to spell', value: v => many(v.settings.vocabulary.length) },
-      { page: 'kept', icon: 'lock', title: 'Kept as typed', value: v => many(v.settings.keepWords.length) },
-      { page: 'learned', icon: 'sparkles', title: 'Learned words', value: v => many(v.learned.alwaysFix.length + v.learned.myWords.length) },
-      { page: 'programs', icon: 'monitor', title: 'Programs', value: v => many(v.settings.apps.length) },
-      { page: 'layouts', icon: 'list-ordered', title: 'Layouts', value: v => cycleOf(v).map(l => l.short).join('·') },
+      { page: 'vocabulary', icon: 'spell-check', title: TITLES.vocabulary, value: v => many(v.settings.vocabulary.length) },
+      { page: 'kept', icon: 'lock', title: TITLES.kept, value: v => many(v.settings.keepWords.length) },
+      { page: 'learned', icon: 'sparkles', title: TITLES.learned, value: v => many(v.learned.alwaysFix.length + v.learned.myWords.length) },
+      { page: 'programs', icon: 'monitor', title: TITLES.programs, value: v => many(v.settings.apps.length) },
+      { page: 'layouts', icon: 'list-ordered', title: TITLES.layouts, value: v => cycleOf(v).map(l => l.short).join('·') },
     ],
   },
   {
     label: 'Krya',
     items: [
-      { page: 'settings', icon: 'settings', title: 'Settings' },
-      { page: 'models', icon: 'boxes', title: 'Models' },
-      { page: 'storage', icon: 'database', title: 'Storage', value: v => (v.storage?.parts.length ? speechSize(downloadsMb(v.storage)) : '') },
-      { page: 'about', icon: 'info', title: 'About' },
-      { page: 'report', icon: 'bug', title: 'Report a problem' },
+      { page: 'settings', icon: 'settings', title: TITLES.settings },
+      { page: 'models', icon: 'boxes', title: TITLES.models },
+      { page: 'storage', icon: 'database', title: TITLES.storage, value: v => (v.storage?.parts.length ? speechSize(downloadsMb(v.storage)) : '') },
+      { page: 'about', icon: 'info', title: TITLES.about },
+      { page: 'report', icon: 'bug', title: TITLES.report },
     ],
   },
 ]
 
 const findField = el('input', {
   type: 'text',
-  placeholder: 'Search settings',
+  placeholder: t('search.placeholder'),
   spellcheck: 'false',
   autocomplete: 'off',
-  'aria-label': 'Search settings',
+  'aria-label': t('search.placeholder'),
   oninput: () => find(findField.value),
   onkeydown: (event: Event) => {
     const key = (event as KeyboardEvent).key
@@ -333,29 +348,29 @@ const side = el(
   { class: 'side' },
   // The text logo; a narrow sidebar has room for the icon only.
   el('div', { class: 'brand' }, logo(), tile(28)),
-  el('label', { class: 'find', title: 'Search settings (Ctrl+F)' }, lucide('search', 's'), findField, el('span', { class: 'key' }, 'Ctrl F')),
+  el('label', { class: 'find', title: t('search.title') }, lucide('search', 's'), findField, el('span', { class: 'key' }, 'Ctrl F')),
   tree,
 )
 
-const maxButton = el('button', { class: 'icon-btn max', title: 'Maximize', 'aria-label': 'Maximize', onclick: () => post({ type: 'window', action: 'maximize' }) }, glyph('maximize'))
+const maxButton = el('button', { class: 'icon-btn max', title: t('common.maximize'), 'aria-label': t('common.maximize'), onclick: () => post({ type: 'window', action: 'maximize' }) }, glyph('maximize'))
 const winButtons = el(
   'div',
   { class: 'wbtns' },
-  el('button', { class: 'icon-btn', title: 'Minimize', 'aria-label': 'Minimize', onclick: () => post({ type: 'window', action: 'minimize' }) }, glyph('minimize')),
+  el('button', { class: 'icon-btn', title: t('nav.minimize'), 'aria-label': t('nav.minimize'), onclick: () => post({ type: 'window', action: 'minimize' }) }, glyph('minimize')),
   maxButton,
-  el('button', { class: 'icon-btn', title: 'Close', 'aria-label': 'Close', onclick: () => post({ type: 'window', action: 'close' }) }, glyph('close')),
+  el('button', { class: 'icon-btn', title: t('common.close'), 'aria-label': t('common.close'), onclick: () => post({ type: 'window', action: 'close' }) }, glyph('close')),
 )
 
 /** The window was maximized or put back (by the button, a double click on the bar, Win+↑): the button shows the other way. */
 function windowState(maximized: boolean): void {
-  const label = maximized ? 'Restore' : 'Maximize'
+  const label = t(maximized ? 'common.restore' : 'common.maximize')
   maxButton.replaceChildren(glyph(maximized ? 'restore' : 'maximize'))
   maxButton.title = label
   maxButton.setAttribute('aria-label', label)
   root.classList.toggle('maxed', maximized)
 }
 // The bar says where the person is: Back, the page's name (a second-level page as a crumb), a few words on it, the action's keys.
-const pBack = el('button', { class: 'icon-btn back', title: 'Back (Esc)', 'aria-label': 'Back', onclick: () => back() }, lucide('arrow-left', 's'))
+const pBack = el('button', { class: 'icon-btn back', title: t('nav.backEsc'), 'aria-label': t('nav.back'), onclick: () => back() }, lucide('arrow-left', 's'))
 const pTitle = el('div', { class: 'ptitle' })
 const pCap = el('span', { class: 'pcap' })
 const pKeys = el('div', { class: 'pkeys' })
@@ -381,7 +396,7 @@ function updateNav(): void {
   const live = navValues.get('transcripts')
   if (!live) return
   live.classList.toggle('live', !!busy)
-  live.title = busy ? 'A transcript is being made' : ''
+  live.title = busy ? t('nav.making') : ''
   live.replaceChildren(...(busy ? [el('span', { class: 'dot' }), making?.id === busy ? `${Math.round(making.progress * 100)}%` : ''] : []))
 }
 
@@ -406,31 +421,35 @@ window.setInterval(() => void followMaking(), 3000)
 // ---------------------------------------------------------------- home
 
 function readiness(v: AppView): (Node | string)[] {
-  const translator = {
-    ready: 'ready',
-    absent: 'downloads on first use',
-    downloading: 'downloading',
-    failed: 'could not download; tries again on the next translation',
-    unsupported: 'has no offline translator yet',
-  }[v.translator]
+  const translator = t(
+    (
+      {
+        ready: 'home.translatorReady',
+        absent: 'home.translatorAbsent',
+        downloading: 'home.translatorDownloading',
+        failed: 'home.translatorFailed',
+        unsupported: 'home.translatorUnsupported',
+      } as const
+    )[v.translator],
+  )
   const n = v.natural
   const voice: (Node | string)[] =
     n.status === 'downloading'
-      ? [el('b', {}, 'natural voice'), ` ${Math.round(n.progress * 100)}%`]
+      ? [el('b', {}, t('home.natural')), ` ${Math.round(n.progress * 100)}%`]
       : n.status === 'failed'
-        ? [el('b', {}, 'Windows voice'), ' ready (the natural voice could not download)']
-        : [el('b', {}, naturalOn(v) ? 'natural voice' : 'Windows voice'), ' ready']
+        ? [el('b', {}, t('home.windowsVoice')), ` ${t('home.voiceFailed')}`]
+        : [el('b', {}, t(naturalOn(v) ? 'home.natural' : 'home.windowsVoice')), ` ${t('home.voiceReady')}`]
   const sp = v.speech
   const speech: (Node | string)[] = !installed(v)
     ? sp.pack.status === 'installing'
-      ? [', ', el('b', {}, 'speech'), ` ${Math.round((sp.pack.progress ?? 0) * 100)}%`]
+      ? [', ', el('b', {}, t('home.speech')), ` ${Math.round((sp.pack.progress ?? 0) * 100)}%`]
       : []
-    : [', ', el('b', {}, 'speech'), running(v) ? ' ready' : sp.service === 'down' ? ' stopped' : ' starting']
-  return [el('b', {}, pairOf(v)), ` ${translator}, `, ...voice, ...speech, '. Everything runs on this computer.']
+    : [', ', el('b', {}, t('home.speech')), ` ${t(running(v) ? 'home.speechReady' : sp.service === 'down' ? 'home.speechStopped' : 'home.speechStarting')}`]
+  return [el('b', {}, pairOf(v)), ` ${translator}, `, ...voice, ...speech, `. ${t('home.everything')}`]
 }
 
 function homeRow(action: Action, v: AppView): HTMLElement {
-  const t = actionText(action, v)
+  const a = actionText(action, v)
   const open = () => go(action)
   return el(
     'li',
@@ -446,7 +465,7 @@ function homeRow(action: Action, v: AppView): HTMLElement {
       },
     },
     lucide(ICONS[action]),
-    el('div', {}, el('div', { class: 'an' }, el('b', {}, t.title), el('i', {}, t.cap)), el('div', { class: 'ad' }, t.desc)),
+    el('div', {}, el('div', { class: 'an' }, el('b', {}, a.title), el('i', {}, a.cap)), el('div', { class: 'ad' }, a.desc)),
     el('div', { class: 'keys' }, ...keysOf(action, v.settings, true)),
     lucide('chevron-right', 'chev'),
   )
@@ -459,8 +478,8 @@ function pausedNotice(v: AppView): HTMLElement | null {
     'div',
     { class: 'row notice paused' },
     lucide('pause'),
-    el('div', { class: 'l' }, 'Krya is paused', el('small', {}, 'shortcuts and layout fixing are off until you resume')),
-    btn('Resume', () => save({ paused: false }), 'primary'),
+    el('div', { class: 'l' }, t('home.paused'), el('small', {}, t('home.pausedNote'))),
+    btn(t('tray.resume'), () => save({ paused: false }), 'primary'),
   )
 }
 
@@ -478,13 +497,13 @@ function homeNodes(v: AppView): HTMLElement[] {
         el('span', { class: 'hs h2' }, sample.fixed),
         el('span', { class: 'arr a2' }, '→'),
         el('span', { class: 'hs h3' }, 'hello world'),
-        el('button', { class: 'replay', title: 'Play the line again', onclick: () => playMoment(false) }, icon('play'), el('span', {}, 'Replay')),
+        el('button', { class: 'replay', title: t('home.replayTitle'), onclick: () => playMoment(false) }, icon('play'), el('span', {}, t('home.replay'))),
       ),
       el('p', { class: 'hcap' }, ...readiness(v)),
     ),
     pausedNotice(v),
     el('ul', { class: 'acts' }, ...ACTIONS.map(a => homeRow(a, v))),
-    el('p', { class: 'foot' }, 'Tap an action to change its keys.'),
+    el('p', { class: 'foot' }, t('home.foot')),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -581,14 +600,14 @@ function buildMoment(v: AppView, markSeen: boolean): Moment | undefined {
   const play = el('div', { class: 'play' }, playIcon)
   const t1 = el('div', { class: 'trail t1' }, sample.typed)
   const t2 = el('div', { class: 'trail t2' }, sample.fixed)
-  const eyebrow = el('div', { class: 'eyebrow' }, 'One line, three keys')
+  const eyebrow = el('div', { class: 'eyebrow' }, t('home.eyebrow'))
   const listenKey = keyLines('listen', s)[0]?.hotkey ?? ''
   const step = (n: number, hotkey: string, what: string) => {
     const keys = caps(hotkey)
     const small = el('small', {}, el('em', {}, String(n)), what)
     return { keys, small, node: el('div', { class: 'step' }, keys, small) }
   }
-  const sf = step(1, s.fixKey, 'fix'), st = step(2, s.translateKey, 'translate'), sl = step(3, listenKey, 'listen')
+  const sf = step(1, s.fixKey, t('home.stepFix')), st = step(2, s.translateKey, t('home.stepTranslate')), sl = step(3, listenKey, t('home.stepListen'))
   const rail = el('div', { class: 'rail' }, sf.node, st.node, sl.node)
   const stage = el('div', { class: 'stage' }, eyebrow, t1, t2, line, line2, play, rail)
   // The composition is drawn for a 620 px window; a shorter or taller one keeps it in the middle.
@@ -918,38 +937,38 @@ function flashRow(title: string): void {
 type Sub = { title: string | (() => string); cap?: (v: AppView) => string; body: (v: AppView) => HTMLElement[]; valid?: (v: AppView) => boolean }
 
 const SUBS: Record<SubId, Sub> = {
-  meet: { title: 'Google Meet', cap: () => 'the Krya extension for Chrome', body: meetPage },
-  speakers: { title: 'Who spoke when', cap: () => 'the voices told apart', body: speakerRows, valid: installed },
-  fixing: { title: 'Fixing as I type', cap: () => 'what else Krya sets right while you type', body: fixingPage },
+  meet: { title: 'Google Meet', cap: () => t('page.meetCap'), body: meetPage },
+  speakers: { title: () => t('page.speakers'), cap: () => t('page.speakersCap'), body: speakerRows, valid: installed },
+  fixing: { title: () => t('page.fixing'), cap: () => t('page.fixingCap'), body: fixingPage },
   program: { title: () => programOpen, body: programPage, valid: () => !!programOpen },
-  languages: { title: 'Languages you use', body: languagesPage },
-  forTranslate: { title: 'Translate', cap: () => 'the model that translates', body: translateChoicePage },
-  forCheck: { title: 'Check my English', cap: () => 'the model that finds your mistakes', body: checkChoicePage },
-  forDictate: { title: 'Dictate', cap: () => 'the model that writes what you say', body: v => speechChoicePage(v, 'dictation') },
-  forTranscribe: { title: 'Transcribe', cap: () => 'the model that writes recordings down', body: v => speechChoicePage(v, 'transcripts') },
-  forVoice: { title: 'Listen voice', cap: () => 'the voice that reads English aloud', body: voiceChoicePage },
+  languages: { title: () => t('page.languages'), body: languagesPage },
+  forTranslate: { title: () => TITLES.translate, cap: () => t('page.forTranslateCap'), body: translateChoicePage },
+  forCheck: { title: () => t('page.checkEnglish'), cap: () => t('page.forCheckCap'), body: checkChoicePage },
+  forDictate: { title: () => TITLES.dictate, cap: () => t('page.forDictateCap'), body: v => speechChoicePage(v, 'dictation') },
+  forTranscribe: { title: () => TITLES.transcribe, cap: () => t('page.forTranscribeCap'), body: v => speechChoicePage(v, 'transcripts') },
+  forVoice: { title: () => t('page.voice'), cap: () => t('page.forVoiceCap'), body: voiceChoicePage },
 }
 const subTitle = (id: SubId) => {
-  const t = SUBS[id].title
-  return typeof t === 'string' ? t : t()
+  const title = SUBS[id].title
+  return typeof title === 'string' ? title : title()
 }
 
 /** A few words by the page's name in the bar. */
 const CAPS: Partial<Record<Page, (v: AppView) => string>> = {
-  words: v => (v.words.length ? `${v.words.length} saved · from your cards` : 'none yet · from your cards'),
-  mistakes: () => 'from Check · on this computer',
+  words: v => (v.words.length ? t('page.wordsCap', { n: v.words.length }) : t('page.wordsNone')),
+  mistakes: () => t('page.mistakesCap'),
   transcripts: () => transcriptsCap(),
-  translations: () => 'kept 30 days on this computer',
-  phrases: () => 'dictated lately · kept 30 days on this computer',
-  vocabulary: () => 'for Dictate and Transcribe',
-  kept: () => 'never fixed by themselves',
-  learned: () => 'on this computer only',
-  programs: () => 'left out of parts, or with a layout of their own',
-  layouts: () => 'in the order the keys go through them',
-  models: () => 'what each action uses, and what this computer runs best',
-  storage: v => (v.storage?.measuring ? 'measuring…' : v.storage ? `${speechSize(v.storage.freeMb)} free on ${v.storage.drive}` : 'what Krya keeps on this computer'),
+  translations: () => t('page.translationsCap'),
+  phrases: () => t('page.phrasesCap'),
+  vocabulary: () => t('page.vocabularyCap'),
+  kept: () => t('page.keptCap'),
+  learned: () => t('page.learnedCap'),
+  programs: () => t('page.programsCap'),
+  layouts: () => t('page.layoutsCap'),
+  models: () => t('page.modelsCap'),
+  storage: v => (v.storage?.measuring ? t('page.measuring') : v.storage ? t('page.freeOn', { size: speechSize(v.storage.freeMb), drive: v.storage.drive }) : t('page.storageCap')),
   about: v => `Krya ${v.version}`,
-  report: () => 'with Krya’s logs, sent by you',
+  report: () => t('page.reportCap'),
 }
 
 let sliding: Animation[] = []
@@ -985,7 +1004,7 @@ function fillHeader(): void {
   const v = view
   pBack.hidden = !open && visited.length === 0
   if (!open) {
-    pTitle.replaceChildren('Home')
+    pTitle.replaceChildren(t('nav.home'))
     pCap.textContent = ''
     pKeys.replaceChildren()
     return
@@ -1146,7 +1165,8 @@ const SEARCHED: Place[] = [
   { name: 'report' },
 ]
 
-type Line = { place: Place; section: string; title: string; note: string }
+/** A line found by the search; `en` is its title and note in English, so English words find it in any interface language. */
+type Line = { place: Place; section: string; title: string; note: string; en: string }
 
 /** A line's name: the first thing in its text. */
 const lineTitle = (row: Element) => (row.querySelector(':scope > .l')?.firstChild?.textContent ?? '').trim()
@@ -1166,24 +1186,56 @@ function bodyFor(v: AppView, place: Place): HTMLElement[] {
 
 let lineCache: { view: AppView; lines: Line[] } | undefined
 
-/** Every line of the searched places, read from their bodies once per snapshot. */
+type DrawnLine = { section: string; title: string; note: string }
+
+/** The lines of a place's body, in the order they are drawn, each under its section. */
+function drawnLines(v: AppView, place: Place): DrawnLine[] {
+  const lines: DrawnLine[] = []
+  let section = ''
+  for (const node of bodyFor(v, place)) {
+    if (node.classList.contains('grp')) {
+      section = (node.firstChild?.textContent ?? '').trim()
+      continue
+    }
+    for (const row of node.matches('.row') ? [node] : [...node.querySelectorAll('.row')]) {
+      const title = lineTitle(row)
+      const note = [...row.querySelectorAll(':scope > .l > small')].map(s => s.textContent ?? '').join(' · ')
+      if (title) lines.push({ section, title, note })
+    }
+  }
+  return lines
+}
+
+/** A place's lines drawn in English, for a search in English while the interface is Ukrainian or Russian. */
+function englishLines(v: AppView, place: Place): DrawnLine[] {
+  const was = uiLanguage()
+  setUiLanguage('en')
+  try {
+    return drawnLines(v, place)
+  } finally {
+    setUiLanguage(was)
+  }
+}
+
+/**
+ * Every line of the searched places, read from their bodies once per snapshot.
+ * In Ukrainian or Russian each body is drawn a second time in English and its
+ * lines paired with the first by order; a place whose two drawings differ in
+ * their number of lines is found by its own language only.
+ */
 function linesOf(v: AppView): Line[] {
   if (lineCache?.view === v) return lineCache.lines
   const lines: Line[] = []
+  const english = uiLanguage() !== 'en'
   for (const place of SEARCHED) {
     if (place.sub && SUBS[place.sub].valid?.(v) === false) continue
-    let section = ''
-    for (const node of bodyFor(v, place)) {
-      if (node.classList.contains('grp')) {
-        section = (node.firstChild?.textContent ?? '').trim()
-        continue
-      }
-      for (const row of node.matches('.row') ? [node] : [...node.querySelectorAll('.row')]) {
-        const title = lineTitle(row)
-        const note = [...row.querySelectorAll(':scope > .l > small')].map(s => s.textContent ?? '').join(' · ')
-        if (title) lines.push({ place, section, title, note })
-      }
-    }
+    const mine = drawnLines(v, place)
+    const en = english ? englishLines(v, place) : []
+    const paired = en.length === mine.length
+    mine.forEach((l, i) => {
+      const e = paired ? en[i] : undefined
+      lines.push({ place, ...l, en: e ? `${e.title} ${e.note}` : '' })
+    })
   }
   lineCache = { view: v, lines }
   return lines
@@ -1191,12 +1243,13 @@ function linesOf(v: AppView): Line[] {
 
 const found = (v: AppView) => {
   const q = finding.trim().toLowerCase()
-  return q ? linesOf(v).filter(l => `${l.title} ${l.note}`.toLowerCase().includes(q)) : []
+  return q ? linesOf(v).filter(l => `${l.title} ${l.note}`.toLowerCase().includes(q) || l.en.toLowerCase().includes(q)) : []
 }
 
 function searchCap(v: AppView): string {
   const n = found(v).length
-  return finding.trim() ? `${n || 'no'} ${n === 1 ? 'place' : 'places'} for “${finding.trim()}”` : ''
+  const q = finding.trim()
+  return q ? (n ? t('search.places', { n, q }) : t('search.none', { q })) : ''
 }
 
 /** Where a place is, in words, as its header says it: "Kept as typed", "Keyboard › Fixing as I type". */
@@ -1213,7 +1266,7 @@ function marked(text: string, q: string): (Node | string)[] {
 function searchPage(v: AppView): HTMLElement[] {
   const q = finding.trim().toLowerCase()
   const hits = found(v)
-  if (!hits.length) return [aside('search', q ? `Nothing has “${finding.trim()}”. Words, transcripts and translations have searches of their own.` : 'Type above: every line of every page is found by its name or its note.')]
+  if (!hits.length) return [aside('search', q ? t('search.nothing', { q: finding.trim() }) : t('search.hint'))]
   const out: HTMLElement[] = []
   let last = ''
   for (const hit of hits) {
@@ -1276,26 +1329,26 @@ type KeyName =
   | 'pauseKey'
   | 'windowKey'
 
-const KEY_USE: Record<KeyName, string> = {
-  selectKey: 'listening to the selection',
-  snipKey: 'listening to text on the screen',
-  translateKey: 'translating the selection',
-  textKey: 'translating text on the screen',
-  inPlaceKey: 'replacing the selection with its translation',
-  checkKey: 'checking your English',
-  typeKey: 'typing a text to translate',
-  typeCheckKey: 'typing a text to check',
-  switchKey: 'switching the layout',
-  fixKey: 'fixing the layout',
-  dictateKey: 'dictating',
-  englishKey: 'dictating in English',
-  noteKey: 'dictating a note',
-  againKey: 'typing the last phrase again',
-  practiceKey: 'checking what you say',
-  talkKey: 'talking to the duck',
-  pauseKey: 'pausing Krya',
-  windowKey: 'opening Krya',
-}
+const KEY_USE: Record<KeyName, string> = phrases({
+  selectKey: 'keys.useSelect',
+  snipKey: 'keys.useSnip',
+  translateKey: 'keys.useTranslate',
+  textKey: 'keys.useText',
+  inPlaceKey: 'keys.useInPlace',
+  checkKey: 'keys.useCheck',
+  typeKey: 'keys.useType',
+  typeCheckKey: 'keys.useTypeCheck',
+  switchKey: 'keys.useSwitch',
+  fixKey: 'keys.useFix',
+  dictateKey: 'keys.useDictate',
+  englishKey: 'keys.useEnglish',
+  noteKey: 'keys.useNote',
+  againKey: 'keys.useAgain',
+  practiceKey: 'keys.usePractice',
+  talkKey: 'keys.useTalk',
+  pauseKey: 'keys.usePause',
+  windowKey: 'keys.useWindow',
+})
 
 /** What else a key is for already, besides `self` (a setting's name, or a layout's id for its own key). */
 function keyTakenBy(key: string, self: string): string | undefined {
@@ -1305,14 +1358,14 @@ function keyTakenBy(key: string, self: string): string | undefined {
   const other = (Object.keys(KEY_USE) as KeyName[]).find(n => n !== self && s[n] === key)
   if (other) return KEY_USE[other]
   const layout = Object.entries(s.layoutKeys).find(([id, k]) => id !== self && k === key)?.[0]
-  return layout ? `going to ${view?.layouts.find(l => l.id === layout)?.name ?? 'a layout'}` : undefined
+  return layout ? t('keys.toLayout', { layout: view?.layouts.find(l => l.id === layout)?.name ?? t('keys.aLayout') }) : undefined
 }
 
 /** Saves a key unless another use has it already. */
 function saveKey(name: KeyName, key: string): void {
   const other = keyTakenBy(key, name)
   if (other) {
-    keyTrouble = { name, text: `${hotkeyLabel(key)} is already for ${other}.` }
+    keyTrouble = { name, text: t('keys.taken', { key: said(key), use: other }) }
     return renderBody()
   }
   keyTrouble = undefined
@@ -1328,8 +1381,8 @@ function keyRow(name: KeyName, label: string, note: string, taken = false, iconN
 
 /** Alt or Win alone as a key: Krya keeps it from opening a menu (typist.ts), so the line says where the menu went. */
 function menuNote(key: string): string {
-  if (/^(Left|Right)Alt(\*2)?$/.test(key)) return 'Alt alone no longer opens menus, F10 does'
-  if (/^(Left|Right)Super(\*2)?$/.test(key)) return 'Win alone no longer opens Start, Ctrl+Esc does'
+  if (/^(Left|Right)Alt(\*2)?$/.test(key)) return t('keys.menuAlt')
+  if (/^(Left|Right)Super(\*2)?$/.test(key)) return t('keys.menuWin')
   return ''
 }
 
@@ -1345,7 +1398,7 @@ function layoutKeyRow(l: KeyboardLayout, label: string, note: (string | HTMLElem
   const saveIt = (key: string) => {
     const other = key ? keyTakenBy(key, l.id) : undefined
     if (other) {
-      keyTrouble = { name: l.id, text: `${hotkeyLabel(key)} is already for ${other}.` }
+      keyTrouble = { name: l.id, text: t('keys.taken', { key: said(key), use: other }) }
       return renderBody()
     }
     keyTrouble = undefined
@@ -1378,8 +1431,8 @@ function keyRecorder(
   let waiting: number | undefined
   const field = el('button', {
     class: 'krec',
-    title: 'Click, then press the keys: Ctrl+Alt+T, Left Ctrl twice, Pause, a mouse side button…',
-    'aria-label': `${label}: ${current ? hotkeyLabel(current) : 'not set'}. Click to change.`,
+    title: t('keys.recordTitle'),
+    'aria-label': t('keys.aria', { label, key: current ? said(current) : t('keys.notSet') }),
   })
   field.append(caps(current))
   const showing = (...nodes: HTMLElement[]) => field.replaceChildren(...nodes)
@@ -1400,7 +1453,7 @@ function keyRecorder(
     if (field.classList.contains('recording')) return
     recorder.reset()
     field.classList.add('recording')
-    showing(el('span', { class: 'key rec' }, 'Press keys…'))
+    showing(el('span', { class: 'key rec' }, t('keys.pressKeys')))
   }
   // Focus starts it; so does the click itself, should the window not have the focus yet.
   field.addEventListener('focus', listen)
@@ -1437,8 +1490,8 @@ function keyRecorder(
         'button',
         {
           class: 'kx',
-          title: 'Clear',
-          'aria-label': `Clear ${label}`,
+          title: t('keys.clear'),
+          'aria-label': t('keys.clearAria', { label }),
           onclick: () => {
             keyTrouble = undefined
             saveKeyAs('')
@@ -1453,8 +1506,8 @@ function keyRecorder(
           'button',
           {
             class: 'kx',
-            title: `Back to ${hotkeyLabel(byDefault)}`,
-            'aria-label': `${label}: back to ${hotkeyLabel(byDefault)}`,
+            title: t('keys.backTo', { key: said(byDefault) }),
+            'aria-label': t('keys.backToAria', { label, key: said(byDefault) }),
             onclick: () => {
               keyTrouble = undefined
               saveKeyAs(byDefault)
@@ -1467,8 +1520,8 @@ function keyRecorder(
   const notes = typeof note === 'string' ? [note] : note
   const node = row(
     label,
-    [...notes, taken && current ? bad('Taken by another program; choose another.') : null, trouble ? bad(trouble) : null],
-    el('span', { class: 'kchg' }, field, clear, restore, linkBtn(current ? 'Change' : 'Set', () => field.click()), extra ?? null),
+    [...notes, taken && current ? bad(t('keys.takenProgram')) : null, trouble ? bad(trouble) : null],
+    el('span', { class: 'kchg' }, field, clear, restore, linkBtn(t(current ? 'keys.change' : 'keys.set'), () => field.click()), extra ?? null),
   )
   if (iconName) node.prepend(lucide(iconName))
   return node
@@ -1481,43 +1534,43 @@ const fixedKey = (label: string, hotkey: string, note?: string) => row(label, [n
 
 function listenPage(v: AppView): HTMLElement[] {
   const s = v.settings
-  const how = s.selectKey ? `Select this text, ${usage(s.selectKey)}.` : s.doubleCopy ? 'Select this text, press Ctrl + C twice.' : 'Set a key above or turn on Ctrl + C twice, then select this text.'
+  const how = s.selectKey ? t('listen.tryKey', { how: usage(s.selectKey) }) : t(s.doubleCopy ? 'listen.tryTwice' : 'listen.tryNone')
   return [
-    grp('Keys'),
-    keyRow('selectKey', 'Listen to the selected text', 'select text anywhere, then press the key', !v.keysOk.select, 'volume-2'),
+    grp(t('keys.group')),
+    keyRow('selectKey', t('listen.select'), t('listen.selectNote'), !v.keysOk.select, 'volume-2'),
     card(
       'copy',
-      'Also on Ctrl + C twice',
-      ['select text, then press Ctrl + C twice, quickly; works with no key set too'],
-      el('span', { class: 'kchg' }, caps(COPY_TWICE), el('span', { class: 'tgwrap' }, toggleKnob(s.doubleCopy, doubleCopy => save({ doubleCopy }), 'Ctrl + C twice'))),
+      t('listen.alsoTwice'),
+      [t('listen.alsoTwiceNote')],
+      el('span', { class: 'kchg' }, caps(COPY_TWICE), el('span', { class: 'tgwrap' }, toggleKnob(s.doubleCopy, doubleCopy => save({ doubleCopy }), t('keys.copyTwice')))),
     ),
-    keyRow('snipKey', 'Listen to text on the screen', 'for text you can’t select: draw a box around it', !v.keysOk.snip, 'scan'),
-    grp('Voice'),
-    navCard('volume-2', 'Voice', 'the voice that reads', voiceValue(v), () => go('models', 'forVoice'), 'models'),
+    keyRow('snipKey', t('listen.snip'), t('listen.boxNote'), !v.keysOk.snip, 'scan'),
+    grp(t('listen.voiceGroup')),
+    navCard('volume-2', t('listen.voiceGroup'), t('listen.voiceNote'), voiceValue(v), () => go('models', 'forVoice'), 'models'),
     speedCard(v),
-    grp('The card'),
-    toggleCard('volume-2', 'Read aloud when a card opens', s.autoRead, autoRead => save({ autoRead })),
-    toggleCard('spell-check', 'Dotted line under less common words', s.rareWords, rareWords => save({ rareWords })),
-    toggleCard('list', 'Listen reads one sentence at a time', s.oneAtATime, oneAtATime => save({ oneAtATime })),
+    grp(t('listen.cardGroup')),
+    toggleCard('volume-2', t('listen.autoRead'), s.autoRead, autoRead => save({ autoRead })),
+    toggleCard('spell-check', t('listen.rareWords'), s.rareWords, rareWords => save({ rareWords })),
+    toggleCard('list', t('listen.oneAtATime'), s.oneAtATime, oneAtATime => save({ oneAtATime })),
     card(
       'book-open',
-      'Show word meanings on',
+      t('listen.wordHint'),
       [],
       select(
         s.wordHint,
         [
-          ['shift', 'Click, or Shift + hover'],
-          ['hover', 'Click, or hover'],
-          ['off', 'Click only'],
+          ['shift', t('listen.hintShift')],
+          ['hover', t('listen.hintHover')],
+          ['off', t('listen.hintOff')],
         ],
         wordHint => save({ wordHint }),
       ),
     ),
-    grp('In the card'),
-    card('play', 'Play, stop and step through sentences', [], el('span', { class: 'kg2' }, caps('Space'), caps('←'), caps('→'))),
-    card('book-open', 'Click a word', ['see its meanings, hear it, star it to keep it in Words'], null),
-    card('languages', 'Click a sentence', ['its translation is marked; ▶ in the margin reads one paragraph'], null),
-    card('x', 'Close the card and stop the voice', [], caps('Esc')),
+    grp(t('listen.inCard')),
+    card('play', t('listen.playKeys'), [], el('span', { class: 'kg2' }, caps('Space'), caps('←'), caps('→'))),
+    card('book-open', t('listen.clickWord'), [t('listen.clickWordNote')], null),
+    card('languages', t('listen.clickSentence'), [t('listen.clickSentenceNote')], null),
+    card('x', t('listen.closeCard'), [], caps('Esc')),
     tryIt('The morning was quiet. A small boat drifted along the river, and two children watched the ducks from the bridge.', how),
   ].filter((n): n is HTMLElement => n !== null)
 }
@@ -1532,23 +1585,23 @@ function translatorChip(v: AppView): [HTMLElement, string] {
   const from = level === 'fast' ? 'Mozilla' : 'Hugging Face'
   switch (v.translator) {
     case 'ready':
-      return [chip('ready'), `${LEVEL_NAMES[level]} translation, works offline`]
+      return [chip(t('translate.chipReady')), t('translate.readyNote', { level: levelName(level) })]
     case 'absent':
-      return [chip('on first use', 'off'), `downloads from ${from} at the first translation, then works offline`]
+      return [chip(t('translate.chipFirstUse'), 'off'), t('translate.absentNote', { from })]
     case 'downloading':
-      return [chip('downloading'), `downloading from ${from}, once`]
+      return [chip(t('translate.chipDownloading')), t('translate.downloadingNote', { from })]
     case 'failed':
-      return [chip('failed', 'bad'), 'could not download; the next translation tries again']
+      return [chip(t('translate.chipFailed'), 'bad'), t('translate.failedNote')]
     case 'unsupported':
-      return [chip('not offered', 'off'), 'no offline translator for this language yet']
+      return [chip(t('translate.chipUnsupported'), 'off'), t('translate.unsupportedNote')]
   }
 }
 
-const LEVEL_ABOUT: Record<TranslationLevel, string> = {
-  fast: 'Instant; short phrases may come out word for word',
-  accurate: 'Understands the whole sentence',
-  most: 'The best wording, and the slowest',
-}
+const LEVEL_ABOUT: Record<TranslationLevel, string> = phrases({
+  fast: 'models.aboutFast',
+  accurate: 'models.aboutAccurateLevel',
+  most: 'models.aboutMostLevel',
+})
 
 /** The model behind a level, named last. */
 const LEVEL_MODEL: Record<TranslationLevel, string> = {
@@ -1557,42 +1610,41 @@ const LEVEL_MODEL: Record<TranslationLevel, string> = {
   most: 'Gemma 4 12B',
 }
 
-const FIT_WHERE: Record<LevelFit['where'], string> = {
-  card: 'on your graphics card',
-  part: 'partly on your graphics card',
-  processor: 'on your processor',
-}
+const FIT_WHERE: Record<LevelFit['where'], string> = phrases({
+  card: 'models.onCard',
+  part: 'models.partlyOnCard',
+  processor: 'models.onProcessor',
+})
 
 /** The time expected before any is measured here. */
-const FIT_GUESS: Record<LevelFit['where'], string> = {
-  card: 'about 1–2 s per sentence',
-  part: 'possible, but slow here',
-  processor: 'possible, but slow here: 30 s or more per text',
-}
+const FIT_GUESS: Record<LevelFit['where'], string> = phrases({
+  card: 'models.guessCard',
+  part: 'models.guessPart',
+  processor: 'models.guessProcessor',
+})
 
 /** A model partly on an NVIDIA card runs on llama.cpp's CUDA build, which its download carries. */
-const CUDA_GUESS = 'a few seconds for a short text, 15–20 s for a long one'
-const CUDA_SIZE = 'with NVIDIA’s own build, 670 MB'
+const cudaGuess = () => t('models.cudaGuess')
+const cudaSize = () => t('models.cudaSize')
 
 /** A sentence slower than this reads as slow. */
 const SLOW_SENTENCE_S = 2
 
 /** The wait for a model loaded again after it was let go, measured here. */
-const startText = (start: number | undefined) => (start !== undefined ? `; it starts in ${seconds(start)} after 3 idle minutes` : '')
+const startText = (start: number | undefined) => (start !== undefined ? `; ${t('models.starts', { time: seconds(start) })}` : '')
 
 /** What a model on the graphics card holds of it (measured on an NVIDIA card), and when it gives it back (llama.ts, main.ts stopForFullScreen). */
 function cardText(fit: LevelFit, card: number | undefined): string | null {
   if (fit.where === 'processor') return null
-  const held = card !== undefined ? `Takes ${speechSize(card)} of the graphics card while in use; frees it` : 'Frees the graphics card'
-  return `${held} after 3 idle minutes, or when a game or video goes full screen`
+  return card !== undefined ? t('models.cardHeld', { size: speechSize(card) }) : t('models.cardFrees')
 }
 
 /** Where a level runs here and how long it takes: measured, once it has been, else expected. */
 function levelFitText(fit: LevelFit, speed: AppView['modelSpeed'][LlmModel]): string {
   const where = FIT_WHERE[fit.where]
   const measured = speed?.sentence === undefined ? undefined : { sentence: speed.sentence, start: speed.start }
-  if (!measured) return fit.cuda ? `${CUDA_GUESS}, ${where}` : fit.where === 'card' ? `${FIT_GUESS.card} ${where}` : `${FIT_GUESS[fit.where]}, ${where}`
-  return `${measured.sentence > SLOW_SENTENCE_S ? 'slow here' : 'here'}: ${seconds(measured.sentence)} per sentence, ${where}${startText(measured.start)}`
+  if (!measured) return fit.cuda ? `${cudaGuess()}, ${where}` : fit.where === 'card' ? `${FIT_GUESS.card} ${where}` : `${FIT_GUESS[fit.where]}, ${where}`
+  return `${t(measured.sentence > SLOW_SENTENCE_S ? 'models.slowHere' : 'models.here')}: ${t('models.perSentence', { time: seconds(measured.sentence) })}, ${where}${startText(measured.start)}`
 }
 
 // ---------------------------------------------------------------- models
@@ -1602,34 +1654,35 @@ function levelFitText(fit: LevelFit, speed: AppView['modelSpeed'][LlmModel]): st
 // action's page names its model in one line that opens this page at it.
 
 /** What each language model is like, translating and checking. */
-const MODEL_ABOUT: Record<LlmModel, string> = {
-  accurate: 'Understands the whole sentence and catches nearly every mistake',
-  most: 'The best wording, a little more careful, and slower',
-}
+const MODEL_ABOUT: Record<LlmModel, string> = phrases({
+  accurate: 'models.aboutAccurate',
+  most: 'models.aboutMost',
+})
 
 /** Where a language model runs here and how long it takes, translating and checking: measured, once it has been, else expected. */
 function llmFitText(fit: LevelFit, speed: AppView['modelSpeed'][LlmModel]): string {
   if (!speed || (speed.sentence === undefined && speed.text === undefined)) return levelFitText(fit, speed)
   const times = [
-    speed.sentence !== undefined ? `${seconds(speed.sentence)} per sentence` : '',
-    speed.text !== undefined ? `${seconds(speed.text)} per text checked` : '',
-    speed.reply !== undefined ? `${seconds(speed.reply)} per answer in Talk` : '',
+    speed.sentence !== undefined ? t('models.perSentence', { time: seconds(speed.sentence) }) : '',
+    speed.text !== undefined ? t('models.perCheck', { time: seconds(speed.text) }) : '',
+    speed.reply !== undefined ? t('models.perAnswer', { time: seconds(speed.reply) }) : '',
   ]
     .filter(Boolean)
     .join(', ')
   const slow = (speed.sentence ?? 0) > SLOW_SENTENCE_S || (speed.text ?? 0) > SLOW_CHECK_S
-  return `${slow ? 'slow here' : 'here'}: ${times}, ${FIT_WHERE[fit.where]}${startText(speed.start)}`
+  return `${t(slow ? 'models.slowHere' : 'models.here')}: ${times}, ${FIT_WHERE[fit.where]}${startText(speed.start)}`
 }
 
 const pct = (progress: number) => el('span', { class: 'pct' }, `${Math.round(progress * 100)}%`)
 
 /** A language model's size here, or what picking it downloads. */
 function llmSizeNote(v: AppView, model: LlmModel, inUse: boolean): string | HTMLElement {
-  const t = v.models[model]
-  if (t.status === 'failed') return bad('the download failed; Try again downloads it again')
-  if (t.status === 'ready') return `${speechSize(t.size)} on this computer`
-  if (t.status === 'downloading') return `${speechSize(t.size)}, downloading`
-  return `${speechSize(t.size)} to download ${inUse ? 'at its first use' : 'when picked'}${translationAdvice(v.speech.device)[model].cuda ? ` (${CUDA_SIZE})` : ''}`
+  const m = v.models[model]
+  const size = speechSize(m.size)
+  if (m.status === 'failed') return bad(t('models.failedRetry'))
+  if (m.status === 'ready') return t('models.onComputer', { size })
+  if (m.status === 'downloading') return t('models.downloadingSize', { size })
+  return `${t(inUse ? 'models.toDownloadFirst' : 'models.toDownloadPicked', { size })}${translationAdvice(v.speech.device)[model].cuda ? ` (${cudaSize()})` : ''}`
 }
 
 /**
@@ -1640,22 +1693,22 @@ function llmSizeNote(v: AppView, model: LlmModel, inUse: boolean): string | HTML
  */
 function llmChoice(v: AppView, model: LlmModel, on: boolean, pick: () => void, share: string): HTMLElement {
   const s = v.settings
-  const t = v.models[model]
+  const m = v.models[model]
   const advice = translationAdvice(v.speech.device)
   const fit = advice[model]
-  const fetching = t.status === 'downloading'
+  const fetching = m.status === 'downloading'
   const used = s.model === model || s.translationLevel === model
   const notes = [
     `${MODEL_ABOUT[model]} (${LEVEL_MODEL[model]})`,
     llmFitText(fit, v.modelSpeed[model]),
     llmSizeNote(v, model, on),
     share,
-    t.status === 'ready' ? cardText(fit, v.modelSpeed[model]?.card) : null,
-    fetching ? bar(t.progress) : null,
+    m.status === 'ready' ? cardText(fit, v.modelSpeed[model]?.card) : null,
+    fetching ? bar(m.progress) : null,
   ]
-  const label = el('span', {}, LEVEL_NAMES[model], advice.advised === model ? recommended() : null)
-  const control = fetching ? pct(t.progress) : on && t.status !== 'ready' ? linkBtn(t.status === 'failed' ? 'Try again' : 'Download', () => post({ type: 'useModel', model })) : null
-  const remove = t.status === 'ready' && !used ? ib('x', `Remove ${LEVEL_NAMES[model]} (${speechSize(t.size)}); it downloads again when picked`, () => post({ type: 'removeStored', id: model })) : null
+  const label = el('span', {}, levelName(model), advice.advised === model ? recommended() : null)
+  const control = fetching ? pct(m.progress) : on && m.status !== 'ready' ? linkBtn(t(m.status === 'failed' ? 'common.tryAgain' : 'models.download'), () => post({ type: 'useModel', model })) : null
+  const remove = m.status === 'ready' && !used ? ib('x', t('models.remove', { level: levelName(model), size: speechSize(m.size) }), () => post({ type: 'removeStored', id: model })) : null
   return radioRow(label, notes, on, pick, control, remove)
 }
 
@@ -1666,17 +1719,17 @@ function translateChoicePage(v: AppView): HTMLElement[] {
   const fast = v.translation.fast
   const fetching = fast.status === 'downloading'
   const fastRow = radioRow(
-    el('span', {}, LEVEL_NAMES.fast, advice.advised === 'fast' ? recommended() : null),
+    el('span', {}, levelName('fast'), advice.advised === 'fast' ? recommended() : null),
     [
       `${LEVEL_ABOUT.fast} (${LEVEL_MODEL.fast})`,
       fast.status === 'failed'
-        ? bad('the download failed; the next translation tries again')
+        ? bad(t('models.fastFailed'))
         : fast.status === 'ready'
-          ? 'on this computer'
+          ? t('models.onThisComputer')
           : fetching || fast.status === 'unsupported'
             ? null
-            : `${speechSize(fast.size)} for your language, ${s.translationLevel === 'fast' ? 'downloads with the next translation' : 'downloads when picked'}`,
-      'also shows a quick draft while Accurate or Most accurate translates',
+            : t(s.translationLevel === 'fast' ? 'models.fastNext' : 'models.fastPicked', { size: speechSize(fast.size) }),
+      t('models.draft', { accurate: levelName('accurate'), most: levelName('most') }),
       fetching ? bar(fast.progress) : null,
     ],
     s.translationLevel === 'fast',
@@ -1684,9 +1737,9 @@ function translateChoicePage(v: AppView): HTMLElement[] {
     fetching ? pct(fast.progress) : null,
   )
   const share = (model: LlmModel) =>
-    s.model !== model ? 'Check my English moves to it too: one model does both' : s.translationLevel === model ? 'Check my English uses it too: downloaded once, loaded once' : 'Check my English uses it already'
+    t(s.model !== model ? 'models.checkMoves' : s.translationLevel === model ? 'models.checkShares' : 'models.checkAlready')
   return [
-    grp('Translate with'),
+    grp(t('models.translateWith')),
     fastRow,
     ...(['accurate', 'most'] as const).map(model => llmChoice(v, model, s.translationLevel === model, () => post({ type: 'translationLevel', level: model }), share(model))),
   ]
@@ -1696,24 +1749,25 @@ function translateChoicePage(v: AppView): HTMLElement[] {
 function checkChoicePage(v: AppView): HTMLElement[] {
   const s = v.settings
   const share = (model: LlmModel) =>
-    s.translationLevel === model ? 'Translate uses it too: downloaded once, loaded once' : s.translationLevel === 'fast' ? 'Translate stays on Fast' : 'Translate moves to it too: one model does both'
+    s.translationLevel === model ? t('models.translateShares') : s.translationLevel === 'fast' ? t('models.translateStays', { fast: levelName('fast') }) : t('models.translateMoves')
   return [
-    grp('Check with'),
+    grp(t('models.checkWith')),
     ...(['accurate', 'most'] as const).map(model => llmChoice(v, model, s.model === model, () => post({ type: 'useModel', model }), share(model))),
-    aside('info', 'Fast only translates; checking needs one of these.'),
+    aside('info', t('models.fastOnly', { fast: levelName('fast') })),
   ]
 }
 
 /** Models › Dictate, Models › Transcribe: Automatic or a model of the action's own; the engine's download until it runs. */
 function speechChoicePage(v: AppView, feature: Feature): HTMLElement[] {
-  const name = feature === 'dictation' ? 'Dictate' : 'Transcribe'
-  const offer = engineRows(v, name)
-  if (offer.length) return [grp('Speech engine'), ...offer]
+  const name = feature === 'dictation' ? TITLES.dictate : TITLES.transcribe
+  // engineRows takes the feature's English id and words the offer itself (speech.ts).
+  const offer = engineRows(v, feature === 'dictation' ? 'Dictate' : 'Transcribe')
+  if (offer.length) return [grp(t('models.engine')), ...offer]
   return [
     testOffer(v),
-    grp(`${name} with`),
+    grp(t('models.speechWith', { name })),
     ...speechChoiceRows(v, feature),
-    grp('Options'),
+    grp(t('models.options')),
     preferRow(v),
     gpuRow(v),
     feature === 'transcripts' ? speakersCard(v, () => go('transcribe', 'speakers'), true) : null,
@@ -1731,20 +1785,20 @@ function voiceChoicePage(v: AppView): HTMLElement[] {
   const noteOf = (value: string) =>
     value === ''
       ? v.natural.status === 'ready'
-        ? 'the natural voice'
-        : 'the natural voice once it is downloaded, a Windows voice until then'
+        ? t('models.naturalReady')
+        : t('models.naturalLater')
       : value.startsWith(NATURAL_PREFIX)
-        ? `natural, made on this computer (Kokoro)${rtf && rtf <= 1 ? ` · prepares speech ${Math.max(1, Math.round(1 / rtf))}× faster than it plays` : ''}`
-        : 'a Windows voice: instant, less natural'
+        ? `${t('models.naturalNote')}${rtf && rtf <= 1 ? ` · ${t('models.naturalFaster', { n: Math.max(1, Math.round(1 / rtf)) })}` : ''}`
+        : t('models.windowsNote')
   const rows = voiceOptions(v).map(([value, label]) => {
     const advised = value === '' ? natural : !natural && value === windows
     return radioRow(el('span', {}, label, advised ? recommended() : null), [noteOf(value)], s.voice === value, () => save({ voice: value }))
   })
   return [
-    grp('Read with'),
+    grp(t('models.readWith')),
     ...rows,
     naturalRow(v),
-    slow ? warn('The natural voice prepares speech slower than it plays here, so it pauses between sentences; a Windows voice is instant.') : null,
+    slow ? warn(t('models.naturalSlow')) : null,
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -1755,14 +1809,14 @@ let recommending = false
 function recommendRows(v: AppView): HTMLElement[] {
   const close = () => ((recommending = false), renderBody())
   if (!recommending)
-    return [row('Use the recommended models', ['what runs best on this computer, for every action; you see what changes first'], btn('Use recommended', () => ((recommending = true), renderBody()), 'primary'))]
+    return [row(t('models.useRecommendedTitle'), [t('models.useRecommendedNote')], btn(t('models.useRecommended'), () => ((recommending = true), renderBody()), 'primary'))]
   const advice = recommendedModels(v)
   if (!advice.changes.length)
-    return [el('div', { class: 'row total' }, el('div', { class: 'l' }, 'Already as recommended', el('small', {}, 'every action uses what this computer runs best')), linkBtn('OK', close))]
+    return [el('div', { class: 'row total' }, el('div', { class: 'l' }, t('models.already'), el('small', {}, t('models.alreadyNote'))), linkBtn('OK', close))]
   const free = v.storage?.freeMb ?? v.speech.disk.freeMb
   const needs = advice.download * 1.1
   const short = advice.download > 0 && free > 0 && free < needs
-  const apply = btn('Apply', () => ((recommending = false), post({ type: 'useRecommended' }), renderBody()), 'primary')
+  const apply = btn(t('models.apply'), () => ((recommending = false), post({ type: 'useRecommended' }), renderBody()), 'primary')
   apply.disabled = short
   return [
     el(
@@ -1771,12 +1825,16 @@ function recommendRows(v: AppView): HTMLElement[] {
       el(
         'div',
         { class: 'l' },
-        'Use recommended changes',
-        ...advice.changes.map(c => el('small', {}, el('b', {}, c.what), `: ${c.from} → ${c.to}${c.mb ? ` · ${speechSize(c.mb)} to download` : ''}`)),
-        el('small', {}, `${advice.download ? `${speechSize(advice.download)} to download in all` : 'Nothing to download'}${free > 0 ? ` · ${speechSize(free)} free` : ''} · nothing is removed`),
-        short ? bad(`Needs ${speechSize(needs)} free`) : null,
+        t('models.changes'),
+        ...advice.changes.map(c => el('small', {}, el('b', {}, c.what), `: ${c.from} → ${c.to}${c.mb ? ` · ${t('models.toDownload', { size: speechSize(c.mb) })}` : ''}`)),
+        el(
+          'small',
+          {},
+          `${advice.download ? t('models.toDownloadAll', { size: speechSize(advice.download) }) : t('models.nothingToDownload')}${free > 0 ? ` · ${t('models.free', { size: speechSize(free) })}` : ''} · ${t('models.nothingRemoved')}`,
+        ),
+        short ? bad(t('models.needsFree', { size: speechSize(needs) })) : null,
       ),
-      el('span', { class: 'kchg' }, linkBtn('Cancel', close), apply),
+      el('span', { class: 'kchg' }, linkBtn(t('common.cancel'), close), apply),
     ),
   ]
 }
@@ -1793,68 +1851,68 @@ function unusedNotice(v: AppView): HTMLElement | null {
     'div',
     { class: 'row notice old' },
     lucide('trash-2'),
-    el('div', { class: 'l' }, `${speechSize(mb)} that nothing uses`, el('small', {}, `${parts.map(p => storedName(v, p)).join(', ')}; each downloads again if you pick it later`)),
-    cleaning ? el('span', { class: 'v' }, 'Cleaning up…') : btn('Clean up', () => ((cleaning = 'asked'), post({ type: 'cleanUp' }), renderBody()), 'primary'),
+    el('div', { class: 'l' }, t('models.unused', { size: speechSize(mb) }), el('small', {}, t('models.unusedNote', { list: parts.map(p => storedName(v, p)).join(', ') }))),
+    cleaning ? el('span', { class: 'v' }, t('models.cleaning')) : btn(t('models.cleanUp'), () => ((cleaning = 'asked'), post({ type: 'cleanUp' }), renderBody()), 'primary'),
   )
 }
 
 /** Models: this computer and its advice on top, then what each action uses, each opening its own choice. */
 function modelsPage(v: AppView): HTMLElement[] {
   return [
-    grp('This computer'),
+    grp(t('models.computer')),
     ...computerRows(v),
     testOffer(v),
     ...recommendRows(v),
     unusedNotice(v),
-    grp('What each action uses'),
-    navCard('languages', 'Translate', 'how well and how quickly texts are translated', levelValue(v), () => go('models', 'forTranslate'), 'forTranslate'),
-    navCard('graduation-cap', 'Check my English', 'the model that finds your mistakes', checkValue(v), () => go('models', 'forCheck'), 'forCheck'),
-    navCard('mic', 'Dictate', 'writes what you say', speechValue(v, 'dictation'), () => go('models', 'forDictate'), 'forDictate'),
-    navCard('audio-lines', 'Transcribe', 'writes recordings and meetings down', speechValue(v, 'transcripts'), () => go('models', 'forTranscribe'), 'forTranscribe'),
+    grp(t('models.eachAction')),
+    navCard('languages', TITLES.translate, t('models.translateNote'), levelValue(v), () => go('models', 'forTranslate'), 'forTranslate'),
+    navCard('graduation-cap', t('page.checkEnglish'), t('page.forCheckCap'), checkValue(v), () => go('models', 'forCheck'), 'forCheck'),
+    navCard('mic', TITLES.dictate, t('models.dictateNote'), speechValue(v, 'dictation'), () => go('models', 'forDictate'), 'forDictate'),
+    navCard('audio-lines', TITLES.transcribe, t('models.transcribeNote'), speechValue(v, 'transcripts'), () => go('models', 'forTranscribe'), 'forTranscribe'),
     speakersCard(v, () => go('transcribe', 'speakers'), true),
-    navCard('volume-2', 'Listen voice', 'the voice that reads English aloud', voiceValue(v), () => go('models', 'forVoice'), 'forVoice'),
-    aside('info', 'A model two actions use is downloaded and loaded once: Translate and Check share the language model, Dictate and Transcribe a speech model where that costs nothing.'),
+    navCard('volume-2', t('page.voice'), t('page.forVoiceCap'), voiceValue(v), () => go('models', 'forVoice'), 'forVoice'),
+    aside('info', t('models.shared')),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
 /** A model's state after its name, in a few words: its size here, its download. */
-function stateText(t: { status: string; progress: number; size: number }): string {
-  if (t.status === 'downloading') return ` · downloading ${Math.round(t.progress * 100)}%`
-  if (t.status === 'failed') return ' · download failed'
-  if (t.status === 'ready') return ` · ${speechSize(t.size)}`
-  return t.status === 'unsupported' ? '' : ' · downloads once'
+function stateText(m: { status: string; progress: number; size: number }): string {
+  if (m.status === 'downloading') return ` · ${t('models.stateDownloading', { pct: Math.round(m.progress * 100) })}`
+  if (m.status === 'failed') return ` · ${t('models.stateFailed')}`
+  if (m.status === 'ready') return ` · ${speechSize(m.size)}`
+  return m.status === 'unsupported' ? '' : ` · ${t('home.downloadsOnce')}`
 }
 
 /** A level in a few words, for the lines to Models › Translate: its name, its size, its download. */
 function levelValue(v: AppView): string {
   const level = v.settings.translationLevel
-  return `${LEVEL_NAMES[level]}${stateText(v.translation[level])}`
+  return `${levelName(level)}${stateText(v.translation[level])}`
 }
 
 /** The checker in a few words, for the lines to Models › Check my English. */
 function checkValue(v: AppView): string {
-  return `${LEVEL_NAMES[v.settings.model]}${stateText(v.models[v.settings.model])}`
+  return `${levelName(v.settings.model)}${stateText(v.models[v.settings.model])}`
 }
 
 function translatePage(v: AppView): HTMLElement[] {
   const s = v.settings
   const [state, note] = translatorChip(v)
   const text = TRY_TRANSLATE[s.native] ?? 'Of course, I will send the updated layouts before the call.'
-  const how = s.translateKey ? `Select it, ${usage(s.translateKey)}.` : 'Set a key above, then select it and press the key.'
+  const how = s.translateKey ? t('translate.tryKey', { how: usage(s.translateKey) }) : t('translate.tryNone')
   return [
-    grp('Keys'),
-    keyRow('translateKey', 'Translate the selected text', s.translateKey ? `select it anywhere, ${usage(s.translateKey)}` : 'select it anywhere, then press one key, such as Left Ctrl twice', !v.keysOk.translate, 'languages'),
-    keyRow('typeKey', 'Type a text to translate', 'an empty card by the pointer, from any program; also in the tray menu', !v.keysOk.type, 'type'),
-    keyRow('inPlaceKey', 'Replace the selection with its translation', 'no card', !v.keysOk.inPlace, 'wand-sparkles'),
-    keyRow('textKey', 'Translate text on the screen', 'for text you can’t select: draw a box around it', !v.keysOk.text, 'scan'),
-    fixedKey('In the card: paste the translation back', 'Enter'),
-    grp('Translation'),
-    navCard('boxes', 'Translation model', 'how well and how quickly it translates; the same model can check your English', levelValue(v), () => go('models', 'forTranslate'), 'models'),
-    grp('Languages'),
+    grp(t('keys.group')),
+    keyRow('translateKey', t('translate.select'), s.translateKey ? t('translate.selectNote', { how: usage(s.translateKey) }) : t('translate.selectNoKey'), !v.keysOk.translate, 'languages'),
+    keyRow('typeKey', t('translate.type'), t('translate.typeNote'), !v.keysOk.type, 'type'),
+    keyRow('inPlaceKey', t('translate.inPlace'), t('translate.inPlaceNote'), !v.keysOk.inPlace, 'wand-sparkles'),
+    keyRow('textKey', t('translate.text'), t('listen.boxNote'), !v.keysOk.text, 'scan'),
+    fixedKey(t('translate.pasteBack'), 'Enter'),
+    grp(t('translate.group')),
+    navCard('boxes', t('translate.model'), t('translate.modelNote'), levelValue(v), () => go('models', 'forTranslate'), 'models'),
+    grp(t('translate.languages')),
     card('globe', pairOf(v), [note], state),
     languagesCard(v),
-    grp('History'),
-    navCard('clock', 'Recent translations', 'kept for 30 days, on this computer only', v.translations.length ? String(v.translations.length) : 'none', () => go('translations'), 'translations'),
+    grp(t('translate.history')),
+    navCard('clock', t('translate.recent'), t('translate.recentNote'), v.translations.length ? String(v.translations.length) : t('translate.none'), () => go('translations'), 'translations'),
     tryIt(text, how),
   ]
 }
@@ -1863,7 +1921,7 @@ function translatePage(v: AppView): HTMLElement[] {
 function translationsPage(v: AppView): HTMLElement[] {
   const list = v.translations
   return [
-    grp('Translations', list.length || undefined, list.length ? linkBtn('Clear', () => post({ type: 'clearTranslations' })) : null),
+    grp(TITLES.translations, list.length || undefined, list.length ? linkBtn(t('keys.clear'), () => post({ type: 'clearTranslations' })) : null),
     ...(list.length
       ? list.map(e =>
           el(
@@ -1875,10 +1933,10 @@ function translationsPage(v: AppView): HTMLElement[] {
               el('span', { class: 'said translated', title: `${e.text}\n\n${e.translation}` }, e.translation),
               el('small', {}, `${e.text.length > 80 ? `${e.text.slice(0, 80)}…` : e.text} · ${whenSaid(e.at, Date.now())}`),
             ),
-            linkBtn('Copy', () => copyText(e.translation)),
+            linkBtn(t('common.copy'), () => copyText(e.translation)),
           ),
         )
-      : [aside('info', 'Nothing yet. Translations are kept here 30 days, 200 at most.')]),
+      : [aside('info', t('translate.empty'))]),
   ]
 }
 
@@ -1895,15 +1953,15 @@ const SLOW_CHECK_S = 4
 // this page holds its settings and opens it.
 
 /** A topic's name (topics.ts); an unknown one, as it was saved. */
-const topicTitle = (id: string) => TOPICS.find(t => t.id === id)?.title ?? id
+const topicTitle = (id: string) => (TOPICS.some(x => x.id === id) ? t(`topic.${id}` as Key) : id)
 
 /** The Talk page and Home: what stands in the way, else what it does. */
 function talkCap(v: AppView): string {
-  if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== 'card') return 'needs a graphics card'
-  const t = v.models[v.settings.model]
-  if (t.status === 'downloading') return `downloading ${Math.round(t.progress * 100)}%`
-  if (t.status !== 'ready') return 'downloads once'
-  return `English · notes in ${v.settings.native}`
+  if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== 'card') return t('talkPage.needsCard')
+  const m = v.models[v.settings.model]
+  if (m.status === 'downloading') return t('check.downloadingPct', { pct: Math.round(m.progress * 100) })
+  if (m.status !== 'ready') return t('check.downloadsOnce')
+  return t('check.capNotes', { lang: languageName(v.settings.native) })
 }
 
 /** What keeps the talk window from working here, said on its page with what to do. */
@@ -1911,7 +1969,7 @@ function talkNotice(v: AppView): HTMLElement | null {
   const model = v.settings.model
   const files = v.models[model]
   if (v.speech.device.at && translationAdvice(v.speech.device).accurate.where !== 'card')
-    return el('div', { class: 'row notice' }, lucide('cpu'), el('div', { class: 'l' }, 'Talk needs a graphics card with 4 GB of its own memory or more', el('small', {}, 'On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.')))
+    return el('div', { class: 'row notice' }, lucide('cpu'), el('div', { class: 'l' }, t('talk.needsCard'), el('small', {}, t('talk.needsCardNote'))))
   if (files.status !== 'ready') {
     const fetching = files.status === 'downloading'
     return el(
@@ -1921,15 +1979,15 @@ function talkNotice(v: AppView): HTMLElement | null {
       el(
         'div',
         { class: 'l' },
-        `The duck needs its model: ${LEVEL_NAMES[model]}, ${speechSize(files.size)}`,
-        el('small', {}, fetching ? 'downloading; the talk starts once it is here' : files.status === 'failed' ? 'the download failed' : 'downloaded once; Check my English and Translate can use it too'),
+        t('talk.needsModel', { name: levelName(model), size: speechSize(files.size) }),
+        el('small', {}, fetching ? t('talkPage.downloading') : files.status === 'failed' ? t('talk.downloadFailed') : t('talkPage.downloadOnce')),
         fetching ? bar(files.progress) : null,
       ),
-      fetching ? el('span', { class: 'pct' }, `${Math.round(files.progress * 100)}%`) : btn(files.status === 'failed' ? 'Try again' : 'Download', () => post({ type: 'useModel', model }), 'primary'),
+      fetching ? el('span', { class: 'pct' }, `${Math.round(files.progress * 100)}%`) : btn(files.status === 'failed' ? t('common.tryAgain') : t('settings.download'), () => post({ type: 'useModel', model }), 'primary'),
     )
   }
   if (!installed(v))
-    return el('div', { class: 'row notice' }, lucide('mic'), el('div', { class: 'l' }, 'Talk hears you through the speech engine', el('small', {}, 'Until it is here, type to the duck. Download it on the Dictate page; it is the same one Dictate uses.')), linkBtn('Open Dictate', () => go('dictate')))
+    return el('div', { class: 'row notice' }, lucide('mic'), el('div', { class: 'l' }, t('talkPage.engineTitle'), el('small', {}, t('talkPage.engineNote'))), linkBtn(t('talkPage.openDictate'), () => go('dictate')))
   return null
 }
 
@@ -1941,8 +1999,8 @@ function aboutField(value: string): HTMLTextAreaElement {
     class: 'field report about',
     rows: 3,
     maxlength: TALK_ABOUT_MAX,
-    placeholder: 'A few words the duck can talk about: your name, your work, what you like. "I am Alex, a designer. I love hiking and progressive metal."',
-    'aria-label': 'About you',
+    placeholder: t('talkPage.aboutPlaceholder'),
+    'aria-label': t('talkPage.aboutYou'),
     'data-live': 'about',
   })
   field.value = value
@@ -1963,61 +2021,60 @@ function aboutField(value: string): HTMLTextAreaElement {
 function talkPage(v: AppView): HTMLElement[] {
   const s = v.settings
   const going = v.talk
-  const level = TALK_LEVEL_NAMES[s.talkLevel]
-  const keyNote = !installed(v) ? 'needs the speech engine (see Dictate)' : s.talkKey ? `from any program: ${usage(s.talkKey)} opens the talk and listens, again sends` : 'one key from any program: it opens the talk and listens, again sends'
+  const keyNote = !installed(v) ? t('talkPage.needsEngine') : s.talkKey ? t('talkPage.keyNote', { keys: usage(s.talkKey) }) : t('talkPage.keyNoteNone')
   return [
     el(
       'div',
       { class: 'row notice talk-open' },
       tile(36),
-      el('div', { class: 'l' }, 'Talk to the duck', el('small', {}, going ? `in its own window · going on: ${topicTitle(going.topic)}, ${going.lines} lines` : 'in its own window: speak English, the duck answers aloud, your mistakes are marked')),
-      btn([lucide('message-square'), 'Open Talk'], () => post({ type: 'talkOpen' }), 'primary'),
+      el('div', { class: 'l' }, 'Talk to the duck', el('small', {}, going ? t('talkPage.openGoing', { topic: topicTitle(going.topic), lines: t('talk.lines', { n: going.lines }) }) : t('talkPage.openIdle'))),
+      btn([lucide('message-square'), t('talkPage.open')], () => post({ type: 'talkOpen' }), 'primary'),
     ),
     talkNotice(v),
-    grp('You'),
-    el('div', { class: 'row add' }, el('div', { class: 'l' }, 'About you'), aboutField(s.talkAbout), el('small', {}, 'The duck reads it in every talk, to ask about your life and work. Kept only on this computer.')),
+    grp(t('talkPage.you')),
+    el('div', { class: 'row add' }, el('div', { class: 'l' }, t('talkPage.aboutYou')), aboutField(s.talkAbout), el('small', {}, t('talkPage.aboutNote'))),
     row(
-      'Your English level',
-      [`${level.name}: the duck speaks in ${level.note}`],
+      t('talkPage.level'),
+      [t(`talkPage.level${s.talkLevel}`)],
       seg(s.talkLevel, TALK_LEVELS.map(l => [l, l] as [TalkLevel, string]), talkLevel => save({ talkLevel }), true),
     ),
-    grp('Keys'),
+    grp(t('talkPage.keys')),
     keyRow('talkKey', 'Talk to the duck', keyNote, !v.speech.keysOk.talk, 'bird'),
-    fixedKey('In the talk window: talk, then send', 'Space'),
-    fixedKey('Drop the line, or quiet the duck', 'Escape'),
-    grp('The duck'),
-    toggleCard('volume-2', 'Read the duck aloud', s.talkAloud, talkAloud => save({ talkAloud }), 'its answers are read as they come; a tap on a line reads it again'),
-    toggleCard('pin', 'Keep the talk on top', s.talkOnTop, talkOnTop => save({ talkOnTop }), 'over other windows, as with the pin in its bar'),
-    navCard('boxes', 'Model', 'answers and finds your mistakes; the same one as Check my English', checkValue(v), () => go('models', 'forCheck'), 'models'),
-    navCard('volume-2', 'Voice', 'the duck speaks with the Listen voice', voiceValue(v), () => go('models', 'forVoice'), 'models'),
-    grp('Kept'),
-    aside('history', 'Your talks are in the talk window: its history button lists them, to go on with one or delete it. Kept 30 days on this computer, 50 at most.'),
-    navCard('list-checks', 'Mistakes', 'each line of yours with a mistake is kept there', v.mistakes.length ? String(v.mistakes.length) : 'none', () => go('mistakes'), 'mistakes'),
+    fixedKey(t('talkPage.spaceKey'), 'Space'),
+    fixedKey(t('talkPage.escKey'), 'Escape'),
+    grp(t('talkPage.duck')),
+    toggleCard('volume-2', t('talkPage.aloud'), s.talkAloud, talkAloud => save({ talkAloud }), t('talkPage.aloudNote')),
+    toggleCard('pin', t('talkPage.onTop'), s.talkOnTop, talkOnTop => save({ talkOnTop }), t('talkPage.onTopNote')),
+    navCard('boxes', t('talkPage.model'), t('talkPage.modelNote'), checkValue(v), () => go('models', 'forCheck'), 'models'),
+    navCard('volume-2', t('talkPage.voice'), t('talkPage.voiceNote'), voiceValue(v), () => go('models', 'forVoice'), 'models'),
+    grp(t('talkPage.kept')),
+    aside('history', t('talkPage.history')),
+    navCard('list-checks', t('mistakes.title'), t('talkPage.mistakesNote'), v.mistakes.length ? String(v.mistakes.length) : t('kb.none'), () => go('mistakes'), 'mistakes'),
   ].filter((n): n is HTMLElement => !!n)
 }
 
 /** What the checker does, for the bar and Home: the language it checks, or its model's download. */
 function checkCap(v: AppView): string {
-  const t = v.models[v.settings.model]
-  if (t.status === 'downloading') return `downloading ${Math.round(t.progress * 100)}%`
-  return t.status === 'ready' ? `English · notes in ${v.settings.native}` : 'downloads once'
+  const m = v.models[v.settings.model]
+  if (m.status === 'downloading') return t('check.downloadingPct', { pct: Math.round(m.progress * 100) })
+  return m.status === 'ready' ? t('check.capNotes', { lang: languageName(v.settings.native) }) : t('check.downloadsOnce')
 }
 
 function checkPage(v: AppView): HTMLElement[] {
   const s = v.settings
-  const typed = s.typeCheckKey ? `${usage(s.typeCheckKey)} and type it` : 'use Check my English… in the tray menu'
-  const how = s.checkKey ? `This text has mistakes on purpose. Select it, ${usage(s.checkKey)}, or ${typed}.` : `This text has mistakes on purpose. Select it and press your key, or ${typed}.`
+  const typed = s.typeCheckKey ? t('check.typedKey', { keys: usage(s.typeCheckKey) }) : t('check.typedTray')
+  const how = s.checkKey ? t('check.tryKey', { keys: usage(s.checkKey), typed }) : t('check.tryNoKey', { typed })
   return [
-    grp('Keys'),
-    keyRow('checkKey', 'Check the selected text', s.checkKey ? `select it anywhere, ${usage(s.checkKey)}` : 'select it anywhere, then press one key, such as Right Ctrl twice', !v.keysOk.check, 'graduation-cap'),
-    keyRow('typeCheckKey', 'Type a text to check', 'an empty card by the pointer, from any program; also in the tray menu', !v.keysOk.typeCheck, 'type'),
-    keyRow('practiceKey', 'Check what I say', installed(v) ? 'press, say a phrase in English, press again' : 'needs the speech engine (see Dictate)', !v.speech.keysOk.practice, 'mic'),
-    fixedKey('In the card: paste the corrected text back', 'Enter'),
-    aside('info', 'Speech recognition fixes some mistakes as it writes, so typing shows more of them.'),
-    grp('Model'),
-    navCard('boxes', 'Model', 'the language model that checks; Translate can use the same one', checkValue(v), () => go('models', 'forCheck'), 'models'),
-    grp('History'),
-    navCard('list-checks', 'Mistakes', 'what Check found in your texts, repeated ones first', v.mistakes.length ? String(v.mistakes.length) : 'none', () => go('mistakes'), 'mistakes'),
+    grp(t('talkPage.keys')),
+    keyRow('checkKey', t('check.keySelected'), s.checkKey ? t('check.keySelectedNote', { keys: usage(s.checkKey) }) : t('check.keySelectedNone'), !v.keysOk.check, 'graduation-cap'),
+    keyRow('typeCheckKey', t('check.typeKey'), t('check.typeKeyNote'), !v.keysOk.typeCheck, 'type'),
+    keyRow('practiceKey', t('check.practiceKey'), installed(v) ? t('check.practiceNote') : t('talkPage.needsEngine'), !v.speech.keysOk.practice, 'mic'),
+    fixedKey(t('check.enterKey'), 'Enter'),
+    aside('info', t('check.speechNote')),
+    grp(t('talkPage.model')),
+    navCard('boxes', t('talkPage.model'), t('check.modelNote'), checkValue(v), () => go('models', 'forCheck'), 'models'),
+    grp(t('check.history')),
+    navCard('list-checks', t('mistakes.title'), t('check.mistakesNote'), v.mistakes.length ? String(v.mistakes.length) : t('kb.none'), () => go('mistakes'), 'mistakes'),
     tryIt(TRY_CHECK, how),
   ]
 }
@@ -2072,17 +2129,17 @@ function mistakesPage(v: AppView): HTMLElement[] {
               'div',
               { class: 'row phrase mistake' },
               el('div', { class: 'l' }, el('span', { class: 'said marks', title: e.corrected }, ...withMarks(partsOf(e))), el('small', {}, [e.note, whenSaid(e.at, Date.now())].filter(Boolean).join(' · '))),
-              linkBtn('Copy', () => copyText(e.corrected)),
-              ib('x', 'Forget it', () => post({ type: 'forgetMistake', at: e.at })),
+              linkBtn(t('common.copy'), () => copyText(e.corrected)),
+              ib('x', t('mistakes.forget'), () => post({ type: 'forgetMistake', at: e.at })),
             ),
           )
-        : [aside('info', all.length ? 'No such mistake.' : 'Nothing yet. The texts Check my English set right are kept here, on this computer.')]),
+        : [aside('info', all.length ? t('mistakes.noSuch') : t('mistakes.empty'))]),
     )
   }
   fill()
   return [
-    ...(repeated.length ? [grp('You repeat'), ...repeated.map(c => row(changeText(c.wrong, c.right), [`${c.n} times`]))] : []),
-    grp('Mistakes', v.mistakes.length || undefined, v.mistakes.length ? linkBtn('Clear', () => post({ type: 'clearMistakes' })) : null),
+    ...(repeated.length ? [grp(t('mistakes.repeat')), ...repeated.map(c => row(changeText(c.wrong, c.right), [t('mistakes.times', { n: c.n })]))] : []),
+    grp(t('mistakes.title'), v.mistakes.length || undefined, v.mistakes.length ? linkBtn(t('mistakes.clear'), () => post({ type: 'clearMistakes' })) : null),
     ...(v.mistakes.length
       ? [
           el(
@@ -2094,7 +2151,7 @@ function mistakesPage(v: AppView): HTMLElement[] {
               icon('search'),
               el('input', {
                 type: 'search',
-                placeholder: 'Search your mistakes',
+                placeholder: t('mistakes.search'),
                 value: search,
                 oninput: event => {
                   search = (event.target as HTMLInputElement).value
@@ -2111,13 +2168,13 @@ function mistakesPage(v: AppView): HTMLElement[] {
 
 function screenPage(v: AppView): HTMLElement[] {
   return [
-    grp('Keys'),
-    keyRow('snipKey', 'Listen to text on the screen', 'for text you can’t select: draw a box around it', !v.keysOk.snip, 'volume-2'),
-    keyRow('textKey', 'Translate text on the screen', 'for text you can’t select: draw a box around it', !v.keysOk.text, 'languages'),
-    grp('How it works'),
-    card('scan', 'Draw a box around the text', ['Windows dims the screen while you draw'], null),
-    card('type', 'Krya reads the text on this computer', ['it reads the languages Windows has installed; add more there (Windows OCR)'], linkBtn('Languages…', () => post({ type: 'openLanguageSettings' }))),
-    card('spell-check', 'Fix misread words in the card', ['then listen or translate'], null),
+    grp(t('talkPage.keys')),
+    keyRow('snipKey', t('screen.snipKey'), t('screen.keyNote'), !v.keysOk.snip, 'volume-2'),
+    keyRow('textKey', t('screen.textKey'), t('screen.keyNote'), !v.keysOk.text, 'languages'),
+    grp(t('screen.how')),
+    card('scan', t('screen.draw'), [t('screen.drawNote')], null),
+    card('type', t('screen.reads'), [t('screen.readsNote')], linkBtn(t('screen.languages'), () => post({ type: 'openLanguageSettings' }))),
+    card('spell-check', t('screen.fix'), [t('screen.fixNote')], null),
   ]
 }
 
@@ -2128,47 +2185,44 @@ const pathNote = (path: string) => el('small', { class: 'path', title: path }, e
 /** Where notes go: the knowledge base folder and the folder inside it, the engine's own settings. */
 function kbRows(v: AppView): HTMLElement[] {
   const e = engineSettings(v)
-  if (!running(v) || !e) return [card('folder', 'Notes folder', [installed(v) ? 'shown once the speech engine runs' : 'chosen once the speech engine is installed'], null)]
+  if (!running(v) || !e) return [card('folder', t('dictate.notesFolder'), [installed(v) ? t('dictate.folderShown') : t('dictate.folderChosen')], null)]
   const inbox = el('input', {
     type: 'text',
     class: 'field',
     value: e.kbInbox,
-    placeholder: 'the folder itself',
-    'aria-label': 'Folder for notes',
+    placeholder: t('dictate.inboxPlaceholder'),
+    'aria-label': t('dictate.inboxAria'),
     onkeydown: (event: Event) => (event as KeyboardEvent).key === 'Enter' && (event.target as HTMLInputElement).blur(),
     onchange: (event: Event) => void saveEngine({ kbInbox: (event.target as HTMLInputElement).value.trim() }),
   })
   return [
-    card('folder', 'Notes folder', [e.kbDir ? pathNote(e.kbDir) : 'not chosen yet; notes need a folder (an Obsidian vault will do)'], linkBtn(e.kbDir ? 'Change' : 'Choose…', () => void pickKb())),
-    card('notebook-pen', 'Subfolder for notes', ['a folder inside it; leave empty to use the folder itself'], inbox),
+    card('folder', t('dictate.notesFolder'), [e.kbDir ? pathNote(e.kbDir) : t('dictate.folderNone')], linkBtn(e.kbDir ? t('dictate.change') : t('dictate.choose'), () => void pickKb())),
+    card('notebook-pen', t('dictate.subfolder'), [t('dictate.subfolderNote')], inbox),
   ]
 }
 
 /** The card that opens the words to spell: how many there are. */
 function vocabularyCard(v: AppView): HTMLElement {
   const n = v.settings.vocabulary.length
-  return navCard('spell-check', 'Words to spell', 'names and terms, written the way you want them', n ? `${n} ${n === 1 ? 'word' : 'words'}` : 'none yet', () => go('vocabulary'), 'vocabulary')
+  return navCard('spell-check', t('vocab.title'), t('vocab.note'), n ? t('backup.words', { n }) : t('vocab.noneYet'), () => go('vocabulary'), 'vocabulary')
 }
 
 /** A speech action's model in a few words: Automatic and the one it picked, or the one picked; its download. */
 function speechValue(v: AppView, feature: Feature): string {
-  if (!installed(v)) return 'needs the speech engine'
+  if (!installed(v)) return t('dictate.needsEngine')
   const p = v.speech.plan[feature]
   const live = v.speech.health?.models[feature]
-  const state = live?.name === p.chosen.model && live.state === 'downloading' ? ` · downloading ${Math.round((live.progress ?? 0) * 100)}%` : ''
-  return `${p.pinned ? p.chosen.label : `Automatic · ${p.chosen.label}`}${state}`
+  const state = live?.name === p.chosen.model && live.state === 'downloading' ? ` · ${t('check.downloadingPct', { pct: Math.round((live.progress ?? 0) * 100) })}` : ''
+  return `${p.pinned ? p.chosen.label : t('dictate.automatic', { model: p.chosen.label })}${state}`
 }
 
 /** The line to the Models page at a feature's speech model: the one in use, and its download. */
 function modelCard(v: AppView, feature: Feature): HTMLElement | null {
   if (!running(v)) return null
   const p = v.speech.plan[feature]
-  const how = feature === 'dictation' ? `about ${seconds(p.chosen.estimate)} per phrase` : `about ${minutesText(p.chosen.estimate)} per hour of recording`
-  return navCard('boxes', 'Speech model', `${how} on this computer`, speechValue(v, feature), () => go('models', feature === 'dictation' ? 'forDictate' : 'forTranscribe'), 'models')
+  const how = feature === 'dictation' ? t('dictate.modelNote', { time: seconds(p.chosen.estimate) }) : t('transcribe.modelNote', { time: minutes(p.chosen.estimate) })
+  return navCard('boxes', t('dictate.speechModel'), how, speechValue(v, feature), () => go('models', feature === 'dictation' ? 'forDictate' : 'forTranscribe'), 'models')
 }
-
-/** "3 min", "1 h 10 min": an estimate of minutes. */
-const minutesText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${Math.round(m % 60)} min` : `${Math.max(1, Math.round(m))} min`)
 
 function dictatePage(v: AppView): HTMLElement[] {
   const s = v.settings
@@ -2176,22 +2230,22 @@ function dictatePage(v: AppView): HTMLElement[] {
   const offer = engineRows(v, 'Dictate')
   const recent = v.dictation.recent
   return [
-    ...(offer.length ? [grp('Speech engine'), ...offer] : []),
+    ...(offer.length ? [grp(t('dictate.engine')), ...offer] : []),
     testOffer(v),
-    grp('Keys'),
-    keyRow('dictateKey', 'Type what I say', 'press, speak, press again; the words appear where the cursor is', !k.dictate, 'mic'),
-    keyRow('englishKey', 'Type what I say, in English', `press, speak ${s.native}, press again; English is typed`, !k.english, 'languages'),
-    keyRow('noteKey', 'Dictate a note', 'saved as a Markdown file in your notes folder', !k.note, 'notebook-pen'),
-    keyRow('againKey', 'Type the last phrase again', 'repeats it where the cursor is', !k.again, 'rotate-cw'),
-    keyRow('practiceKey', 'Check what I say', 'press, say a phrase in English, press again', !k.practice, 'graduation-cap'),
-    aside('info', 'The words appear as you speak. Esc cancels the phrase before it is typed.'),
-    grp('Notes'),
+    grp(t('talkPage.keys')),
+    keyRow('dictateKey', t('dictate.typeKey'), t('dictate.typeNote'), !k.dictate, 'mic'),
+    keyRow('englishKey', t('dictate.englishKey'), t('dictate.englishNote', { lang: languageName(s.native) }), !k.english, 'languages'),
+    keyRow('noteKey', t('dictate.noteKey'), t('dictate.noteNote'), !k.note, 'notebook-pen'),
+    keyRow('againKey', t('dictate.againKey'), t('dictate.againNote'), !k.again, 'rotate-cw'),
+    keyRow('practiceKey', t('check.practiceKey'), t('check.practiceNote'), !k.practice, 'graduation-cap'),
+    aside('info', t('dictate.escNote')),
+    grp(t('dictate.notes')),
     ...kbRows(v),
-    grp('Words and phrases'),
+    grp(t('dictate.wordsPhrases')),
     vocabularyCard(v),
-    navCard('clock', 'Recent phrases', 'phrases you dictated lately, to copy again', recent.length ? recent[0]?.text ?? '' : 'none yet', () => go('phrases'), 'phrases'),
+    navCard('clock', t('dictate.recent'), t('dictate.recentNote'), recent.length ? recent[0]?.text ?? '' : t('vocab.noneYet'), () => go('phrases'), 'phrases'),
     modelCard(v, 'dictation'),
-    el('p', { class: 'privacy' }, lucide('lock', 's'), 'Speech is recognized on this computer; nothing is sent anywhere.'),
+    el('p', { class: 'privacy' }, lucide('lock', 's'), t('dictate.privacy')),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -2205,8 +2259,8 @@ function dictatePage(v: AppView): HTMLElement[] {
 function vocabularyPage(v: AppView): HTMLElement[] {
   const s = v.settings
   const wordOf = (line: string) => parseEntry(line).word.toLowerCase()
-  const word = liveField('word', 'Word, as it should be written', 'Word to spell', key => (key === 'Enter' ? add() : clear()))
-  const heard = liveField('heard', 'Heard as (optional): кря, края', 'What it is heard as', key => (key === 'Enter' ? add() : clear()))
+  const word = liveField('word', t('vocab.wordPlaceholder'), t('vocab.wordAria'), key => (key === 'Enter' ? add() : clear()))
+  const heard = liveField('heard', t('vocab.heardPlaceholder'), t('vocab.heardAria'), key => (key === 'Enter' ? add() : clear()))
   const clear = () => {
     word.value = ''
     heard.value = ''
@@ -2234,21 +2288,21 @@ function vocabularyPage(v: AppView): HTMLElement[] {
     return el(
       'div',
       { class: 'row' },
-      el('button', { class: 'l', title: 'Change it', onclick: () => edit(line) }, w, hs.length ? el('small', {}, `heard as ${hs.join(', ')}`) : null),
-      ib('x', `Remove ${w}`, () => save({ vocabulary: (view?.settings.vocabulary ?? s.vocabulary).filter(l => l !== line) })),
+      el('button', { class: 'l', title: t('vocab.change'), onclick: () => edit(line) }, w, hs.length ? el('small', {}, t('vocab.heardAs', { forms: hs.join(', ') })) : null),
+      ib('x', t('vocab.remove', { word: w }), () => save({ vocabulary: (view?.settings.vocabulary ?? s.vocabulary).filter(l => l !== line) })),
     )
   })
   return [
-    grp('Add a word'),
+    grp(t('vocab.addGroup')),
     el(
       'div',
       { class: 'row add' },
-      el('div', { class: 'fields' }, word, heard, btn([lucide('plus', 's'), 'Add'], add, 'primary')),
-      el('small', {}, 'A name or a term; dictation and transcripts write it this way, and a heard form is replaced wherever it is said.'),
+      el('div', { class: 'fields' }, word, heard, btn([lucide('plus', 's'), t('vocab.add')], add, 'primary')),
+      el('small', {}, t('vocab.addNote')),
     ),
-    grp('Words', items.length || undefined, items.length ? linkBtn('Clear all', () => save({ vocabulary: [] })) : null),
-    ...(items.length ? items : [aside('info', 'Nothing yet. Add a name or a word above.')]),
-    aside('info', 'Shared by Dictate and Transcribe.'),
+    grp(t('vocab.words'), items.length || undefined, items.length ? linkBtn(t('vocab.clearAll'), () => save({ vocabulary: [] })) : null),
+    ...(items.length ? items : [aside('info', t('vocab.empty'))]),
+    aside('info', t('vocab.shared')),
   ]
 }
 
@@ -2256,42 +2310,41 @@ function vocabularyPage(v: AppView): HTMLElement[] {
 function recentPage(v: AppView): HTMLElement[] {
   const recent = v.dictation.recent
   return [
-    grp('Phrases', recent.length || undefined, recent.length ? linkBtn('Clear', () => post({ type: 'clearDictation' })) : null),
+    grp(t('dictate.phrases'), recent.length || undefined, recent.length ? linkBtn(t('mistakes.clear'), () => post({ type: 'clearDictation' })) : null),
     ...(recent.length
       ? recent.map(e =>
           el(
             'div',
             { class: 'row phrase' },
-            el('div', { class: 'l' }, el('span', { class: 'said', title: e.heard ? `${e.text}\n\nSaid: ${e.heard}` : e.text }, e.text), el('small', {}, whenSaid(e.at, Date.now()))),
-            linkBtn('Copy', () => copyText(e.text)),
+            el('div', { class: 'l' }, el('span', { class: 'said', title: e.heard ? `${e.text}\n\n${t('dictate.said', { heard: e.heard })}` : e.text }, e.text), el('small', {}, whenSaid(e.at, Date.now()))),
+            linkBtn(t('common.copy'), () => copyText(e.text)),
           ),
         )
-      : [aside('info', 'Nothing yet. Dictated phrases (not notes) are kept here 30 days, 200 at most.')]),
+      : [aside('info', t('dictate.recentEmpty'))]),
   ]
 }
 
 /** "12:41" today, "yesterday 18:02", else "26 Oct 18:02". */
 function whenSaid(iso: string, now: number): string {
   const at = new Date(iso)
-  const time = at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const time = formatDate(at, { hour: '2-digit', minute: '2-digit' })
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((day(new Date(now)) - day(at)) / 86_400_000)
   if (days === 0) return time
-  if (days === 1) return `yesterday ${time}`
-  return `${at.getDate()} ${at.toLocaleDateString('en-GB', { month: 'short' })} ${time}`
+  if (days === 1) return t('dictate.yesterdayAt', { time })
+  return `${formatDate(at, { day: 'numeric', month: 'short' })} ${time}`
 }
 
-const copyText = (text: string) => void window.tutorHost.call({ call: 'copy', text }).then(() => toast(`Copied: ${text}`), fault)
+const copyText = (text: string) => void window.tutorHost.call({ call: 'copy', text }).then(() => toast(t('dictate.copiedText', { text })), fault)
 
 /** "just now", "4 min ago", "2 h ago", "yesterday", "26 Oct": a moment, as of now. */
 function ago(epochSeconds: number): string {
   const s = Math.max(0, Date.now() / 1000 - epochSeconds)
-  if (s < 90) return 'just now'
-  if (s < 3600) return `${Math.round(s / 60)} min ago`
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`
-  if (s < 2 * 86_400) return 'yesterday'
-  const d = new Date(epochSeconds * 1000)
-  return `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })}`
+  if (s < 90) return t('dictate.justNow')
+  if (s < 3600) return t('dictate.minAgo', { n: Math.round(s / 60) })
+  if (s < 86_400) return t('dictate.hAgo', { n: Math.round(s / 3600) })
+  if (s < 2 * 86_400) return t('dictate.yesterday')
+  return formatDate(new Date(epochSeconds * 1000), { day: 'numeric', month: 'short' })
 }
 
 /**
@@ -2301,7 +2354,7 @@ function ago(epochSeconds: number): string {
 function openChrome(url: string): void {
   void window.tutorHost.call({ call: 'openChrome', url }).then(opened => {
     if (opened === 'typed') return
-    const say = opened === 'opened' ? 'Chrome is open: the address is copied, paste it into its address bar and press Enter.' : 'Chrome was not found. The address is copied: paste it into Chrome’s address bar.'
+    const say = opened === 'opened' ? t('meet.chromeOpen') : t('meet.noChrome')
     void window.tutorHost.call({ call: 'copy', text: url }).then(() => toast(say), fault)
   }, fault)
 }
@@ -2345,13 +2398,13 @@ function meetCard(v: AppView): HTMLElement {
   const ext = extensionSeen(v)
   const stale = extensionStale(v)
   const value = !ext
-    ? 'set up in Chrome'
+    ? t('meet.setUp')
     : extensionReload(v)
-      ? `Load again in Chrome · v${ext.version} → v${v.speech.extensionShipped}`
+      ? t('meet.loadAgain', { from: ext.version, to: v.speech.extensionShipped ?? '' })
       : stale
-        ? `Reload in Chrome · v${ext.version} → v${v.speech.extensionShipped}`
-        : `Installed · v${ext.version}`
-  return navCard('video', 'Google Meet', 'record a call in Chrome with the Krya extension', value, () => openSub('meet'), 'meet', !!ext && !stale)
+        ? t('meet.reload', { from: ext.version, to: v.speech.extensionShipped ?? '' })
+        : t('meet.installed', { version: ext.version })
+  return navCard('video', 'Google Meet', t('meet.note'), value, () => openSub('meet'), 'meet', !!ext && !stale)
 }
 
 /** How to record a Google Meet call: the Chrome extension, loaded from Krya's folder, and whether it is there. */
@@ -2360,33 +2413,33 @@ function meetPage(v: AppView): HTMLElement[] {
   const ext = extensionSeen(v)
   const offer = engineRows(v, 'Google Meet')
   const status = !ext
-    ? card('video', 'Not set up yet', [running(v) ? 'three steps in Chrome, once; this line says when the extension is in' : 'the speech engine must run for the extension to work'], null)
+    ? card('video', t('meet.notSetUp'), [running(v) ? t('meet.threeSteps') : t('meet.needsEngine')], null)
     : extensionReload(v)
       ? card(
           'rotate-cw',
-          `Chrome runs v${ext.version}, which Krya no longer takes recordings from`,
-          ['remove it on Chrome’s extensions page (Remove on its card), then Load unpacked again: steps 1 and 2 below; Chrome asks for the microphone once more'],
-          btn('Open in Chrome', () => openChrome('chrome://extensions/'), 'primary'),
+          t('meet.oldId', { version: ext.version }),
+          [t('meet.oldIdNote')],
+          btn(t('meet.openInChrome'), () => openChrome('chrome://extensions/'), 'primary'),
         )
       : extensionStale(v)
-      ? card('rotate-cw', `Chrome runs v${ext.version}; Krya has v${v.speech.extensionShipped}`, ['press Reload on the extension’s card in Chrome: Open in Chrome goes straight to it'], btn('Open in Chrome', () => openChrome(extensionsPage(v)), 'primary'))
-      : card('circle-check', `Installed in Chrome · v${ext.version}`, [el('small', { class: 'ok' }, `seen ${ago(ext.seen)} · the call’s sound and your microphone go to the speech engine on this computer`)], caps(MEET_KEY))
+      ? card('rotate-cw', t('meet.stale', { from: ext.version, to: v.speech.extensionShipped ?? '' }), [t('meet.staleNote')], btn(t('meet.openInChrome'), () => openChrome(extensionsPage(v)), 'primary'))
+      : card('circle-check', t('meet.installedIn', { version: ext.version }), [el('small', { class: 'ok' }, t('meet.seen', { ago: ago(ext.seen) }))], caps(MEET_KEY))
   return [
-    ...(offer.length ? [grp('Speech engine'), ...offer] : []),
-    grp('Chrome extension'),
+    ...(offer.length ? [grp(t('dictate.engine')), ...offer] : []),
+    grp(t('meet.extension')),
     status,
-    grp('Set it up'),
-    card('external-link', '1 · Open Chrome’s extensions page and turn on Developer mode', ['chrome://extensions · the switch is at the top right'], btn('Open in Chrome', () => openChrome('chrome://extensions/'))),
+    grp(t('meet.setItUp')),
+    card('external-link', t('meet.step1'), [t('meet.step1Note')], btn(t('meet.openInChrome'), () => openChrome('chrome://extensions/'))),
     card(
       'folder',
-      '2 · Load unpacked, paste the folder’s path',
-      [pathNote(dir), 'Ctrl+V into the folder picker’s address line, then Select folder'],
-      el('span', { class: 'kchg' }, linkBtn('Show the folder', () => post({ type: 'showInFolder', path: dir })), btn([lucide('copy', 's'), 'Copy path'], () => copyText(dir), 'primary')),
+      t('meet.step2'),
+      [pathNote(dir), t('meet.step2Note')],
+      el('span', { class: 'kchg' }, linkBtn(t('meet.showFolder'), () => post({ type: 'showInFolder', path: dir })), btn([lucide('copy', 's'), t('meet.copyPath')], () => copyText(dir), 'primary')),
     ),
-    card('mic', '3 · In a meeting: the Krya icon → Record, or the key', ['the call’s sound and your microphone · the transcript appears in Transcripts'], caps(MEET_KEY)),
-    grp('If something is off'),
-    card('keyboard', 'The key does nothing', ['set it at chrome://extensions/shortcuts'], btn('Open in Chrome', () => openChrome('chrome://extensions/shortcuts'))),
-    card('rotate-cw', 'After Krya updates, press Reload on the extension', ['Chrome keeps the old copy until then'], btn('Open in Chrome', () => openChrome(extensionsPage(v)))),
+    card('mic', t('meet.step3'), [t('meet.step3Note')], caps(MEET_KEY)),
+    grp(t('meet.off')),
+    card('keyboard', t('meet.keyNothing'), [t('meet.keyNothingNote')], btn(t('meet.openInChrome'), () => openChrome('chrome://extensions/shortcuts'))),
+    card('rotate-cw', t('meet.afterUpdate'), [t('meet.afterUpdateNote')], btn(t('meet.openInChrome'), () => openChrome(extensionsPage(v)))),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -2394,46 +2447,48 @@ function meetPage(v: AppView): HTMLElement[] {
 function speakersCard(v: AppView, open = () => openSub('speakers'), quiet = false): HTMLElement | null {
   if (!installed(v)) return null
   const s = v.speech
-  const note = 'the words are recognized already; this tells the voices apart'
+  const title = t('transcribe.speakers')
+  const note = t('transcribe.speakersNote')
   const work = s.pack.status === 'installing' && s.pack.installing?.includes('speakers')
-  if (work) return navCard('users', 'Who spoke when', note, 'downloading…', open, 'speakers')
+  if (work) return navCard('users', title, note, t('transcribe.downloading'), open, 'speakers')
   if (!hasPart(v, 'speakers')) {
     const sz = s.speakers.sizes[s.speakers.on]
-    return navCard('users', 'Who spoke when', note, `not installed · ≈${speechSize(sz.download)}`, open, 'speakers')
+    return navCard('users', title, note, t('transcribe.notInstalled', { size: speechSize(sz.download) }), open, 'speakers')
   }
-  const on = DEVICE_NAMES[s.pack.speakersOn ?? 'cpu']
-  if (!running(v)) return navCard('users', 'Who spoke when', note, `on the ${on}`, open, 'speakers')
+  const onCard = (s.pack.speakersOn ?? 'cpu') === 'cuda'
+  const onDevice = t(onCard ? 'transcribe.onCard' : 'transcribe.onCpu')
+  if (!running(v)) return navCard('users', title, note, onDevice, open, 'speakers')
   const state = diarizationOf(v)
   const STATES: Record<typeof state, [string, boolean]> = {
-    ready: ['ready', true],
-    missing: ['key saved', true],
-    checking: ['checking…', false],
-    downloading: ['downloading…', false],
-    'needs-token': ['needs a key', false],
-    'bad-token': ['the key failed', false],
-    'no-access': ['no access yet', false],
-    failed: ['could not check', false],
+    ready: [t('transcribe.ready'), true],
+    missing: [t('transcribe.keySaved'), true],
+    checking: [t('transcribe.checking'), false],
+    downloading: [t('transcribe.downloading'), false],
+    'needs-token': [t('transcribe.needsKey'), false],
+    'bad-token': [t('transcribe.keyFailed'), false],
+    'no-access': [t('transcribe.noAccess'), false],
+    failed: [t('transcribe.couldNotCheck'), false],
   }
   const [value, ok] = STATES[state]
-  if (quiet) return navCard('users', 'Who spoke when', note, ok ? `on the ${on}` : value, open, 'speakers')
-  return navCard('users', 'Who spoke when', note, ok ? `${value} · ${on}` : value, open, 'speakers', ok)
+  if (quiet) return navCard('users', title, note, ok ? onDevice : value, open, 'speakers')
+  return navCard('users', title, note, ok ? `${value} · ${t(onCard ? 'busy.card' : 'busy.processor')}` : value, open, 'speakers', ok)
 }
 
 function transcribePage(v: AppView): HTMLElement[] {
   const offer = engineRows(v, 'Transcribe')
   const dataDir = v.speech.health?.dataDir
   return [
-    ...(offer.length ? [grp('Speech engine'), ...offer] : []),
+    ...(offer.length ? [grp(t('dictate.engine')), ...offer] : []),
     testOffer(v),
-    ...(running(v) ? [grp('New transcription'), ...newRows(v)] : []),
-    grp('Setup'),
+    ...(running(v) ? [grp(t('transcribe.new')), ...newRows(v)] : []),
+    grp(t('transcribe.setup')),
     speakersCard(v),
     vocabularyCard(v),
     meetCard(v),
     modelCard(v, 'transcripts'),
-    dataDir ? card('folder', 'Transcripts are kept in', [pathNote(dataDir)], linkBtn('Open', () => post({ type: 'openPath', path: dataDir }))) : null,
-    grp('Library'),
-    navCard('file-text', 'Transcripts', 'every transcript, searched by its words', null, () => go('transcripts')),
+    dataDir ? card('folder', t('transcribe.keptIn'), [pathNote(dataDir)], linkBtn(t('tray.open'), () => post({ type: 'openPath', path: dataDir }))) : null,
+    grp(t('transcribe.library')),
+    navCard('file-text', t('tray.transcripts'), t('transcribe.allNote'), null, () => go('transcripts')),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -2449,7 +2504,7 @@ function layoutsPage(v: AppView): HTMLElement[] {
     save({ layouts: next })
   }
   return [
-    grp('In this order', cycle.length),
+    grp(t('kb.inOrder'), cycle.length),
     ...cycle.map((l, i) =>
       card(
         'keyboard',
@@ -2458,24 +2513,24 @@ function layoutsPage(v: AppView): HTMLElement[] {
         el(
           'span',
           { class: 'kchg' },
-          ib('arrow-up', 'Earlier', () => move(l.id, i - 1), i === 0),
-          ib('arrow-down', 'Later', () => move(l.id, i + 1), i === ids.length - 1),
+          ib('arrow-up', t('kb.earlier'), () => move(l.id, i - 1), i === 0),
+          ib('arrow-down', t('kb.later'), () => move(l.id, i + 1), i === ids.length - 1),
           // The last one left cannot go: the keys need a layout to go to.
-          linkBtn('Leave out', () => save({ layouts: ids.filter(id => id !== l.id) }), ids.length === 1),
+          linkBtn(t('kb.leaveOut'), () => save({ layouts: ids.filter(id => id !== l.id) }), ids.length === 1),
         ),
       ),
     ),
     rest.length
       ? card(
           'plus',
-          'Add a layout',
-          ['one Windows has; it goes last'],
-          select<string>('', [['', 'Pick a layout'], ...rest.map((l): [string, string] => [l.id, l.name])], id => id && save({ layouts: [...ids, id] })),
+          t('kb.addLayout'),
+          [t('kb.addLayoutNote')],
+          select<string>('', [['', t('kb.pickLayout')], ...rest.map((l): [string, string] => [l.id, l.name])], id => id && save({ layouts: [...ids, id] })),
         )
       : null,
-    aside('info', own ? 'Your own order. Leave every layout out to go back to the languages you use.' : 'The order comes from the languages you use (Settings); move one or leave one out to set your own.'),
-    grp('A key of its own'),
-    ...cycle.map(l => layoutKeyRow(l, l.name, ['goes straight to it'])),
+    aside('info', own ? t('kb.ownOrder') : t('kb.orderFromLanguages')),
+    grp(t('kb.ownKey')),
+    ...cycle.map(l => layoutKeyRow(l, l.name, [t('kb.straight')])),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -2483,14 +2538,14 @@ function layoutsPage(v: AppView): HTMLElement[] {
 function fixingPage(v: AppView): HTMLElement[] {
   const s = v.settings
   return [
-    grp('Capitals'),
-    toggleCard('type', 'Fix two capitals at the start', s.fixTwoCaps, fixTwoCaps => save({ fixTwoCaps }), 'ПРивет → Привет; IDs and URLs stay'),
-    toggleCard('type', 'Fix a word typed with Caps Lock on', s.fixCapsLock, fixCapsLock => save({ fixCapsLock }), 'пРИВЕТ → Привет, and Caps Lock is turned off'),
-    toggleCard('lock', 'Leave words in capitals as typed', s.keepCaps, keepCaps => save({ keepCaps }), 'abbreviations in capitals are never fixed'),
-    grp('When'),
-    toggleCard('clock', 'Also fix after a pause', s.fixOnPause, fixOnPause => save({ fixOnPause }), 'a clearly wrong word is fixed about a second after you stop typing'),
-    toggleCard('volume-2', 'Play a quiet click when a word is fixed', s.fixSound, fixSound => save({ fixSound })),
-    aside('info', 'Short words are fixed together with the word after them: z rfr → я как. After you switch the layout yourself, the next word is left as typed.'),
+    grp(t('kb.capitals')),
+    toggleCard('type', t('kb.twoCaps'), s.fixTwoCaps, fixTwoCaps => save({ fixTwoCaps }), t('kb.twoCapsNote')),
+    toggleCard('type', t('kb.capsLock'), s.fixCapsLock, fixCapsLock => save({ fixCapsLock }), t('kb.capsLockNote')),
+    toggleCard('lock', t('kb.keepCaps'), s.keepCaps, keepCaps => save({ keepCaps }), t('kb.keepCapsNote')),
+    grp(t('kb.when')),
+    toggleCard('clock', t('kb.onPause'), s.fixOnPause, fixOnPause => save({ fixOnPause }), t('kb.onPauseNote')),
+    toggleCard('volume-2', t('kb.sound'), s.fixSound, fixSound => save({ fixSound })),
+    aside('info', t('kb.shortWords')),
   ]
 }
 
@@ -2509,25 +2564,25 @@ function programsPage(v: AppView): HTMLElement[] {
     field.value = ''
     if (name) add(/\.exe$/.test(name) ? name : `${name}.exe`)
   }
-  const field = liveField('add', 'program.exe', 'Add a program', (key, f) => (key === 'Enter' ? addTyped(f) : ((f.value = ''), f.blur())))
+  const field = liveField('add', 'program.exe', t('kb.addProgram'), (key, f) => (key === 'Enter' ? addTyped(f) : ((f.value = ''), f.blur())))
   return [
-    grp('Add a program'),
+    grp(t('kb.addProgram')),
     el(
       'div',
       { class: 'row add' },
-      el('div', { class: 'fields' }, field, btn([lucide('plus', 's'), 'Add'], () => addTyped(field), 'primary')),
-      el('small', {}, 'The name of its .exe. It starts with fixing as you type left out; open it to choose more.'),
+      el('div', { class: 'fields' }, field, btn([lucide('plus', 's'), t('vocab.add')], () => addTyped(field), 'primary')),
+      el('small', {}, t('kb.addProgramNote')),
     ),
-    suggest ? card('plus', `Add ${suggest}`, ['the program in front a moment ago'], btn('Add', () => add(suggest))) : null,
+    suggest ? card('plus', t('kb.addThis', { exe: suggest }), [t('kb.addThisNote')], btn(t('vocab.add'), () => add(suggest))) : null,
     running.length
       ? card(
           'plus',
-          'Add a running program',
-          ['one with a window open now'],
-          select<string>('', [['', 'Pick a program'], ...running.map((exe): [string, string] => [exe, exe])], exe => exe && add(exe)),
+          t('kb.addRunning'),
+          [t('kb.addRunningNote')],
+          select<string>('', [['', t('kb.pickProgram')], ...running.map((exe): [string, string] => [exe, exe])], exe => exe && add(exe)),
         )
       : null,
-    grp('Programs', s.apps.length || undefined),
+    grp(t('kb.programs'), s.apps.length || undefined),
     ...(s.apps.length
       ? s.apps.map(a =>
           navCard(
@@ -2542,45 +2597,45 @@ function programsPage(v: AppView): HTMLElement[] {
             `program-${a.exe}`,
           ),
         )
-      : [aside('info', 'None yet. Add a program above: Krya leaves out what you choose there, or switches to its own layout when it comes to the front.')]),
+      : [aside('info', t('kb.programsEmpty'))]),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
-const APP_PART_NAMES: Record<AppPart, string> = { fix: 'fixing as you type', switch: 'the switch keys', badge: 'the badge', keys: 'every key of Krya' }
+const APP_PART_NAMES: Record<AppPart, string> = { fix: t('kb.partFix'), switch: t('kb.partSwitch'), badge: t('kb.partBadge'), keys: t('kb.partKeys') }
 
 /** What a program's rule does, in a few words. */
 function programNote(v: AppView, a: AppRule): string {
-  const off = a.off.length ? `left out: ${a.off.map(p => APP_PART_NAMES[p]).join(', ')}` : ''
-  const layout = a.layout ? `starts in ${v.layouts.find(l => l.id === a.layout)?.name ?? a.layout}` : ''
-  return [off, layout].filter(Boolean).join(' · ') || 'nothing left out'
+  const off = a.off.length ? t('kb.leftOut', { parts: a.off.map(p => APP_PART_NAMES[p]).join(', ') }) : ''
+  const layout = a.layout ? t('kb.startsIn', { layout: v.layouts.find(l => l.id === a.layout)?.name ?? a.layout }) : ''
+  return [off, layout].filter(Boolean).join(' · ') || t('kb.nothingLeftOut')
 }
 
 /** One program: the parts left out there, its own layout, or out of the list. */
 function programPage(v: AppView): HTMLElement[] {
   const rule = v.settings.apps.find(a => a.exe === programOpen)
-  if (!rule) return [aside('info', 'This program is no longer in the list.')]
+  if (!rule) return [aside('info', t('kb.noLonger'))]
   const apps = () => view?.settings.apps ?? v.settings.apps
   const change = (next: Partial<AppRule>) => save({ apps: apps().map(a => (a.exe === rule.exe ? { ...a, ...next } : a)) })
   const part = (p: AppPart, iconName: LucideName, label: string, note: string) =>
     toggleCard(iconName, label, !rule.off.includes(p), on => change({ off: on ? rule.off.filter(x => x !== p) : [...rule.off, p] }), note)
   return [
-    grp('Here, Krya'),
-    part('fix', 'spell-check', 'Fixes words as you type', 'off: words stay as typed; the fix key still works'),
-    part('switch', 'keyboard', 'Switches the layout by its keys', 'the switch key and the layouts\' own keys'),
-    part('badge', 'type', 'Shows the layout by the cursor', 'the badge'),
-    part('keys', 'circle-alert', 'Hears its keys at all', 'off: none of Krya\'s keys works here, but the pause key'),
-    grp('Layout'),
+    grp(t('kb.hereKrya')),
+    part('fix', 'spell-check', t('kb.fixes'), t('kb.fixesNote')),
+    part('switch', 'keyboard', t('kb.switches'), t('kb.switchesNote')),
+    part('badge', 'type', t('kb.shows'), t('kb.partBadge')),
+    part('keys', 'circle-alert', t('kb.hears'), t('kb.hearsNote')),
+    grp(t('kb.layout')),
     card(
       'globe',
-      'Starts in',
-      ['each time the program comes to the front'],
-      select<string>(rule.layout, [['', 'As it was'], ...v.layouts.map((l): [string, string] => [l.id, l.name])], layout => change({ layout })),
+      t('kb.startsInTitle'),
+      [t('kb.startsInNote')],
+      select<string>(rule.layout, [['', t('kb.asItWas')], ...v.layouts.map((l): [string, string] => [l.id, l.name])], layout => change({ layout })),
     ),
     card(
       'trash-2',
-      'Out of the list',
-      ['everything works here again'],
-      linkBtn('Remove', () => {
+      t('kb.outOfList'),
+      [t('kb.outOfListNote')],
+      linkBtn(t('kb.remove'), () => {
         save({ apps: apps().filter(a => a.exe !== rule.exe) })
         back()
       }),
@@ -2593,17 +2648,17 @@ function learnedPage(v: AppView): HTMLElement[] {
   const { alwaysFix, myWords } = v.learned
   const name = (code: string) => languageName(code)
   const item = (list: 'alwaysFix' | 'myWords', w: { word: string; lang: string }, note: string) =>
-    card(list === 'alwaysFix' ? 'wand-sparkles' : 'book-open', w.word, [note], ib('x', `Forget ${w.word}`, () => post({ type: 'unlearn', list, word: w.word })))
+    card(list === 'alwaysFix' ? 'wand-sparkles' : 'book-open', w.word, [note], ib('x', t('kb.forget', { word: w.word }), () => post({ type: 'unlearn', list, word: w.word })))
   return [
-    toggleCard('sparkles', 'Learn from my typing', v.settings.learn, learn => save({ learn }), 'never in a password field, a program left out of fixing, or on the full screen'),
-    grp('Fixed always', alwaysFix.length || undefined),
-    ...(alwaysFix.length ? alwaysFix.map(w => item('alwaysFix', w, `into ${name(w.lang)}`)) : [aside('info', 'A word you fix by hand twice (the fix key, or erased and typed again in the other layout) is fixed by itself from then on.')]),
-    grp('Your words', myWords.length || undefined),
-    ...(myWords.length ? myWords.map(w => item('myWords', w, `${name(w.lang)} · never fixed, and fixed into`)) : [aside('info', 'A word in no dictionary that you type right three times becomes yours: Krya leaves it as typed, and fixes it into when it is typed in the wrong layout. Until then only an unreadable fingerprint of it is kept.')]),
-    grp('Never fixed'),
-    navCard('lock', 'Kept as typed', 'words never fixed by themselves', String(v.settings.keepWords.length || 'none'), () => go('kept'), 'kept'),
+    toggleCard('sparkles', t('kb.learn'), v.settings.learn, learn => save({ learn }), t('kb.learnNote')),
+    grp(t('kb.fixedAlways'), alwaysFix.length || undefined),
+    ...(alwaysFix.length ? alwaysFix.map(w => item('alwaysFix', w, t('kb.into', { lang: name(w.lang) }))) : [aside('info', t('kb.fixedAlwaysEmpty'))]),
+    grp(t('tray.yourWords'), myWords.length || undefined),
+    ...(myWords.length ? myWords.map(w => item('myWords', w, t('kb.myWordNote', { lang: name(w.lang) }))) : [aside('info', t('kb.myWordsEmpty'))]),
+    grp(t('kb.neverFixed')),
+    navCard('lock', t('kb.kept'), t('kb.keptNote'), String(v.settings.keepWords.length || t('kb.none')), () => go('kept'), 'kept'),
     alwaysFix.length || myWords.length
-      ? card('trash-2', 'Forget all', ['what Krya learned goes; Kept as typed stays'], linkBtn('Forget', () => post({ type: 'forgetLearned' })))
+      ? card('trash-2', t('kb.forgetAll'), [t('kb.forgetAllNote')], linkBtn(t('kb.forgetBtn'), () => post({ type: 'forgetLearned' })))
       : null,
   ].filter((n): n is HTMLElement => n !== null)
 }
@@ -2613,12 +2668,12 @@ function keptPage(v: AppView): HTMLElement[] {
   const s = v.settings
   const words = () => view?.settings.keepWords ?? s.keepWords
   return listPage({
-    label: 'Add a word',
-    placeholder: 'word, as you type it',
-    note: 'The fix key right after a fix adds the word too.',
+    label: t('vocab.addGroup'),
+    placeholder: t('kb.keptPlaceholder'),
+    note: t('kb.keptAddNote'),
     items: s.keepWords,
-    count: 'Words',
-    empty: 'None yet. Add a word above, or press the fix key right after a fix you did not want.',
+    count: t('vocab.words'),
+    empty: t('kb.keptEmpty'),
     normalize: keptForm,
     add: word => save({ keepWords: [...words(), word] }),
     remove: word => save({ keepWords: words().filter(w => w !== word) }),
@@ -2627,11 +2682,10 @@ function keptPage(v: AppView): HTMLElement[] {
 
 /** Other programs at the keyboard, named calmly: no harm, so the person knows who else is there. */
 function othersLine(v: AppView): HTMLElement | null {
-  const presses = 'presses keys by itself; Krya ignores those.'
   const text = v.keyboardApps.length
-    ? `Also using the keyboard: ${v.keyboardApps.join(', ')}.${v.foreignKeys ? ` One of them ${presses}` : ''}`
+    ? [t('kb.alsoUsing', { apps: v.keyboardApps.join(', ') }), v.foreignKeys ? t('kb.oneOfThem') : ''].filter(Boolean).join(' ')
     : v.foreignKeys
-      ? `A program ${presses}`
+      ? t('kb.aProgram')
       : ''
   return text ? aside('info', text) : null
 }
@@ -2648,37 +2702,36 @@ function keyboardPage(v: AppView): HTMLElement[] {
   const s = v.settings
   const sample = sampleOf(s.native)
   const [typed = '', fixed = ''] = [sample.typed.split(' ')[0], sample.fixed.split(' ')[0]]
-  const count = (n: number, one: string) => (n ? `${n} ${n === 1 ? one : one + 's'}` : 'none')
   const ownKeys = Object.keys(s.layoutKeys).length
   const learnedCount = v.learned.alwaysFix.length + v.learned.myWords.length
   const onOff = (on: boolean, key: 'switchOn' | 'fixKeyOn', label: string, has: boolean) => (has ? el('span', { class: 'tgwrap' }, toggleKnob(on, next => save({ [key]: next }), label)) : null)
   return [
-    grp('Keys'),
+    grp(t('talkPage.keys')),
     keyRow(
       'switchKey',
-      'Switch to the next layout',
-      s.switchKey && usage(s.switchKey).startsWith('tap') ? 'tap the key, nothing else' : 'goes to the next of the layouts listed below',
+      t('kb.switchKey'),
+      s.switchKey && isTap(s.switchKey) ? t('kb.switchTap') : t('kb.switchNote'),
       false,
       'keyboard',
-      onOff(s.switchOn, 'switchOn', 'Switching by keys', !!s.switchKey || ownKeys > 0),
+      onOff(s.switchOn, 'switchOn', t('kb.switchingByKeys'), !!s.switchKey || ownKeys > 0),
     ),
-    keyRow('fixKey', 'Fix the last words', 'retypes words or signs (&& → ??) that came out in the wrong layout; press again for the next one', false, 'rotate-cw', onOff(s.fixKeyOn, 'fixKeyOn', 'The fix key', !!s.fixKey)),
-    grp('As you type'),
-    toggleCard('spell-check', 'Fix words as I type', s.autoFix, autoFix => save({ autoFix }), `${typed} → ${fixed} when you press space; the fix key right after undoes it`),
-    s.autoFix ? navCard('type', 'Fixing as I type', 'capitals, short words, fixing after a pause', null, () => openSub('fixing'), 'fixing') : null,
-    toggleCard('type', 'Show the layout by the cursor', s.layoutBadge, layoutBadge => save({ layoutBadge }), 'a small badge appears when the layout or Caps Lock changes'),
-    toggleCard('keyboard', 'Show the layout in the tray', s.trayLayout, trayLayout => save({ trayLayout }), 'the tray icon shows the current layout, such as en or ru'),
-    toggleCard('monitor', 'Stay off in full screen', s.quietFullScreen, quietFullScreen => save({ quietFullScreen }), 'games, presentations, videos'),
-    grp('Lists'),
-    navCard('keyboard', 'Layouts', ownKeys ? `the layouts the switch key goes through; ${ownKeys} with a key of their own` : 'the layouts the switch key goes through, in order', cycleOf(v).map(l => l.short).join(' · '), () => go('layouts'), 'layouts'),
-    navCard('monitor', 'Programs', 'turn parts of Krya off in a program, or give it its own layout', count(s.apps.length, 'program'), () => go('programs'), 'programs'),
-    navCard('sparkles', 'Learned words', s.learn ? 'words Krya learned from your typing' : 'learning from your typing is off', count(learnedCount, 'word'), () => go('learned'), 'learned'),
-    navCard('lock', 'Kept as typed', 'words Krya never fixes by itself', count(s.keepWords.length, 'word'), () => go('kept'), 'kept'),
-    v.rivals.length ? warn(`${v.rivals.join(' and ')} ${v.rivals.length > 1 ? 'are' : 'is'} running: turn off its layout switching, or words get fixed twice.`) : null,
-    v.elevatedApp ? warn(`${v.elevatedApp} runs as administrator: Windows keeps its keys from Krya, so nothing is fixed or switched there.`) : null,
-    v.keyboardTrouble ? warn(`The keyboard helper: ${v.keyboardTrouble}`) : null,
+    keyRow('fixKey', t('kb.fixKey'), t('kb.fixKeyNote'), false, 'rotate-cw', onOff(s.fixKeyOn, 'fixKeyOn', t('kb.theFixKey'), !!s.fixKey)),
+    grp(t('kb.asYouType')),
+    toggleCard('spell-check', t('kb.autoFix'), s.autoFix, autoFix => save({ autoFix }), t('kb.autoFixNote', { typed, fixed })),
+    s.autoFix ? navCard('type', t('kb.fixing'), t('kb.fixingNote'), null, () => openSub('fixing'), 'fixing') : null,
+    toggleCard('type', t('tray.layoutBadge'), s.layoutBadge, layoutBadge => save({ layoutBadge }), t('kb.badgeNote')),
+    toggleCard('keyboard', t('tray.trayLayout'), s.trayLayout, trayLayout => save({ trayLayout }), t('kb.trayNote')),
+    toggleCard('monitor', t('kb.fullScreen'), s.quietFullScreen, quietFullScreen => save({ quietFullScreen }), t('kb.fullScreenNote')),
+    grp(t('kb.lists')),
+    navCard('keyboard', t('kb.layouts'), ownKeys ? t('kb.layoutsOwn', { n: ownKeys }) : t('kb.layoutsNote'), cycleOf(v).map(l => l.short).join(' · '), () => go('layouts'), 'layouts'),
+    navCard('monitor', t('kb.programs'), t('kb.programsNote'), s.apps.length ? t('kb.programCount', { n: s.apps.length }) : t('kb.none'), () => go('programs'), 'programs'),
+    navCard('sparkles', t('kb.learned'), s.learn ? t('kb.learnedNote') : t('kb.learnedOff'), learnedCount ? t('backup.words', { n: learnedCount }) : t('kb.none'), () => go('learned'), 'learned'),
+    navCard('lock', t('kb.kept'), t('kb.keptNever'), s.keepWords.length ? t('backup.words', { n: s.keepWords.length }) : t('kb.none'), () => go('kept'), 'kept'),
+    v.rivals.length ? warn(t('kb.rivals', { n: v.rivals.length, names: v.rivals.join(` ${t('common.and')} `) })) : null,
+    v.elevatedApp ? warn(t('kb.elevated', { app: v.elevatedApp })) : null,
+    v.keyboardTrouble ? warn(t('kb.trouble', { trouble: v.keyboardTrouble })) : null,
     othersLine(v),
-    el('p', { class: 'privacy' }, lucide('lock', 's'), 'Krya reads your keystrokes only to fix the layout, and sends nothing anywhere. It keeps only the words it learned, on this computer.'),
+    el('p', { class: 'privacy' }, lucide('lock', 's'), t('kb.privacy')),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -2690,8 +2743,8 @@ function dateOf(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const now = new Date()
-  if (d.toDateString() === now.toDateString()) return 'today'
-  return d.toLocaleDateString('en-US', d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
+  if (d.toDateString() === now.toDateString()) return t('words.today')
+  return d.toLocaleDateString(uiLanguage() === 'en' ? 'en-US' : uiLanguage(), d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** The sentence, with the word as it was met in it marked. */
@@ -2702,8 +2755,8 @@ function sentenceOf(w: SavedWord): HTMLElement {
 }
 
 function wordRow(w: SavedWord): HTMLElement {
-  const senses = w.senses.map(([, t]) => t).join('; ')
-  const full = w.senses.map(([pos, t]) => (pos ? `${pos}: ${t}` : t)).join('\n')
+  const senses = w.senses.map(([, s]) => s).join('; ')
+  const full = w.senses.map(([pos, s]) => (pos ? `${pos}: ${s}` : s)).join('\n')
   return el(
     'li',
     { class: 'wi' },
@@ -2711,14 +2764,14 @@ function wordRow(w: SavedWord): HTMLElement {
       'div',
       { class: 'wh' },
       el('b', {}, w.base),
-      w.word.toLowerCase() !== w.base.toLowerCase() ? el('span', { class: 'form' }, `from ${w.word}`) : null,
+      w.word.toLowerCase() !== w.base.toLowerCase() ? el('span', { class: 'form' }, t('word.from', { word: w.word })) : null,
       el('span', { class: 'tr', title: full }, senses),
     ),
     w.sentence ? sentenceOf(w) : null,
     el(
       'div',
       { class: 'wr' },
-      el('button', { class: 'star', title: 'Remove from Words', 'aria-label': `Remove ${w.base} from Words`, onclick: () => post({ type: 'removeWord', id: w.id }) }, icon('star-full')),
+      el('button', { class: 'star', title: t('word.remove'), 'aria-label': t('words.removeAria', { word: w.base }), onclick: () => post({ type: 'removeWord', id: w.id }) }, icon('star-full')),
       el('span', { class: 'd' }, dateOf(w.addedAt)),
     ),
   )
@@ -2732,7 +2785,7 @@ function wordsPage(v: AppView): HTMLElement[] {
     const q = search.trim().toLowerCase()
     const shown = q ? words.filter(w => matches(w, q)) : words
     list.replaceChildren(
-      ...(shown.length ? shown.map(wordRow) : [el('li', { class: 'empty' }, words.length ? 'No such word.' : 'No words yet. Click a word in a card and tap its star.')]),
+      ...(shown.length ? shown.map(wordRow) : [el('li', { class: 'empty' }, words.length ? t('words.noSuch') : t('words.empty'))]),
     )
   }
   fill()
@@ -2747,7 +2800,7 @@ function wordsPage(v: AppView): HTMLElement[] {
         icon('search'),
         el('input', {
           type: 'search',
-          placeholder: 'Search words and sentences',
+          placeholder: t('words.search'),
           value: search,
           oninput: event => {
             search = (event.target as HTMLInputElement).value
@@ -2755,8 +2808,8 @@ function wordsPage(v: AppView): HTMLElement[] {
           },
         }),
       ),
-      el('button', { class: 'btn', disabled: none, onclick: () => post({ type: 'exportWords' }) }, icon('export'), 'Export for Anki…'),
-      el('button', { class: 'btn', disabled: none, onclick: () => post({ type: 'copyWords' }) }, icon('copy'), 'Copy'),
+      el('button', { class: 'btn', disabled: none, onclick: () => post({ type: 'exportWords' }) }, icon('export'), t('words.export')),
+      el('button', { class: 'btn', disabled: none, onclick: () => post({ type: 'copyWords' }) }, icon('copy'), t('common.copy')),
     ),
     list,
   ]
@@ -2765,7 +2818,7 @@ function wordsPage(v: AppView): HTMLElement[] {
 // ---------------------------------------------------------------- settings
 
 function voiceOptions(v: AppView): [string, string][] {
-  const options: [string, string][] = [['', 'Automatic']]
+  const options: [string, string][] = [['', t('settings.automatic')]]
   if (v.natural.status === 'ready') for (const voice of NATURAL_VOICES) options.push([NATURAL_PREFIX + voice.id, naturalLabel(voice)])
   for (const h of v.hostVoices) if (/^en\b/i.test(h.lang)) options.push([h.name, h.name])
   return options
@@ -2777,13 +2830,13 @@ function naturalRow(v: AppView): HTMLElement | null {
   const download = (text: string) => linkBtn(text, () => post({ type: 'downloadNatural' }))
   switch (n.status) {
     case 'absent':
-      return row('Natural voice', [`${n.size} MB to download, then it reads offline (Kokoro)`], download('Download'))
+      return row(t('settings.natural'), [t('settings.naturalNote', { size: n.size })], download(t('settings.download')))
     case 'failed':
-      return row('Natural voice', [bad('The download failed.')], download('Try again'))
+      return row(t('settings.natural'), [bad(t('settings.downloadFailed'))], download(t('common.tryAgain')))
     case 'downloading': {
       const bar = el('i', { class: 'fill' })
       bar.style.width = `${Math.round(n.progress * 100)}%`
-      return row('Natural voice', [el('span', { class: 'bar' }, bar)], el('span', { class: 'pct' }, `${Math.round(n.progress * 100)}%`))
+      return row(t('settings.natural'), [el('span', { class: 'bar' }, bar)], el('span', { class: 'pct' }, `${Math.round(n.progress * 100)}%`))
     }
     default:
       return null
@@ -2792,19 +2845,19 @@ function naturalRow(v: AppView): HTMLElement | null {
 
 /** Each part of the Storage page in plain words, the program's name in brackets at the end. */
 const STORED: Record<StorageId, { title: string; note: string }> = {
-  fast: { title: 'Fast translation', note: 'translates this language both ways (Firefox Translations)' },
-  dict: { title: 'Word meanings', note: 'what a word card shows (Wiktionary)' },
-  voice: { title: 'Natural voice', note: 'reads English aloud (Kokoro)' },
-  accurate: { title: 'Accurate', note: 'the language model that translates and checks your English (Gemma 4 E4B)' },
-  most: { title: 'Most accurate', note: 'the language model that translates and checks your English (Gemma 4 12B)' },
-  unused: { title: 'Models no longer used', note: 'an older Krya’s translation models (TranslateGemma)' },
-  llama: { title: 'The language models’ runner', note: 'runs Accurate and Most accurate on any graphics card or the processor (llama.cpp)' },
-  speechModel: { title: 'Speech model', note: 'writes down what is said' },
-  speech: { title: 'Speech recognition', note: 'the program that runs the speech models (Python, faster-whisper)' },
-  gpu: { title: 'Graphics card support', note: 'speech on the NVIDIA card, several times quicker (CUDA)' },
-  speakers: { title: 'Who spoke when', note: 'tells the voices of a recording apart (PyTorch, pyannote)' },
-  yours: { title: 'Your settings and lists', note: 'words, mistakes, what Krya learned, logs' },
-  transcripts: { title: 'Transcripts', note: 'yours: the text and a small copy of the sound' },
+  fast: { title: t('storage.fast'), note: t('storage.fastNote') },
+  dict: { title: t('storage.dict'), note: t('storage.dictNote') },
+  voice: { title: t('settings.natural'), note: t('storage.voiceNote') },
+  accurate: { title: levelName('accurate'), note: t('storage.llmNote', { model: 'Gemma 4 E4B' }) },
+  most: { title: levelName('most'), note: t('storage.llmNote', { model: 'Gemma 4 12B' }) },
+  unused: { title: t('storage.unused'), note: t('storage.unusedNote') },
+  llama: { title: t('storage.llama'), note: t('storage.llamaNote', { a: levelName('accurate'), b: levelName('most') }) },
+  speechModel: { title: t('dictate.speechModel'), note: t('storage.speechModelNote') },
+  speech: { title: t('storage.speech'), note: t('storage.speechNote') },
+  gpu: { title: t('storage.gpu'), note: t('storage.gpuNote') },
+  speakers: { title: t('transcribe.speakers'), note: t('storage.speakersNote') },
+  yours: { title: t('storage.yours'), note: t('storage.yoursNote') },
+  transcripts: { title: t('tray.transcripts'), note: t('storage.transcriptsNote') },
 }
 
 /** The models and voices, and the programs that run them: everything Krya downloads, in its one folder. */
@@ -2827,8 +2880,8 @@ function storedName(v: AppView, p: StoragePart): string {
 
 /** What a part is, on its line. */
 function storedNote(v: AppView, p: StoragePart): string {
-  if (p.id === 'speechModel') return `${speechChoice(v, p.item ?? '')?.about ?? STORED.speechModel.note} · speech to text`
-  if (p.id === 'llama' && p.item === 'cuda') return 'NVIDIA’s build, for a model that does not fit the graphics card (llama.cpp CUDA)'
+  if (p.id === 'speechModel') return t('storage.speechToText', { about: speechChoice(v, p.item ?? '')?.about ?? STORED.speechModel.note })
+  if (p.id === 'llama' && p.item === 'cuda') return t('storage.cudaNote')
   return STORED[p.id].note
 }
 
@@ -2837,15 +2890,15 @@ function lossOf(p: StoragePart): string {
   switch (p.id) {
     case 'accurate':
     case 'most':
-      return p.users?.includes('Translate') ? 'Translate goes back to Fast, and Check my English downloads it again at its next check' : 'Check my English downloads it again at its next check'
+      return p.users?.includes('Translate') ? t('storage.lossTranslate') : t('storage.lossCheck')
     case 'speech':
-      return 'Dictate and Transcribe stop until it is downloaded again; transcripts and notes stay'
+      return t('storage.lossSpeech')
     case 'gpu':
-      return 'speech goes back to the processor, several times slower'
+      return t('storage.lossGpu')
     case 'speakers':
-      return 'transcripts stop telling the voices apart until it is added again'
+      return t('storage.lossSpeakers')
     default:
-      return 'it downloads again at its next use'
+      return t('storage.lossDefault')
   }
 }
 
@@ -2878,35 +2931,39 @@ function removable(v: AppView, p: StoragePart): boolean {
   }
 }
 
+/** An action a part serves (storage.ts names them in English, as data), as the page writes it. */
+const USER_NAMES: Record<string, string> = { Translate: t('storage.userTranslate'), Listen: t('storage.userListen'), Check: t('storage.userCheck'), Dictate: t('storage.userDictate'), Transcribe: t('storage.userTranscribe') }
+const usersText = (names: readonly string[]) => names.map(n => USER_NAMES[n] ?? n).join(` ${t('common.and')} `)
+
 /** A removal tapped once on a part something uses: that part's key, while its line asks. */
 let asking = ''
 
 /** One part: what it is, who uses it or "Not used", its size, and × (a part in use asks first). */
 function storedLine(v: AppView, p: StoragePart): HTMLElement {
   const key = `${p.id}:${p.item ?? ''}`
-  const label = el('span', {}, storedName(v, p), p.unused ? el('span', { class: 'chip unused' }, 'Not used') : null)
+  const label = el('span', {}, storedName(v, p), p.unused ? el('span', { class: 'chip unused' }, t('storage.notUsed')) : null)
   const size = el('span', { class: 'v num' }, speechSize(p.bytes / 1e6))
   // A part still outside Krya's folder says where it is.
   const where = p.away ? pathNote(p.path) : null
-  if (p.id === 'yours' || p.id === 'transcripts') return row(label, [storedNote(v, p), where], el('span', { class: 'kchg' }, size, linkBtn('Open', () => post({ type: 'openPath', path: p.path }))))
+  if (p.id === 'yours' || p.id === 'transcripts') return row(label, [storedNote(v, p), where], el('span', { class: 'kchg' }, size, linkBtn(t('tray.open'), () => post({ type: 'openPath', path: p.path }))))
   const remove = () => {
     asking = ''
     post({ type: 'removeStored', id: p.id, item: p.item })
   }
-  if (asking === key) return row(label, [storedNote(v, p), bad(`${lossOf(p)}. Remove it?`)], el('span', { class: 'kchg' }, size, linkBtn('Keep', () => ((asking = ''), renderBody())), btn('Remove', remove, 'danger')))
-  const used = p.users?.length ? `used by ${p.users.join(' and ')}` : p.reserve ? `kept for ${p.reserve} on the processor, if the graphics card fails` : null
+  if (asking === key) return row(label, [storedNote(v, p), bad(t('storage.removeAsk', { loss: lossOf(p) }))], el('span', { class: 'kchg' }, size, linkBtn(t('storage.keep'), () => ((asking = ''), renderBody())), btn(t('kb.remove'), remove, 'danger')))
+  const used = p.users?.length ? t('storage.usedBy', { users: usersText(p.users) }) : p.reserve ? t('storage.reserve', { reserve: usersText(p.reserve.split(' and ')) }) : null
   // Files the engine shares with a developer's own uv (hard links): there, and not freed by removing it.
   const shared = p.shared / 1e6
-  const freed = p.id === 'speech' && shared >= 100 ? `removing it frees ${speechSize(p.bytes / 1e6 - shared)}: ${speechSize(shared)} of its files are shared with other Python tools here` : null
+  const freed = p.id === 'speech' && shared >= 100 ? t('storage.frees', { free: speechSize(p.bytes / 1e6 - shared), shared: speechSize(shared) }) : null
   const ask = !!p.users?.length || p.id === 'speech'
-  const x = removable(v, p) ? ib('x', ask ? 'Remove…' : 'Remove; it downloads again if you pick it later', () => (ask ? ((asking = key), renderBody()) : remove())) : null
+  const x = removable(v, p) ? ib('x', ask ? t('storage.removeAskTitle') : t('storage.removeTitle'), () => (ask ? ((asking = key), renderBody()) : remove())) : null
   return row(label, [storedNote(v, p), used, freed, where], el('span', { class: 'kchg' }, size, x))
 }
 
 /** What Krya keeps and how big it is: what nothing uses first, then the models, the programs that run them, and the person's own things. */
 function storagePage(v: AppView): HTMLElement[] {
   const s = v.storage
-  if (!s?.parts.length) return [aside('loader', 'Measuring what Krya keeps…')]
+  if (!s?.parts.length) return [aside('loader', t('storage.measuring'))]
   // The biggest first: what takes the space.
   const of = (ids: readonly StorageId[]) => s.parts.filter(p => ids.includes(p.id) && p.bytes > 0).sort((a, b) => b.bytes - a.bytes)
   const models = of(MODEL_PARTS)
@@ -2916,16 +2973,16 @@ function storagePage(v: AppView): HTMLElement[] {
   return [
     oldNotice(v, s),
     unusedNotice(v),
-    grp('Downloads'),
+    grp(t('storage.downloads')),
     row(
-      `Everything Krya downloads: ${speechSize(downloadsMb(s))}`,
-      [`${away ? 'in Krya’s folder, but for the parts that say where they are' : 'in one folder'} · ${speechSize(s.freeMb)} free on ${s.drive}`, pathNote(s.root)],
-      linkBtn('Open folder', () => post({ type: 'openPath', path: s.root })),
+      t('storage.everything', { size: speechSize(downloadsMb(s)) }),
+      [t(away ? 'storage.inFolderAway' : 'storage.inFolder', { free: speechSize(s.freeMb), drive: s.drive }), pathNote(s.root)],
+      linkBtn(t('storage.openFolder'), () => post({ type: 'openPath', path: s.root })),
     ),
-    grp('Models and voices'),
-    ...(models.length ? models.map(p => storedLine(v, p)) : [aside('info', 'Nothing downloaded yet: each model downloads when you first use it.')]),
-    ...(programs.length ? [grp('Programs that run them'), ...programs.map(p => storedLine(v, p))] : []),
-    grp('Yours'),
+    grp(t('storage.models')),
+    ...(models.length ? models.map(p => storedLine(v, p)) : [aside('info', t('storage.nothing'))]),
+    ...(programs.length ? [grp(t('storage.programs')), ...programs.map(p => storedLine(v, p))] : []),
+    grp(t('storage.yoursGroup')),
     ...own.map(p => storedLine(v, p)),
   ].filter((n): n is HTMLElement => n !== null)
 }
@@ -2947,19 +3004,20 @@ function oldNotice(v: AppView, s: StorageView): HTMLElement | null {
     el(
       'div',
       { class: 'l' },
-      inOld ? `${total} still in the old Altype folder` : `${total} still outside Krya’s folder`,
-      el('small', {}, `${names}: Krya uses them from there. Moving stops the speech engine and the model, then starts Krya again`),
-      s.old.why ? el('small', { class: 'bad' }, `Not moved: ${s.old.why}`) : null,
+      t(inOld ? 'storage.inOld' : 'storage.outside', { size: total }),
+      el('small', {}, t('storage.usesThere', { names })),
+      s.old.why ? el('small', { class: 'bad' }, t('storage.notMoved', { why: s.old.why })) : null,
     ),
-    s.old.moving ? el('span', { class: 'v' }, 'Moving…') : btn('Move to Krya', () => post({ type: 'moveToKrya' }), 'primary'),
+    s.old.moving ? el('span', { class: 'v' }, t('storage.moving')) : btn(t('storage.move'), () => post({ type: 'moveToKrya' }), 'primary'),
   )
 }
 
-const languageName = (code: string) => LANGUAGES.find(l => l.code === code)?.name ?? code
+/** A language's name in the interface's language, by its code or English name. */
+const languageName = (code: string) => langName(code)
 
 /** The card that opens the languages the person uses: their names. */
 function languagesCard(v: AppView): HTMLElement {
-  return navCard('globe', 'Languages you use', 'when Krya hears or reads a text, it guesses among these', myLanguages(v.settings).map(languageName).join(', '), () => go('settings', 'languages'), 'languages')
+  return navCard('globe', t('settings.languages'), t('settings.languagesNote'), myLanguages(v.settings).map(languageName).join(', '), () => go('settings', 'languages'), 'languages')
 }
 
 /** The languages the person uses: their own and English always, others added; what dictation, the translator and the screen's text are read as. */
@@ -2969,17 +3027,17 @@ function languagesPage(v: AppView): HTMLElement[] {
   const rest = LANGUAGES.filter(l => !used.includes(l.code))
   const mine = () => view?.settings.languages ?? s.languages
   return [
-    grp('Add a language'),
+    grp(t('settings.addLanguage')),
     card(
       'plus',
-      'Add a language',
-      ['dictation never picks another; translation and the screen’s text guess among them'],
-      select<string>('', [['', 'Pick a language'], ...rest.map((l): [string, string] => [l.code, `${l.name} · ${l.native}`])], code => code && save({ languages: [...mine(), code] })),
+      t('settings.addLanguage'),
+      [t('settings.addLanguageNote')],
+      select<string>('', [['', t('settings.pickLanguage')], ...rest.map((l): [string, string] => [l.code, `${languageName(l.code)} · ${l.native}`])], code => code && save({ languages: [...mine(), code] })),
     ),
-    grp('Languages', used.length),
-    card('globe', languageName(used[0] ?? ''), ['your language · changed in Settings'], null),
-    card('globe', 'English', ['always: the language Krya teaches'], null),
-    ...s.languages.map(code => card('globe', languageName(code), [], ib('x', `Remove ${languageName(code)}`, () => save({ languages: mine().filter(c => c !== code) })))),
+    grp(t('settings.languagesGroup'), used.length),
+    card('globe', languageName(used[0] ?? ''), [t('settings.yourLangNote')], null),
+    card('globe', languageName('en'), [t('settings.englishNote')], null),
+    ...s.languages.map(code => card('globe', languageName(code), [], ib('x', t('vocab.remove', { word: languageName(code) }), () => save({ languages: mine().filter(c => c !== code) })))),
   ]
 }
 
@@ -2988,8 +3046,8 @@ function speedCard(v: AppView): HTMLElement {
   const s = v.settings
   return card(
     'play',
-    'Speed',
-    ['how fast it reads'],
+    t('settings.speed'),
+    [t('settings.speedNote')],
     seg(
       s.rate,
       RATES.map(r => [r, String(r)]),
@@ -3002,23 +3060,23 @@ function speedCard(v: AppView): HTMLElement {
 /** The voice in a few words, for Listen's line to the Models page. */
 function voiceValue(v: AppView): string {
   const n = v.natural
-  if (n.status === 'downloading') return `natural · downloading ${Math.round(n.progress * 100)}%`
-  if (v.settings.voice === '') return `Automatic · ${naturalOn(v) ? 'natural' : 'Windows'}`
-  return voiceOptions(v).find(([value]) => value === v.settings.voice)?.[1] ?? 'Automatic'
+  if (n.status === 'downloading') return t('settings.naturalDownloading', { pct: Math.round(n.progress * 100) })
+  if (v.settings.voice === '') return t(naturalOn(v) ? 'settings.autoNatural' : 'settings.autoWindows')
+  return voiceOptions(v).find(([value]) => value === v.settings.voice)?.[1] ?? t('settings.automatic')
 }
 
 function settingsPage(v: AppView): HTMLElement[] {
   const s = v.settings
   return [
-    grp('Language'),
+    grp(t('settings.language')),
     uiLanguageCard(s.uiLanguage, uiLanguage => save({ uiLanguage })),
     card(
       'languages',
-      'Your language',
-      ['Krya translates into it and shows word meanings in it'],
+      t('settings.yourLanguage'),
+      [t('settings.yourLanguageNote')],
       select(
         s.native,
-        v.languages.map(l => [l.name, `${l.native} · ${l.name}`]),
+        v.languages.map(l => [l.name, `${l.native} · ${languageName(l.name)}`]),
         native => save({ native }),
       ),
     ),
@@ -3026,39 +3084,39 @@ function settingsPage(v: AppView): HTMLElement[] {
     grp('Krya'),
     card(
       'monitor',
-      'Theme',
+      t('settings.theme'),
       [],
       seg<ThemeMode>(
         s.theme,
         [
-          ['system', 'As Windows'],
-          ['light', 'Light'],
-          ['dark', 'Dark'],
+          ['system', t('settings.themeSystem')],
+          ['light', t('settings.themeLight')],
+          ['dark', t('settings.themeDark')],
         ],
         theme => save({ theme }),
       ),
     ),
-    toggleCard('power', 'Start with Windows', s.startWithWindows, startWithWindows => save({ startWithWindows })),
-    toggleCard('pause', 'Pause Krya', s.paused, paused => save({ paused }), 'all shortcuts and fixing stop until you turn it back on; also in the tray menu'),
-    keyRow('pauseKey', 'Pause or resume with a key', 'works while paused too', !v.keysOk.pause, 'pause'),
-    keyRow('windowKey', 'Open this window with a key', 'from any program', !v.keysOk.window, 'house'),
-    card('rotate-ccw', 'Reset all keys', ['every shortcut back to how it came; ↺ by a key brings back just that one'], linkBtn('Reset keys', () => post({ type: 'resetKeys' }))),
+    toggleCard('power', t('settings.startWithWindows'), s.startWithWindows, startWithWindows => save({ startWithWindows })),
+    toggleCard('pause', t('settings.pause'), s.paused, paused => save({ paused }), t('settings.pauseNote')),
+    keyRow('pauseKey', t('settings.pauseKey'), t('settings.pauseKeyNote'), !v.keysOk.pause, 'pause'),
+    keyRow('windowKey', t('settings.windowKey'), t('settings.windowKeyNote'), !v.keysOk.window, 'house'),
+    card('rotate-ccw', t('settings.resetKeys'), [t('settings.resetKeysNote')], linkBtn(t('main.resetKeys'), () => post({ type: 'resetKeys' }))),
     // New versions are downloaded by hand from GitHub (the owner, 2026-10-30): nothing installs itself.
     card(
       'rotate-cw',
-      `Version ${v.version}${v.dev ? ' dev' : ''}`,
-      [v.dev ? `built ${v.build}` : 'new versions: download the installer from GitHub and run it; your settings and downloads stay'],
-      linkBtn('New versions', () => post({ type: 'openLink', url: RELEASES })),
+      t(v.dev ? 'settings.versionDev' : 'settings.version', { version: v.version }),
+      [v.dev ? t('settings.built', { build: v.build }) : t('settings.versionNote')],
+      linkBtn(t('settings.newVersions'), () => post({ type: 'openLink', url: RELEASES })),
     ),
-    grp('Backup'),
+    grp(t('settings.backup')),
     card(
       'file-text',
-      'Back up or move to another computer',
-      ['settings, words, mistakes, what Krya learned from your typing, recent translations and phrases, in one file; models download again'],
-      el('span', { class: 'kchg' }, linkBtn('Export', () => post({ type: 'exportBackup' })), linkBtn('Import', () => post({ type: 'importBackup' }))),
+      t('settings.backupTitle'),
+      [t('settings.backupNote')],
+      el('span', { class: 'kchg' }, linkBtn(t('settings.export'), () => post({ type: 'exportBackup' })), linkBtn(t('main.import'), () => post({ type: 'importBackup' }))),
     ),
-    aside('info', 'Import replaces your settings with the backup’s and adds its words and history to yours; nothing of yours is removed.'),
-    card('rotate-ccw', 'Reset all settings', ['keys, switches and lists back to how they came; your words and history stay'], linkBtn('Reset', () => post({ type: 'resetSettings' }))),
+    aside('info', t('settings.importNote')),
+    card('rotate-ccw', t('settings.resetAll'), [t('settings.resetAllNote')], linkBtn(t('main.reset'), () => post({ type: 'resetSettings' }))),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
@@ -3073,27 +3131,27 @@ function aboutPage(v: AppView): HTMLElement[] {
       el('div', { class: 'mk' }, tile(88), logo()),
       el('p', { class: 'tag' }, 'Talk to the duck.'),
       // A run from source says when it was built, so it is never taken for the last release.
-      el('p', { class: 'ver' }, `Version ${v.version}${v.dev ? ` dev, built ${v.build}` : ''} · free and open source, MIT`),
+      el('p', { class: 'ver' }, v.dev ? t('about.versionDev', { version: v.version, build: v.build }) : t('about.version', { version: v.version })),
       el(
         'dl',
         { class: 'facts' },
-        ...fact('made by', 'Yevhen Peshynskyi · Design automation engineer', el('br'), link('https://ikstro.com', 'ikstro.com')),
+        ...fact(t('about.madeBy'), t('about.author'), el('br'), link('https://ikstro.com', 'ikstro.com')),
         ...fact(
-          'runs offline',
-          'Firefox Translations by Mozilla · Gemma 4 by Google (Apache 2.0), run by llama.cpp · Kokoro-82M by hexgrad, eSpeak NG · Windows OCR · WikDict, from Wiktionary · FrequencyWords by Hermit Dave ',
-          el('span', { class: 'q' }, '— your text is never sent anywhere'),
+          t('about.runsOffline'),
+          t('about.credits'),
+          el('span', { class: 'q' }, t('about.neverSent')),
         ),
-        ...fact('made with', 'Inter and JetBrains Mono (SIL OFL) · Electron · VS Code icons'),
-        ...fact('goes online only for', `a one-time download of each part: the translator for your language, the natural voice (${v.natural.size} MB), word meanings`),
+        ...fact(t('about.madeWith'), t('about.madeWithList')),
+        ...fact(t('about.online'), t('about.onlineList', { size: v.natural.size })),
         ...fact(
-          'links',
-          link(RELEASES, 'New versions and what changed'),
+          t('about.links'),
+          link(RELEASES, t('about.newVersions')),
           ' · ',
-          link('https://github.com/ikstro/krya', 'Source on GitHub'),
+          link('https://github.com/ikstro/krya', t('about.source')),
           ' · ',
-          link('https://github.com/ikstro/krya/blob/main/NOTICE', 'Licenses'),
+          link('https://github.com/ikstro/krya/blob/main/NOTICE', t('about.licenses')),
           ' · ',
-          linkBtn('Report a problem', () => go('report')),
+          linkBtn(t('report.title'), () => go('report')),
         ),
       ),
     ),
@@ -3119,35 +3177,35 @@ function reportPage(v: AppView): HTMLElement[] {
   const field = el('textarea', {
     class: 'field report',
     rows: 6,
-    placeholder: 'What did you do, what happened, and what did you expect? The steps that make it happen again help most.',
-    'aria-label': 'What happened',
+    placeholder: t('report.placeholder'),
+    'aria-label': t('report.what'),
     'data-live': 'report',
   })
   const file = reported?.file
   return [
-    grp('What happened'),
-    el('div', { class: 'row add' }, field, el('small', {}, 'In any language; it goes as you wrote it.')),
-    grp('Send it'),
-    row('Email it', [`Opens your mail to ${REPORT_EMAIL} with your text in it; attach the report file Krya saves`], btn([lucide('mail', 's'), 'Email'], () => send('email'), 'primary')),
-    row('Open a GitHub issue', ['A public page others with the same problem can find; needs a GitHub account'], btn([lucide('external-link', 's'), 'GitHub issue'], () => send('github'))),
-    file ? aside('circle-check', `Saved ${file.split('\\').pop()} in Documents › Krya › Reports: drag it into the message. `, linkBtn('Show in folder', () => post({ type: 'showInFolder', path: file }))) : null,
-    reported?.error ? warn(`The report could not be made: ${reported.error}`) : null,
-    grp('What the report file holds'),
-    row('Krya’s log', ['What Krya did lately: keys, copies, windows, downloads, errors']),
-    row('The speech engine’s and the translation model’s logs', ['Dictation, transcripts and the model starting, stopping and failing']),
-    row('This computer and Krya', ['Processor, memory, graphics card, Windows and Krya’s versions']),
-    row('Your settings', ['Your own lists only counted: words kept as typed, words to spell, programs']),
-    aside('shield-check', 'Never in it: your texts, words, mistakes, translations, phrases, transcripts or Hugging Face key. Your Windows name and the computer’s are replaced. Nothing is sent until you send it.'),
-    row('Krya’s folder', ['Where the logs are, to look at them yourself'], linkBtn('Open', () => post({ type: 'openLogs' }))),
-    ...(installed(v) ? [grp('If something stopped working'), restartRow(v)] : []),
+    grp(t('report.what')),
+    el('div', { class: 'row add' }, field, el('small', {}, t('report.anyLanguage'))),
+    grp(t('report.send')),
+    row(t('report.email'), [t('report.emailNote', { email: REPORT_EMAIL })], btn([lucide('mail', 's'), t('report.emailBtn')], () => send('email'), 'primary')),
+    row(t('report.issue'), [t('report.issueNote')], btn([lucide('external-link', 's'), t('report.issueBtn')], () => send('github'))),
+    file ? aside('circle-check', t('report.saved', { file: file.split('\\').pop() ?? file }), linkBtn(t('report.showInFolder'), () => post({ type: 'showInFolder', path: file }))) : null,
+    reported?.error ? warn(t('report.failed', { error: reported.error })) : null,
+    grp(t('report.holds')),
+    row(t('report.log'), [t('report.logNote')]),
+    row(t('report.otherLogs'), [t('report.otherLogsNote')]),
+    row(t('report.computer'), [t('report.computerNote')]),
+    row(t('report.settings'), [t('report.settingsNote')]),
+    aside('shield-check', t('report.never')),
+    row(t('report.folder'), [t('report.folderNote')], linkBtn(t('tray.open'), () => post({ type: 'openLogs' }))),
+    ...(installed(v) ? [grp(t('report.stopped')), restartRow(v)] : []),
   ].filter((n): n is HTMLElement => n !== null)
 }
 
 /** The speech engine's restart, for Dictate or Transcribe that stopped answering: its state, why it stopped. */
 function restartRow(v: AppView): HTMLElement {
   const sp = v.speech
-  const state = { off: 'off', starting: 'starting…', ready: sp.health?.busy ? 'running · transcribing now' : 'running', down: 'stopped' }[sp.service]
-  return row('Restart the speech engine', [`Dictate and Transcribe run in it · ${state}`, sp.trouble ? bad(sp.trouble) : null], linkBtn('Restart', () => post({ type: 'restartSpeech' }), sp.pack.status !== 'ready'))
+  const state = { off: t('report.stateOff'), starting: t('report.stateStarting'), ready: t(sp.health?.busy ? 'report.stateBusy' : 'report.stateRunning'), down: t('report.stateDown') }[sp.service]
+  return row(t('report.restart'), [t('report.restartNote', { state }), sp.trouble ? bad(sp.trouble) : null], linkBtn(t('report.restartBtn'), () => post({ type: 'restartSpeech' }), sp.pack.status !== 'ready'))
 }
 
 // ---------------------------------------------------------------- messages

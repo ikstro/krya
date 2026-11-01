@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" href="popup.css">
-<title>Krya: microphone</title>
+<title data-i18n="micTitle">Krya: microphone</title>
 <style>
   body { width: auto; max-width: 520px; margin: 48px auto; padding: 0 16px; }
   h1 { font-size: 20px; color: var(--strong); }
@@ -11,9 +11,9 @@
 </style>
 </head>
 <body>
-<h1>Allow the microphone</h1>
-<p>Krya records your voice as a track of its own, so the transcript shows where you spoke and where the others did. The sound never leaves this computer: Krya transcribes it here.</p>
-<p><button id="allow">Allow the microphone</button></p>
+<h1 data-i18n="micHeading"></h1>
+<p data-i18n="micWhy"></p>
+<p><button id="allow" data-i18n="micAllow"></button></p>
 <p id="result" class="muted"></p>
 <script src="permission.js"></script>
 </body>

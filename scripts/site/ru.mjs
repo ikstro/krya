@@ -46,7 +46,7 @@ export default {
     [`<p class="band-hint">Select a sentence below, then press `, `<p class="band-hint">Выделите предложение ниже и дважды нажмите `],
     [` twice.<span class="more" id="more">once more</span>`, `.<span class="more" id="more">ещё раз</span>`],
     [`</svg>Show me on a sentence</button>`, `</svg>Покажите на предложении</button>`],
-    [`<p class="band-note">This page carries translations of the duck story only. Krya translates any text, on your computer.</p>`, `<p class="band-note">Окна Krya на английском, как и сама программа: она для тех, кто учит английский. На этой странице есть переводы только истории про утку; Krya переводит любой текст на вашем компьютере.</p>`],
+    [`<p class="band-note">This page carries translations of the duck story only. Krya translates any text, on your computer.</p>`, `<p class="band-note">Здесь окна Krya на английском; в программе меню и настройки можно переключить на русский, а всё, чему она учит, остаётся английским. На этой странице есть переводы только истории про утку; Krya переводит любой текст на вашем компьютере.</p>`],
     // Talk
     [`</span>Talk</div>`, `</span>Разговор</div>`],
     [`>your key</button>`, `>ваша клавиша</button>`],

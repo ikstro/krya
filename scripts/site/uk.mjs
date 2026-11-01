@@ -1,5 +1,5 @@
 // The landing in Ukrainian: each text of site/index.html as it is there, then its translation (scripts/build-site.mjs).
-// Krya's own windows drawn on the page (the cards, the talk's lines, the transcript) stay in English, as in Krya;
+// Krya's own windows drawn on the page (the cards, the talk's lines, the transcript) stay in English, as Krya comes;
 // the tagline "Talk to the duck" stays as Krya's name for itself.
 export default {
   locale: 'uk_UA',
@@ -42,7 +42,7 @@ export default {
     [`<p class="band-hint">Select a sentence below, then press `, `<p class="band-hint">Виділіть речення нижче й двічі натисніть `],
     [` twice.<span class="more" id="more">once more</span>`, `.<span class="more" id="more">ще раз</span>`],
     [`</svg>Show me on a sentence</button>`, `</svg>Покажіть на реченні</button>`],
-    [`<p class="band-note">This page carries translations of the duck story only. Krya translates any text, on your computer.</p>`, `<p class="band-note">Вікна Krya англійською, як і сама програма: вона для тих, хто вчить англійську. На цій сторінці є переклади лише історії про качку; Krya перекладає будь-який текст на вашому комп’ютері.</p>`],
+    [`<p class="band-note">This page carries translations of the duck story only. Krya translates any text, on your computer.</p>`, `<p class="band-note">Тут вікна Krya англійською; у програмі меню й налаштування можна перемкнути на українську, а все, чого вона вчить, лишається англійським. На цій сторінці є переклади лише історії про качку; Krya перекладає будь-який текст на вашому комп’ютері.</p>`],
     // Talk
     [`</span>Talk</div>`, `</span>Розмова</div>`],
     [`>your key</button>`, `>ваша клавіша</button>`],

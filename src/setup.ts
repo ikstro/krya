@@ -6,10 +6,11 @@
 // translator's size.
 
 import { translationAdvice } from './hardware'
+import { languageName, levelName, sizeText, t } from './i18n'
 import { scriptFor } from './languages'
 import { NATURAL_PREFIX } from './natural'
 import type { AppView } from './protocol'
-import { LEVEL_NAMES, type Settings, type TranslationLevel } from './settings'
+import type { Settings, TranslationLevel } from './settings'
 import type { SpeechPart } from './speechpack'
 import { minutes, seconds } from './speechplan'
 
@@ -51,23 +52,21 @@ export function recommend(v: AppView): Recommendation {
   // The planner always finds a model that keeps the time; a meeting needs a good one too.
   const rough = chosen.model === 'tiny' || chosen.model === 'base'
   return {
-    voice: weak ? { on: false, why: 'a Windows voice is instant; the natural one would pause between sentences on this processor' } : { on: true, why: 'reads like a person; this computer makes its speech faster than it plays' },
-    autoFix: cyrillic
-      ? { on: true, why: `${v.settings.native} and English share the keyboard: a word typed in the wrong layout is typed again right` }
-      : { on: false, why: 'your language shares the Latin layout; turn it on if you also type in another' },
+    voice: weak ? { on: false, why: t('setup.why.voiceWeak') } : { on: true, why: t('setup.why.voice') },
+    autoFix: cyrillic ? { on: true, why: t('setup.why.autoFix', { lang: languageName(v.settings.native) }) } : { on: false, why: t('setup.why.autoFixLatin') },
     gpu: plan.offers.gpu
-      ? { on: true, why: `speech on the graphics card: a phrase in ≈${seconds(s.firstModel.cuda.phrase)}, not ≈${seconds(s.firstModel.cpu.phrase)}` }
-      : { on: false, why: d.at ? 'no NVIDIA card that can take it; speech runs on the processor' : 'looking at the graphics card…' },
-    dictate: { on: true, why: `${s.firstModel.cpu.model} writes a phrase in ≈${seconds(s.firstModel.cpu.phrase)} on this processor` },
+      ? { on: true, why: t('setup.why.gpu', { card: seconds(s.firstModel.cuda.phrase), cpu: seconds(s.firstModel.cpu.phrase) }) }
+      : { on: false, why: d.at ? t('setup.why.noGpu') : t('setup.lookingCard') },
+    dictate: { on: true, why: t('setup.why.dictate', { model: s.firstModel.cpu.model, time: seconds(s.firstModel.cpu.phrase) }) },
     transcribe:
       chosen.fits && !rough
-        ? { on: true, why: `${chosen.label}: an hour of a meeting in ≈${hourCpu} on this computer${plan.offers.gpu ? ', quicker on the graphics card' : ''}` }
-        : { on: false, why: `possible, but ${rough ? 'rough' : 'slow'} here: ${chosen.label} writes an hour in ≈${hourCpu}` },
+        ? { on: true, why: t(plan.offers.gpu ? 'setup.why.transcribeCard' : 'setup.why.transcribe', { model: chosen.label, time: hourCpu }) }
+        : { on: false, why: t(rough ? 'setup.why.transcribeRough' : 'setup.why.transcribeSlow', { model: chosen.label, time: hourCpu }) },
     speakers:
       plan.offers.speakersGpu && plan.speakers.cuda !== undefined
-        ? { on: true, why: `the voices told apart on the graphics card: an hour in ≈${minutes(plan.speakers.cuda)}` }
-        : { on: false, why: `possible, but slow here: on the processor an hour’s voices take ≈${minutes(plan.speakers.cpu)}` },
-    startWithWindows: { on: true, why: 'the keys work from the first minute' },
+        ? { on: true, why: t('setup.why.speakers', { time: minutes(plan.speakers.cuda) }) }
+        : { on: false, why: t('setup.why.speakersSlow', { time: minutes(plan.speakers.cpu) }) },
+    startWithWindows: { on: true, why: t('setup.why.startWithWindows') },
   }
 }
 
@@ -120,21 +119,22 @@ export function cost(c: Choice, v: AppView): Cost {
   const s = v.speech
   const items: Item[] = []
   let disk = 0
-  const t = v.translatorState
-  if (t.status !== 'unsupported') {
-    const mb = t.status === 'ready' ? 0 : t.size
-    items.push({ key: 'translator', label: `The translator for ${v.settings.native} ⇄ English`, note: mb ? 'Firefox Translations, once · then offline' : 'here already', mb })
+  const tr = v.translatorState
+  if (tr.status !== 'unsupported') {
+    const mb = tr.status === 'ready' ? 0 : tr.size
+    const pair = t('lang.pairEnglish', { lang: languageName(v.settings.native) })
+    items.push({ key: 'translator', label: t('setup.item.translator', { pair }), note: mb ? t('setup.item.translatorNote') : t('setup.hereAlready'), mb })
     disk += mb
   }
   const dict = v.dictionary.status
   if (dict !== 'none') {
     const mb = dict === 'ready' ? 0 : DICTIONARY_MB
-    items.push({ key: 'dictionary', label: 'The word dictionary', note: mb ? 'meanings of English words, once' : 'here already', mb })
+    items.push({ key: 'dictionary', label: t('setup.item.dictionary'), note: mb ? t('setup.item.dictionaryNote') : t('setup.hereAlready'), mb })
     disk += mb
   }
   if (c.voice === 'natural') {
     const here = v.natural.status === 'ready'
-    items.push({ key: 'voice', label: 'The natural voice', note: here ? 'here already' : 'Kokoro · reads on this computer', mb: here ? 0 : v.natural.size })
+    items.push({ key: 'voice', label: t('setup.item.voice'), note: here ? t('setup.hereAlready') : t('setup.item.voiceNote'), mb: here ? 0 : v.natural.size })
     if (!here) disk += v.natural.size
   }
   const parts: SpeechPart[] = []
@@ -150,8 +150,13 @@ export function cost(c: Choice, v: AppView): Cost {
       p === 'speakers' ? s.speakers.sizes[where][kind] : p === 'gpu' && cardInside ? 0 : s[kind][p]
     const mb = parts.reduce((n, p) => n + size(p, 'download'), 0)
     const onDisk = parts.reduce((n, p) => n + size(p, 'installed'), 0)
-    const names = { core: 'speech to text', gpu: 'the graphics card’s part', speakers: 'the speakers’ part' }
-    items.push({ key: 'engine', label: 'The speech engine', note: parts.length ? `${parts.map(p => names[p]).join(', ')} · ${Math.round(onDisk)} MB on the disk` : 'here already', mb })
+    const names = { core: t('setup.item.core'), gpu: t('setup.item.gpu'), speakers: t('setup.item.speakers') }
+    items.push({
+      key: 'engine',
+      label: t('setup.item.engine'),
+      note: parts.length ? t('setup.item.engineNote', { parts: parts.map(p => names[p]).join(', '), size: t('size.mb', { n: Math.round(onDisk) }) }) : t('setup.hereAlready'),
+      mb,
+    })
     disk += onDisk
     const downloaded = new Set(s.health?.downloaded ?? s.plan.dictation.choices.filter(x => x.downloaded).map(x => x.model))
     const want = [...(c.dictate ? [s.plan.dictation.chosen] : []), ...(c.transcribe ? [s.plan.transcripts.chosen] : [])]
@@ -159,7 +164,7 @@ export function cost(c: Choice, v: AppView): Cost {
       if (models.includes(m.model)) continue
       models.push(m.model)
       const here = downloaded.has(m.model) || m.downloaded
-      items.push({ key: `model:${m.model}`, label: m.label, note: here ? 'here already' : m.about, mb: here ? 0 : m.mb })
+      items.push({ key: `model:${m.model}`, label: m.label, note: here ? t('setup.hereAlready') : m.about, mb: here ? 0 : m.mb })
       if (!here) disk += m.mb
     }
   }
@@ -181,7 +186,8 @@ export type ModelChange = { what: string; from: string; to: string; mb: number }
  */
 export type ModelAdvice = { patch: Partial<Settings>; changes: ModelChange[]; download: number; model: boolean; natural: boolean; parts: SpeechPart[] }
 
-const PLACE = { cuda: 'graphics card', cpu: 'processor' } as const
+/** Where who spoke when runs, as a change names it: graphics card, processor. */
+const placeName = (on: 'cuda' | 'cpu') => t(on === 'cuda' ? 'busy.card' : 'busy.processor')
 
 /** The models advised here in place of the ones picked; nothing changes what already is as advised. */
 export function recommendedModels(v: AppView): ModelAdvice {
@@ -192,57 +198,56 @@ export function recommendedModels(v: AppView): ModelAdvice {
   const changes: ModelChange[] = []
   const parts: SpeechPart[] = []
   const change = (what: string, from: string, to: string, mb = 0) => changes.push({ what, from, to, mb })
+  const translate = t('kind.translate')
 
   // Translate and Check: the level the graphics card holds; without one Fast translates and Check keeps its model.
   const level: TranslationLevel = translationAdvice(sp.device).advised
   const model = level === 'fast' ? s.model : level
-  if (level !== s.translationLevel) (patch.translationLevel = level), change('Translate', LEVEL_NAMES[s.translationLevel], LEVEL_NAMES[level])
-  if (model !== s.model) (patch.model = model), change('Check my English', LEVEL_NAMES[s.model], LEVEL_NAMES[model])
+  if (level !== s.translationLevel) (patch.translationLevel = level), change(translate, levelName(s.translationLevel), levelName(level))
+  if (model !== s.model) (patch.model = model), change(t('rec.check'), levelName(s.model), levelName(model))
   // A model given to Translate or Check comes with Apply, on the first line that names it.
   const fetchModel = (level !== 'fast' && patch.translationLevel !== undefined) || patch.model !== undefined ? v.models[model].status !== 'ready' && v.models[model].status !== 'downloading' : false
-  const named = changes.find(c => c.to === LEVEL_NAMES[model])
+  const named = changes.find(c => c.to === levelName(model))
   if (fetchModel && named) named.mb = v.models[model].size
-  const fast = changes.find(c => c.what === 'Translate' && level === 'fast')
+  const fast = changes.find(c => c.what === translate && level === 'fast')
   if (fast && v.translation.fast.status !== 'ready' && v.translation.fast.status !== 'downloading') fast.mb = v.translation.fast.size
 
   // Listen: the natural voice from four cores, else a Windows voice, which is instant.
   const ready = v.natural.status === 'ready'
   const natural = s.voice === '' ? ready : s.voice.startsWith(NATURAL_PREFIX)
   const windows = v.hostVoices.find(h => /^en\b/i.test(h.lang))?.name
-  const voiceName = natural ? 'Natural voice' : s.voice || 'Windows voice'
+  const voiceName = natural ? t('rec.naturalVoice') : s.voice || t('setup.windowsVoice')
   let fetchNatural = false
   if (r.voice.on && !natural) {
     // Automatic reads with the natural voice once it is here.
     if (s.voice) patch.voice = ''
     fetchNatural = !ready && v.natural.status !== 'downloading'
-    change('Listen voice', voiceName, 'Natural voice', fetchNatural ? v.natural.size : 0)
+    change(t('rec.voice'), voiceName, t('rec.naturalVoice'), fetchNatural ? v.natural.size : 0)
   } else if (!r.voice.on && natural && windows) {
     patch.voice = windows
-    change('Listen voice', voiceName, windows)
+    change(t('rec.voice'), voiceName, windows)
   }
 
   // Dictate and Transcribe: Automatic, accuracy first, on the graphics card when it can take them; who spoke when where advised.
   if (sp.pack.parts.includes('core')) {
     const features = [
-      ['dictationModel', 'Dictate', sp.plan.dictation],
-      ['transcriptsModel', 'Transcribe', sp.plan.transcripts],
+      ['dictationModel', t('dict.type'), sp.plan.dictation],
+      ['transcriptsModel', t('rec.transcribe'), sp.plan.transcripts],
     ] as const
-    for (const [key, what, plan] of features) if (s[key]) (patch[key] = ''), change(what, plan.chosen.label, 'Automatic')
-    if (s.speechPrefer !== 'accuracy') (patch.speechPrefer = 'accuracy'), change('Automatic speech models', 'Speed first', 'Accuracy first')
-    if (r.gpu.on && sp.pack.nvidia && !sp.pack.parts.includes('gpu')) parts.push('gpu'), change('Dictate and Transcribe', 'processor', 'graphics card', sp.download.gpu)
+    for (const [key, what, plan] of features) if (s[key]) (patch[key] = ''), change(what, plan.chosen.label, t('rec.automatic'))
+    if (s.speechPrefer !== 'accuracy') (patch.speechPrefer = 'accuracy'), change(t('rec.speechModels'), t('rec.speed'), t('rec.accuracy'))
+    if (r.gpu.on && sp.pack.nvidia && !sp.pack.parts.includes('gpu')) parts.push('gpu'), change(t('rec.dictateTranscribe'), placeName('cpu'), placeName('cuda'), sp.download.gpu)
     if (s.speakersDevice !== 'auto') {
       patch.speakersDevice = 'auto'
       const now = sp.plan.offers.speakersGpu && s.speakersDevice !== 'cpu' ? 'cuda' : 'cpu'
       const then = sp.plan.offers.speakersGpu ? 'cuda' : 'cpu'
       const moving = sp.pack.parts.includes('speakers') && (sp.pack.speakersOn ?? 'cpu') !== then
       if (moving) parts.push('speakers')
-      if (now !== then) change('Who spoke when', PLACE[now], PLACE[then], moving ? sp.speakers.sizes[then].download : 0)
+      if (now !== then) change(t('setup.speakers'), placeName(now), placeName(then), moving ? sp.speakers.sizes[then].download : 0)
     }
   }
   return { patch, changes, download: changes.reduce((n, c) => n + c.mb, 0), model: fetchModel, natural: fetchNatural, parts }
 }
 
-/** 480 MB, 2.9 GB. */
-export function sizeText(mb: number): string {
-  return mb >= 1000 ? `${(Math.round(mb / 100) / 10).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
-}
+/** 480 MB, 2.9 GB, in the interface's language (i18n's). */
+export { sizeText }

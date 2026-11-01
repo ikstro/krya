@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { en, type Key, type Phrase } from './en'
+import { engineMessage } from './engine'
 import { languageName, levelName, setUiLanguage, sizeText, t } from './index'
 import { ru } from './ru'
 import { uk } from './uk'
@@ -65,9 +66,22 @@ describe('t', () => {
     expect(languageName('ru')).toBe('російська')
     expect(levelName('accurate')).toBe('Точний')
     expect(sizeText(84)).toBe('84 МБ')
+    // A decimal comma, as Ukrainian writes it.
+    expect(sizeText(5200)).toBe('5,2 ГБ')
     setUiLanguage('ru')
     expect(languageName('English')).toBe('английский')
     // A language Krya does not know keeps the name given.
     expect(languageName('Klingon')).toBe('Klingon')
+  })
+})
+
+describe('engineMessage', () => {
+  it('puts the speech engine’s refusals in the interface’s language, its reasons as they are', () => {
+    expect(engineMessage('No such transcript')).toBe('No such transcript')
+    setUiLanguage('ru')
+    expect(engineMessage('No such transcript')).toBe('Такой расшифровки нет')
+    expect(engineMessage('Could not recognize: CUDA out of memory')).toBe('Не удалось распознать: CUDA out of memory')
+    expect(engineMessage('Could not remove small: Access is denied')).toBe('Не удалось удалить small: Access is denied')
+    expect(engineMessage('Something new')).toBe('Something new')
   })
 })

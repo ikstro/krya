@@ -6,6 +6,7 @@
 // engine's work by asking it again every moment and a half; the bar moves in
 // place, so its light keeps running.
 
+import { formatDate, languageName, t } from '../i18n'
 import type { AppView } from '../protocol'
 import { el, icon } from './dom'
 import { caps } from './keycaps'
@@ -18,6 +19,8 @@ import {
   installed,
   length,
   minutesPerHour,
+  minutesText,
+  phrase,
   pickKb,
   problem,
   redrawPage,
@@ -47,26 +50,26 @@ let hooks: Hooks = { view: () => undefined, shown: () => false, show: () => {}, 
 export const setTranscriptHooks = (h: Hooks) => (hooks = h)
 
 const SOURCES: Record<Source, { label: string; icon: string }> = {
-  file: { label: 'file', icon: 'file-media' },
-  mic: { label: 'microphone', icon: 'mic' },
+  file: { label: t('tr.srcFile'), icon: 'file-media' },
+  mic: { label: t('tr.srcMic'), icon: 'mic' },
   meet: { label: 'Google Meet', icon: 'organization' },
-  note: { label: 'note', icon: 'note' },
+  note: { label: t('tr.srcNote'), icon: 'note' },
 }
 const STAGES: [string, string][] = [
-  ['decode', 'Preparing the sound'],
-  ['words', 'Recognizing speech'],
-  ['speakers', 'Telling speakers apart'],
-  ['save', 'Saving'],
+  ['decode', t('tr.stageDecode')],
+  ['words', t('tr.stageWords')],
+  ['speakers', t('tr.stageSpeakers')],
+  ['save', t('tr.stageSave')],
 ]
 /** Each stage's share of the bar: engine/jobs.py WEIGHTS. */
 const WEIGHTS: Record<string, [number, number]> = { decode: [0, 0.1], words: [0.1, 0.6], speakers: [0.6, 0.95], save: [0.95, 1] }
 const FORMATS: [string, string][] = [
   ['docx', 'Word · .docx'],
   ['md', 'Markdown · .md'],
-  ['txt', 'Text · .txt'],
-  ['srt', 'Subtitles · .srt'],
-  ['vtt', 'Subtitles · .vtt'],
-  ['json', 'Data · .json'],
+  ['txt', `${t('tr.fmtText')} · .txt`],
+  ['srt', `${t('tr.fmtSubs')} · .srt`],
+  ['vtt', `${t('tr.fmtSubs')} · .vtt`],
+  ['json', `${t('tr.fmtData')} · .json`],
 ]
 /** Whisper's codes for the languages a person may name as their own, where it knows them. */
 const CODES: Record<string, string> = {
@@ -94,11 +97,11 @@ const tx = {
   redoing: false,
 }
 
-const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }
+const DAY: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }
 
 function meta(r: { created: string; duration: number; source: Source }, long = false): string {
-  const parts = [(long ? DAY : DATE).format(new Date(r.created))]
+  const parts = [formatDate(new Date(r.created), long ? DAY : DATE)]
   if (r.duration) parts.push(length(r.duration))
   parts.push(SOURCES[r.source]?.label ?? r.source)
   return parts.join(' · ')
@@ -108,7 +111,7 @@ function meta(r: { created: string; duration: number; source: Source }, long = f
 
 const languages = (v: AppView): [string, string][] => {
   const own = CODES[v.settings.native]
-  return [['auto', 'Auto'], ['en', 'English'], ...(own ? [[own, v.settings.native] as [string, string]] : [])]
+  return [['auto', t('tr.auto')], ['en', languageName('English')], ...(own ? [[own, languageName(v.settings.native)] as [string, string]] : [])]
 }
 
 /** Files to the engine, read where they are; one opens as it is transcribed, several wait in the library. */
@@ -125,7 +128,7 @@ export async function transcribeFiles(files: File[]): Promise<void> {
   }
   if (ids.length === 1) openTranscript(ids[0] as string)
   else if (ids.length > 1) {
-    toast(`${ids.length} files are waiting their turn`)
+    toast(t('tr.filesWaiting', { n: ids.length }))
     openTranscript('')
   }
 }
@@ -148,17 +151,17 @@ export function newRows(v: AppView): HTMLElement[] {
     'div',
     { class: 'zone', role: 'button', tabindex: 0, onclick: () => picker.click(), onkeydown: (e: Event) => (e as KeyboardEvent).key === 'Enter' && picker.click() },
     icon('cloud-upload'),
-    el('div', { class: 'zt' }, el('b', {}, 'Drop a video or audio file'), el('small', {}, `here or anywhere in the window · mp4, mov, mkv, webm, mp3, m4a, wav… · read where it is, never copied · an hour takes ≈${minutesPerHour(v) >= 60 ? 'an hour' : `${minutesPerHour(v)} min`} here`)),
-    btn('Pick a file…', event => (event.stopPropagation(), picker.click())),
+    el('div', { class: 'zt' }, el('b', {}, t('tr.dropTitle')), el('small', {}, t('tr.dropNote', { time: minutesPerHour(v) >= 60 ? t('tr.anHour') : minutesText(minutesPerHour(v)) }))),
+    btn(t('tr.pick'), event => (event.stopPropagation(), picker.click())),
   )
   return [
     zone,
-    card('languages', 'Language', ['Auto: heard from the first seconds'], seg(tx.language, languages(v), language => (tx.language = language))),
+    card('languages', t('tr.language'), [t('tr.languageNote')], seg(tx.language, languages(v), language => (tx.language = language))),
     card(
       'users',
-      'Speakers',
-      ['how many talk · Auto finds out'],
-      seg(tx.speakers, [[0, 'Auto'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']], speakers => (tx.speakers = speakers), true),
+      t('tr.speakers'),
+      [t('tr.speakersNote')],
+      seg(tx.speakers, [[0, t('tr.auto')], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']], speakers => (tx.speakers = speakers), true),
     ),
     micRow(),
   ]
@@ -166,12 +169,12 @@ export function newRows(v: AppView): HTMLElement[] {
 
 function micRow(): HTMLElement {
   const r = tx.recorder
-  if (!r) return card('mic', 'Record from the microphone', ['a talk, a lecture, people in the room · the text comes after Stop'], btn([el('i', { class: 'dot' }), 'Record'], () => void startMic(), 'rec'))
+  if (!r) return card('mic', t('tr.micTitle'), [t('tr.micNote')], btn([el('i', { class: 'dot' }), t('tr.record')], () => void startMic(), 'rec'))
   return el(
     'div',
     { class: 'row live' },
-    el('div', { class: 'l' }, el('span', { class: 'livehead' }, el('i', { class: 'dot pulse' }), 'Recording', el('span', { class: 'mtime' }, clock(r.seconds))), el('span', { class: 'level' }, el('i'))),
-    el('span', { class: 'kchg' }, linkBtn('Cancel', () => void cancelMic()), btn('Stop and transcribe', () => void stopMic(), 'primary')),
+    el('div', { class: 'l' }, el('span', { class: 'livehead' }, el('i', { class: 'dot pulse' }), t('tr.recording'), el('span', { class: 'mtime' }, clock(r.seconds))), el('span', { class: 'level' }, el('i'))),
+    el('span', { class: 'kchg' }, linkBtn(t('common.cancel'), () => void cancelMic()), btn(t('tr.stopTranscribe'), () => void stopMic(), 'primary')),
   )
 }
 
@@ -179,7 +182,7 @@ function micRow(): HTMLElement {
 window.setInterval(() => {
   const r = tx.recorder
   if (!r) return
-  for (const t of document.querySelectorAll('.mtime')) t.textContent = clock(r.seconds)
+  for (const tr of document.querySelectorAll('.mtime')) tr.textContent = clock(r.seconds)
   for (const l of document.querySelectorAll<HTMLElement>('.level i')) l.style.width = `${Math.round(r.level() * 100)}%`
 }, 100)
 
@@ -204,7 +207,7 @@ async function stopMic(): Promise<void> {
   if (!r) return
   try {
     const id = await r.finish()
-    if (r.lost) toast('A piece of the recording did not reach the engine', undefined, true)
+    if (r.lost) toast(t('tr.lostPiece'), undefined, true)
     openTranscript(id)
   } catch (error) {
     fault(error)
@@ -220,7 +223,7 @@ async function cancelMic(): Promise<void> {
 }
 
 // Files dropped anywhere in the window are transcribed with Transcribe's options.
-const drop = el('div', { class: 'drop' }, el('div', {}, icon('cloud-upload'), el('b', {}, 'Drop to transcribe')))
+const drop = el('div', { class: 'drop' }, el('div', {}, icon('cloud-upload'), el('b', {}, t('tr.dropHere'))))
 document.body.append(drop)
 let dragDepth = 0
 const carriesFiles = (event: DragEvent) => !!event.dataTransfer?.types.includes('Files')
@@ -264,13 +267,13 @@ async function loadRows(): Promise<void> {
 /** The page's caption under its title. */
 export function transcriptsCap(): string {
   const n = tx.rows?.length
-  if (n === undefined || tx.query) return 'searched by their words'
-  return n ? `${n} · searched by their words` : 'none yet'
+  if (n === undefined || tx.query) return t('tr.searched')
+  return n ? t('tr.countSearched', { n }) : t('tr.noneYet')
 }
 
 export function transcriptsBody(v: AppView): HTMLElement[] {
-  if (!installed(v)) return [row('Transcripts need the speech engine', ['it downloads once, on the Transcribe page'], linkBtn('Transcribe…', () => hooks.setup()))]
-  if (!running(v)) return [row('The speech engine is starting…', ['the transcripts show once it runs'], null)]
+  if (!installed(v)) return [row(t('tr.needEngine'), [t('tr.needEngineNote')], linkBtn(t('tr.transcribeLink'), () => hooks.setup()))]
+  if (!running(v)) return [row(t('speech.starting'), [t('tr.startingNote')], null)]
   return tx.openId ? transcriptPage(v) : libraryPage(v)
 }
 
@@ -286,7 +289,7 @@ function libraryPage(v: AppView): HTMLElement[] {
         icon('search'),
         el('input', {
           type: 'search',
-          placeholder: 'Search every transcript',
+          placeholder: t('tr.search'),
           value: tx.query,
           oninput: (event: Event) => {
             tx.query = (event.target as HTMLInputElement).value
@@ -295,9 +298,9 @@ function libraryPage(v: AppView): HTMLElement[] {
           },
         }),
       ),
-      btn([icon('add'), 'New'], () => hooks.setup(), '', 'A new transcription'),
+      btn([icon('add'), t('tr.new')], () => hooks.setup(), '', t('tr.newTitle')),
     ),
-    kb === '' ? aside('book-open', 'Notes need a knowledge base folder.', ' ', linkBtn('Choose…', () => void pickKb())) : null,
+    kb === '' ? aside('book-open', t('tr.needKb'), ' ', linkBtn(t('tr.choose'), () => void pickKb())) : null,
     speakersMissing(v, () => hooks.setup()),
     list(v),
   ].filter((n): n is HTMLElement => n !== null)
@@ -305,21 +308,21 @@ function libraryPage(v: AppView): HTMLElement[] {
 
 function list(v: AppView): HTMLElement {
   const rows = tx.rows
-  if (!rows) return el('ul', { class: 'tl' }, el('li', { class: 'empty' }, 'Opening the library…'))
+  if (!rows) return el('ul', { class: 'tl' }, el('li', { class: 'empty' }, t('tr.openingLib')))
   if (!rows.length) {
-    if (tx.query) return el('ul', { class: 'tl' }, el('li', { class: 'empty' }, 'Nothing found.'))
+    if (tx.query) return el('ul', { class: 'tl' }, el('li', { class: 'empty' }, t('tr.nothing')))
     const tip = (glyph: string, ...text: (Node | string)[]) => el('li', {}, icon(glyph), el('span', {}, ...text))
     return el(
       'div',
       { class: 'tempty' },
-      el('b', {}, 'Transcripts will be here'),
+      el('b', {}, t('tr.emptyTitle')),
       el(
         'ul',
         {},
-        tip('cloud-upload', 'Drop a video or audio file into this window'),
-        tip('mic', 'Record from the microphone on the Transcribe page'),
-        tip('note', 'Dictate a note: ', caps(v.settings.noteKey), ' in any program'),
-        tip('organization', 'Record a Google Meet call with the Chrome extension'),
+        tip('cloud-upload', t('tr.tipDrop')),
+        tip('mic', t('tr.tipMic')),
+        tip('note', ...phrase(t('tr.tipNote'), { keys: caps(v.settings.noteKey) })),
+        tip('organization', t('tr.tipMeet')),
       ),
     )
   }
@@ -354,9 +357,9 @@ function snippet(text: string): HTMLElement {
 
 function statusChip(r: Row): HTMLElement | null {
   if (r.status === 'done') return null
-  if (r.status === 'failed') return el('span', { class: 'chip bad' }, 'failed')
-  if (r.status === 'recording') return el('span', { class: 'chip rec' }, el('i', { class: 'dot pulse' }), 'recording')
-  if (r.status === 'queued') return el('span', { class: 'chip off' }, 'waiting')
+  if (r.status === 'failed') return el('span', { class: 'chip bad' }, t('tr.failed'))
+  if (r.status === 'recording') return el('span', { class: 'chip rec' }, el('i', { class: 'dot pulse' }), t('tr.recordingChip'))
+  if (r.status === 'queued') return el('span', { class: 'chip off' }, t('tr.waiting'))
   return el('span', { class: 'chip lit' }, `${Math.round(r.progress * 100)}%`)
 }
 
@@ -413,32 +416,32 @@ async function loadTranscript(): Promise<void> {
 
 function transcriptPage(v: AppView): HTMLElement[] {
   const r = tx.row
-  if (!r || r.id !== tx.openId) return [el('p', { class: 'opening' }, 'Opening…')]
-  const t = tx.transcript
+  if (!r || r.id !== tx.openId) return [el('p', { class: 'opening' }, t('tr.opening'))]
+  const tr = tx.transcript
   const title = el('h2', {
     class: 'ttitle',
-    contenteditable: t ? 'plaintext-only' : false,
+    contenteditable: tr ? 'plaintext-only' : false,
     spellcheck: 'false',
-    title: t ? 'Rename' : undefined,
+    title: tr ? t('tr.rename') : undefined,
     onkeydown: (event: Event) => {
       const e = event as KeyboardEvent
       if (e.key === 'Enter') (e.preventDefault(), (e.target as HTMLElement).blur())
-      if (e.key === 'Escape') (e.preventDefault(), ((e.target as HTMLElement).textContent = t?.title ?? r.title), (e.target as HTMLElement).blur())
+      if (e.key === 'Escape') (e.preventDefault(), ((e.target as HTMLElement).textContent = tr?.title ?? r.title), (e.target as HTMLElement).blur())
     },
     onblur: (event: Event) => {
       const node = event.target as HTMLElement
       const text = node.textContent?.trim() ?? ''
-      if (t && text && text !== t.title) void patch({ title: text }).then(() => void loadRows())
-      else node.textContent = t?.title ?? r.title
+      if (tr && text && text !== tr.title) void patch({ title: text }).then(() => void loadRows())
+      else node.textContent = tr?.title ?? r.title
     },
   })
-  title.textContent = t?.title ?? r.title
-  const head = el('div', { class: 'thead' }, title, el('small', { class: 'tmeta' }, meta(t ?? r, true)))
-  if (r.status !== 'done' || !t) {
+  title.textContent = tr?.title ?? r.title
+  const head = el('div', { class: 'thead' }, title, el('small', { class: 'tmeta' }, meta(tr ?? r, true)))
+  if (r.status !== 'done' || !tr) {
     stopPlayer()
     return [head, progressCard(r)]
   }
-  return [head, actions(t), ...notices(v, r, t), speakersStrip(t), utterances(t), player(v, t)].filter((n): n is HTMLElement => n !== null)
+  return [head, actions(tr), ...notices(v, r, tr), speakersStrip(tr), utterances(tr), player(v, tr)].filter((n): n is HTMLElement => n !== null)
 }
 
 function progressCard(r: Row): HTMLElement {
@@ -446,12 +449,12 @@ function progressCard(r: Row): HTMLElement {
     return el(
       'div',
       { class: 'card bad' },
-      el('b', {}, 'Could not transcribe it'),
+      el('b', {}, t('tr.couldNot')),
       el('small', {}, r.error),
       el(
         'div',
         { class: 'cardbtns' },
-        btn('Try again', async () => {
+        btn(t('common.tryAgain'), async () => {
           try {
             await api('POST', `/transcripts/${r.id}/retry`)
             void loadTranscript()
@@ -459,11 +462,11 @@ function progressCard(r: Row): HTMLElement {
             fault(error)
           }
         }),
-        linkBtn('Delete', () => void remove(r.id)),
+        linkBtn(t('tr.delete'), () => void remove(r.id)),
       ),
     )
   }
-  if (r.status === 'recording') return el('div', { class: 'card' }, el('b', {}, el('i', { class: 'dot pulse' }), ' Recording'), el('small', {}, 'The text comes once the recording stops.'))
+  if (r.status === 'recording') return el('div', { class: 'card' }, el('b', {}, el('i', { class: 'dot pulse' }), ' ', t('tr.recording')), el('small', {}, t('tr.afterStop')))
   const card = el(
     'div',
     { class: 'card progress' },
@@ -471,7 +474,7 @@ function progressCard(r: Row): HTMLElement {
     el('span', { class: 'track' }, el('i')),
     el('small', { class: 'pstat' }),
     el('ol', { class: 'stages' }, ...STAGES.map(([, label]) => el('li', {}, label))),
-    el('small', { class: 'pnote' }, 'The window can be closed: it goes on in the background.'),
+    el('small', { class: 'pnote' }, t('tr.background')),
   )
   updateProgress(card, r)
   return card
@@ -480,7 +483,7 @@ function progressCard(r: Row): HTMLElement {
 function updateProgress(card: HTMLElement, r: Row): void {
   const at = STAGES.findIndex(s => s[0] === r.stage)
   const lead = card.querySelector('.plead')
-  if (lead) lead.textContent = r.status === 'queued' ? 'Waiting its turn' : `${STAGES[at]?.[1] ?? 'Starting'}…`
+  if (lead) lead.textContent = r.status === 'queued' ? t('tr.waitingTurn') : `${STAGES[at]?.[1] ?? t('tr.starting')}…`
   const track = card.querySelector<HTMLElement>('.track')
   track?.classList.toggle('live', r.status === 'working')
   const fill = track?.firstElementChild as HTMLElement | null
@@ -492,11 +495,11 @@ function updateProgress(card: HTMLElement, r: Row): void {
 
 /** "23 of 64 min · about 2 min left", "40%", or what it waits for. */
 function progressLine(r: Row): string {
-  if (r.status === 'queued') return 'Starts once the one before it is done.'
+  if (r.status === 'queued') return t('tr.startsAfter')
   const [a, b] = WEIGHTS[r.stage] ?? [0, 1]
   const part = Math.min(1, Math.max(0, (r.progress - a) / (b - a)))
   const parts: string[] = []
-  if (r.stage === 'words' && part === 0) parts.push('loading the model, finding speech')
+  if (r.stage === 'words' && part === 0) parts.push(t('tr.loadingModel'))
   else if (r.stage === 'words' && r.duration && r.source !== 'meet') parts.push(position(part * r.duration, r.duration))
   else if (part > 0) parts.push(`${Math.round(part * 100)}%`)
   // Not said while a stage stands still (a model loading): any number then would be a guess.
@@ -506,7 +509,7 @@ function progressLine(r: Row): string {
 }
 
 function position(at: number, total: number): string {
-  return total >= 120 ? `${Math.floor(at / 60)} of ${Math.round(total / 60)} min` : `${clock(at)} of ${clock(total)}`
+  return total >= 120 ? t('tr.posMin', { at: Math.floor(at / 60), total: Math.round(total / 60) }) : t('tr.posClock', { at: clock(at), total: clock(total) })
 }
 
 /** The bar's recent positions, to tell how fast it goes now (stages differ in speed). */
@@ -516,7 +519,7 @@ const pace = {
   see(r: Row): void {
     const now = Date.now()
     if (this.id !== r.id) (this.id = r.id), (this.seen = [])
-    this.seen = this.seen.filter(([t, p]) => now - t < 30_000 && p <= r.progress)
+    this.seen = this.seen.filter(([tr, p]) => now - tr < 30_000 && p <= r.progress)
     this.seen.push([now, r.progress])
   },
   left(r: Row): string {
@@ -526,26 +529,26 @@ const pace = {
     const done = r.progress - first[1]
     if (spent < 8 || done < 0.01) return ''
     const left = ((1 - r.progress) * spent) / done
-    return left < 60 ? 'under a minute left' : `about ${Math.round(left / 60)} min left`
+    return left < 60 ? t('tr.underMinute') : t('tr.minLeft', { n: Math.round(left / 60) })
   },
 }
 
 async function patch(changes: unknown): Promise<void> {
   try {
-    const t = await api<Transcript>('PATCH', `/transcripts/${tx.openId}`, changes)
-    const recount = t.utterances.length !== tx.transcript?.utterances.length
-    tx.transcript = t
+    const tr = await api<Transcript>('PATCH', `/transcripts/${tx.openId}`, changes)
+    const recount = tr.utterances.length !== tx.transcript?.utterances.length
+    tx.transcript = tr
     if (recount) redrawPage()
   } catch (error) {
     fault(error)
   }
 }
 
-function actions(t: Transcript): HTMLElement {
-  const copy = btn([icon('copy'), 'Copy'], async () => {
+function actions(tr: Transcript): HTMLElement {
+  const copy = btn([icon('copy'), t('common.copy')], async () => {
     try {
-      await window.tutorHost.call({ call: 'copy', text: await api<string>('GET', `/transcripts/${t.id}/text?format=txt`) })
-      toast('The text is copied')
+      await window.tutorHost.call({ call: 'copy', text: await api<string>('GET', `/transcripts/${tr.id}/text?format=txt`) })
+      toast(t('tr.copied'))
     } catch (error) {
       fault(error)
     }
@@ -564,8 +567,8 @@ function actions(t: Transcript): HTMLElement {
                 tx.exporting = false
                 redrawPage()
                 try {
-                  const path = (await window.tutorHost.call({ call: 'exportTranscript', id: t.id, format, name: t.title })) as string | null
-                  if (path) toast(`Saved: ${fileName(path)}`, showFile(path))
+                  const path = (await window.tutorHost.call({ call: 'exportTranscript', id: tr.id, format, name: tr.title })) as string | null
+                  if (path) toast(t('tr.saved', { file: fileName(path) }), showFile(path))
                 } catch (error) {
                   fault(error)
                 }
@@ -579,7 +582,7 @@ function actions(t: Transcript): HTMLElement {
   const exporter = el(
     'span',
     { class: 'menuwrap' },
-    btn([icon('desktop-download'), 'Export', icon('chevron-down')], event => {
+    btn([icon('desktop-download'), t('tr.export'), icon('chevron-down')], event => {
       event.stopPropagation()
       tx.exporting = !tx.exporting
       redrawPage()
@@ -587,14 +590,14 @@ function actions(t: Transcript): HTMLElement {
     menu,
   )
   const toKb =
-    t.source !== 'note'
-      ? btn([icon('book'), 'To knowledge base'], async () => {
+    tr.source !== 'note'
+      ? btn([icon('book'), t('tr.toKb')], async () => {
           try {
-            const { path } = await api<{ path: string }>('POST', `/transcripts/${t.id}/to-kb`)
-            toast(`In the knowledge base: ${fileName(path)}`, showFile(path))
+            const { path } = await api<{ path: string }>('POST', `/transcripts/${tr.id}/to-kb`)
+            toast(t('tr.inKb', { file: fileName(path) }), showFile(path))
           } catch (error) {
             const choose = error instanceof SpeechError && error.status === 409
-            toast(problem(error), choose ? { label: 'Choose a folder', run: () => void pickKb() } : undefined, true)
+            toast(problem(error), choose ? { label: t('tr.chooseFolder'), run: () => void pickKb() } : undefined, true)
           }
         })
       : null
@@ -602,11 +605,11 @@ function actions(t: Transcript): HTMLElement {
     ? el(
         'span',
         { class: 'confirm' },
-        el('small', {}, 'Delete for good?'),
-        btn('Delete', () => void remove(t.id), 'danger'),
-        linkBtn('Keep', () => ((tx.deleting = false), redrawPage())),
+        el('small', {}, t('tr.deleteAsk')),
+        btn(t('tr.delete'), () => void remove(tr.id), 'danger'),
+        linkBtn(t('tr.keep'), () => ((tx.deleting = false), redrawPage())),
       )
-    : el('button', { class: 'ib del', title: 'Delete', 'aria-label': 'Delete', onclick: () => ((tx.deleting = true), redrawPage()) }, icon('trash'))
+    : el('button', { class: 'ib del', title: t('tr.delete'), 'aria-label': t('tr.delete'), onclick: () => ((tx.deleting = true), redrawPage()) }, icon('trash'))
   return el('div', { class: 'tools tacts' }, copy, exporter, toKb, el('span', { class: 'gap' }), del)
 }
 
@@ -620,63 +623,64 @@ window.addEventListener('click', event => {
 async function remove(id: string): Promise<void> {
   try {
     await api('DELETE', `/transcripts/${id}`)
-    toast('Deleted')
+    toast(t('tr.deleted'))
     openTranscript('')
   } catch (error) {
     fault(error)
   }
 }
 
-function notices(v: AppView, r: Row, t: Transcript): HTMLElement[] {
+function notices(v: AppView, r: Row, tr: Transcript): HTMLElement[] {
   const out: HTMLElement[] = []
-  const note = t.note
+  const note = tr.note
   if (note) {
     out.push(
-      aside('book-open', 'In the knowledge base: ', el('b', {}, fileName(note)), ' ', linkBtn('Open', () => post({ type: 'openPath', path: note })), linkBtn('Show in folder', () => post({ type: 'showInFolder', path: note }))),
+      aside('book-open', ...phrase(t('tr.inKb'), { file: el('b', {}, fileName(note)) }), ' ', linkBtn(t('tr.open'), () => post({ type: 'openPath', path: note })), linkBtn(t('tr.showInFolder'), () => post({ type: 'showInFolder', path: note }))),
     )
   }
-  if (t.noteError) out.push(aside('info', t.noteError, ' ', linkBtn('Choose a folder', () => void pickKb())))
+  if (tr.noteError) out.push(aside('info', tr.noteError, ' ', linkBtn(t('tr.chooseFolder'), () => void pickKb())))
   if (r.error) out.push(aside('circle-alert', r.error))
-  const speakers = speakersNotice(v, t)
+  const speakers = speakersNotice(v, tr)
   if (speakers) out.push(speakers)
   return out
 }
 
 /** Can this transcript be split by speaker now, and how: from its words, or only by recognizing it anew. */
-function splitWay(t: Transcript): 'words' | 'redo' | null {
-  if (t.source === 'note' || t.speakersStatus === 'ok') return null
-  if (t.hasWords) return 'words'
-  return t.source === 'file' || t.source === 'mic' ? 'redo' : null
+function splitWay(tr: Transcript): 'words' | 'redo' | null {
+  if (tr.source === 'note' || tr.speakersStatus === 'ok') return null
+  if (tr.hasWords) return 'words'
+  return tr.source === 'file' || tr.source === 'mic' ? 'redo' : null
 }
 
 /** Speakers missing from a transcript: what to do about it, right where it shows. */
-function speakersNotice(v: AppView, t: Transcript): HTMLElement | null {
-  if (t.source === 'note' || t.speakersStatus === 'ok' || t.speakersStatus === 'single') return null
-  const meet = t.source === 'meet' ? ' Your microphone is Me; the call’s voices are one speaker.' : ''
+function speakersNotice(v: AppView, tr: Transcript): HTMLElement | null {
+  if (tr.source === 'note' || tr.speakersStatus === 'ok' || tr.speakersStatus === 'single') return null
+  // "Me" is the name the engine gives the microphone's track (stored in the transcript), so it stays as drawn.
+  const meet = tr.source === 'meet' ? ` ${t('tr.meetNote')}` : ''
   const why =
-    t.speakersStatus === 'failed'
-      ? 'Speakers could not be told apart; the text is one stream.'
-      : t.speakersStatus === 'no-part'
-        ? `Speakers are not told apart: who spoke when was not installed yet.${meet}`
-        : `Speakers are not told apart: the voices’ model needed a Hugging Face key.${meet}`
+    tr.speakersStatus === 'failed'
+      ? t('tr.whyFailed')
+      : tr.speakersStatus === 'no-part'
+        ? `${t('tr.whyNoPart')}${meet}`
+        : `${t('tr.whyNoKey')}${meet}`
   const missing = speakersMissing(v, () => hooks.setup())
-  if (missing) return aside('users', why, ' ', linkBtn('Set up speakers', () => hooks.setup()))
-  const way = splitWay(t)
-  if (!way) return aside('users', `${why} This meeting can no longer be split: its words were not kept.`)
-  const run = () => void splitSpeakers(t.id)
-  if (way === 'words') return aside('users', `${why} The text is not recognized again; edits stay.`, ' ', linkBtn('Split by speaker', run))
+  if (missing) return aside('users', why, ' ', linkBtn(t('tr.setUpSpeakers'), () => hooks.setup()))
+  const way = splitWay(tr)
+  if (!way) return aside('users', `${why} ${t('tr.noWords')}`)
+  const run = () => void splitSpeakers(tr.id)
+  if (way === 'words') return aside('users', `${why} ${t('tr.noRecog')}`, ' ', linkBtn(t('tr.split'), run))
   // Made before the words' times were kept: only a full new pass can split it.
-  const minutes = Math.max(1, Math.round((t.duration / 3600) * minutesPerHour(v)))
+  const minutes = Math.max(1, Math.round((tr.duration / 3600) * minutesPerHour(v)))
   if (tx.redoing) {
     return aside(
       'users',
-      t.edited ? 'Edits to the text will be lost. Go on?' : 'Go on?',
+      tr.edited ? t('tr.editsLost') : t('tr.goOn'),
       ' ',
-      linkBtn('Transcribe again', run),
-      linkBtn('Not now', () => ((tx.redoing = false), redrawPage())),
+      linkBtn(t('tr.again'), run),
+      linkBtn(t('common.notNow'), () => ((tx.redoing = false), redrawPage())),
     )
   }
-  return aside('users', `${why} It can be transcribed again, with speakers: about ${minutes} min.`, ' ', linkBtn('Transcribe again', () => ((tx.redoing = true), redrawPage())))
+  return aside('users', `${why} ${t('tr.redoTime', { n: minutes })}`, ' ', linkBtn(t('tr.again'), () => ((tx.redoing = true), redrawPage())))
 }
 
 async function splitSpeakers(id: string): Promise<void> {
@@ -692,27 +696,27 @@ async function splitSpeakers(id: string): Promise<void> {
   }
 }
 
-function speakerClass(t: Transcript, key: string): string {
+function speakerClass(tr: Transcript, key: string): string {
   if (key === 'me') return 'sp-me'
-  return `sp-${(Object.keys(t.speakers).filter(k => k !== 'me').indexOf(key) % 6) + 1}`
+  return `sp-${(Object.keys(tr.speakers).filter(k => k !== 'me').indexOf(key) % 6) + 1}`
 }
 
 /** The speakers as chips, each renamed in place; their names change in the text at once. */
-function speakersStrip(t: Transcript): HTMLElement | null {
-  const keys = Object.keys(t.speakers)
+function speakersStrip(tr: Transcript): HTMLElement | null {
+  const keys = Object.keys(tr.speakers)
   if (keys.length < 2) return null
   const strip = el('div', { class: 'spk' })
   for (const key of keys) {
-    const name = t.speakers[key]?.name ?? key
-    const chipNode = el('button', { class: `chip sp ${speakerClass(t, key)}`, title: 'Rename' }, el('i', { class: 'sw' }), name)
+    const name = tr.speakers[key]?.name ?? key
+    const chipNode = el('button', { class: `chip sp ${speakerClass(tr, key)}`, title: t('tr.rename') }, el('i', { class: 'sw' }), name)
     chipNode.addEventListener('click', () => {
-      const input = el('input', { type: 'text', class: 'field', value: name, 'aria-label': 'Speaker’s name' })
+      const input = el('input', { type: 'text', class: 'field', value: name, 'aria-label': t('tr.speakerName') })
       let done = false
       const finish = (keep: boolean) => {
         if (done) return
         done = true
         const next = input.value.trim()
-        const s = t.speakers[key]
+        const s = tr.speakers[key]
         if (keep && next && s && next !== s.name) {
           s.name = next
           void patch({ speakers: { [key]: next } })
@@ -731,24 +735,24 @@ function speakersStrip(t: Transcript): HTMLElement | null {
     })
     strip.append(chipNode)
   }
-  strip.append(el('small', {}, 'tap a name to rename'))
+  strip.append(el('small', {}, t('tr.tapRename')))
   return strip
 }
 
-function speakerMenu(t: Transcript, i: number, label: HTMLElement): void {
+function speakerMenu(tr: Transcript, i: number, label: HTMLElement): void {
   document.querySelector('.whomenu')?.remove()
   const menu = el(
     'div',
     { class: 'menu whomenu', role: 'menu' },
-    ...Object.entries(t.speakers).map(([key, s]) =>
+    ...Object.entries(tr.speakers).map(([key, s]) =>
       el(
         'button',
         {
-          class: `mi ${speakerClass(t, key)}`,
+          class: `mi ${speakerClass(tr, key)}`,
           role: 'menuitem',
           onclick: () => {
             menu.remove()
-            const u = t.utterances[i]
+            const u = tr.utterances[i]
             if (!u || u.speaker === key) return
             u.speaker = key
             void patch({ utterances: { [i]: { speaker: key } } }).then(redrawPage)
@@ -763,11 +767,11 @@ function speakerMenu(t: Transcript, i: number, label: HTMLElement): void {
   window.setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }))
 }
 
-function utterances(t: Transcript): HTMLElement {
-  const many = Object.keys(t.speakers).length > 1
+function utterances(tr: Transcript): HTMLElement {
+  const many = Object.keys(tr.speakers).length > 1
   const list = el('div', { class: 'utts' })
-  t.utterances.forEach((u: Utterance, i: number) => {
-    const first = i === 0 || t.utterances[i - 1]?.speaker !== u.speaker
+  tr.utterances.forEach((u: Utterance, i: number) => {
+    const first = i === 0 || tr.utterances[i - 1]?.speaker !== u.speaker
     const text = el('div', {
       class: 'ut',
       contenteditable: 'plaintext-only',
@@ -776,11 +780,11 @@ function utterances(t: Transcript): HTMLElement {
         const e = event as KeyboardEvent
         const node = e.target as HTMLElement
         if (e.key === 'Enter' && !e.shiftKey) (e.preventDefault(), node.blur())
-        if (e.key === 'Escape') (e.preventDefault(), (node.textContent = t.utterances[i]?.text ?? ''), node.blur())
+        if (e.key === 'Escape') (e.preventDefault(), (node.textContent = tr.utterances[i]?.text ?? ''), node.blur())
       },
       onblur: (event: Event) => {
         const value = (event.target as HTMLElement).textContent?.trim() ?? ''
-        const now = t.utterances[i]
+        const now = tr.utterances[i]
         if (now && value !== now.text) {
           now.text = value
           void patch({ utterances: { [i]: { text: value } } })
@@ -788,13 +792,13 @@ function utterances(t: Transcript): HTMLElement {
       },
     })
     text.textContent = u.text
-    const who = many && first ? el('button', { class: 'who', 'data-speaker': u.speaker, title: 'Another speaker' }, t.speakers[u.speaker]?.name ?? u.speaker) : null
-    who?.addEventListener('click', event => (event.stopPropagation(), speakerMenu(t, i, who)))
+    const who = many && first ? el('button', { class: 'who', 'data-speaker': u.speaker, title: t('tr.anotherSpeaker') }, tr.speakers[u.speaker]?.name ?? u.speaker) : null
+    who?.addEventListener('click', event => (event.stopPropagation(), speakerMenu(tr, i, who)))
     list.append(
       el(
         'div',
-        { class: `utt${first ? ' first' : ''}${who ? ' has-who' : ''}${i === heard ? ' now' : ''} ${speakerClass(t, u.speaker)}`, 'data-i': String(i) },
-        el('button', { class: 'at', title: 'Listen from here', onclick: () => seek(u.start) }, clock(u.start)),
+        { class: `utt${first ? ' first' : ''}${who ? ' has-who' : ''}${i === heard ? ' now' : ''} ${speakerClass(tr, u.speaker)}`, 'data-i': String(i) },
+        el('button', { class: 'at', title: t('tr.listenFrom'), onclick: () => seek(u.start) }, clock(u.start)),
         el('div', { class: 'ub' }, who, text),
       ),
     )
@@ -818,10 +822,10 @@ function stopPlayer(): void {
   heard = -1
 }
 
-function soundOf(v: AppView, t: Transcript): HTMLAudioElement {
-  if (audio && audioId === t.id) return audio
+function soundOf(v: AppView, tr: Transcript): HTMLAudioElement {
+  if (audio && audioId === tr.id) return audio
   stopPlayer()
-  const a = new Audio(`http://127.0.0.1:${v.speech.port}/transcripts/${encodeURIComponent(t.id)}/audio`)
+  const a = new Audio(`http://127.0.0.1:${v.speech.port}/transcripts/${encodeURIComponent(tr.id)}/audio`)
   a.preload = 'metadata'
   const sync = () => {
     for (const p of document.querySelectorAll<HTMLElement>('.player')) {
@@ -829,17 +833,17 @@ function soundOf(v: AppView, t: Transcript): HTMLAudioElement {
       p.classList.toggle('playing', playing)
       p.querySelector('.pp')?.replaceChildren(icon(playing ? 'debug-pause' : 'play'))
       const time = p.querySelector('.ptime')
-      if (time) time.textContent = `${clock(a.currentTime)} / ${clock(t.duration)}`
+      if (time) time.textContent = `${clock(a.currentTime)} / ${clock(tr.duration)}`
       const range = p.querySelector<HTMLInputElement>('.scrub')
       if (range && document.activeElement !== range) range.value = String(Math.round(a.currentTime * 10))
     }
-    mark(t, a.currentTime, !a.paused)
+    mark(tr, a.currentTime, !a.paused)
   }
   a.addEventListener('play', sync)
   a.addEventListener('pause', sync)
   a.addEventListener('timeupdate', sync)
   audio = a
-  audioId = t.id
+  audioId = tr.id
   return a
 }
 
@@ -851,12 +855,12 @@ function seek(at: number): void {
 
 const SPEEDS = [1, 1.25, 1.5, 2]
 
-function player(v: AppView, t: Transcript): HTMLElement {
-  const a = soundOf(v, t)
+function player(v: AppView, tr: Transcript): HTMLElement {
+  const a = soundOf(v, tr)
   const playing = !a.paused
-  const range = el('input', { type: 'range', class: 'scrub', min: 0, max: Math.round(t.duration * 10), value: Math.round(a.currentTime * 10), 'aria-label': 'Position' })
+  const range = el('input', { type: 'range', class: 'scrub', min: 0, max: Math.round(tr.duration * 10), value: Math.round(a.currentTime * 10), 'aria-label': t('tr.position') })
   range.addEventListener('input', () => (a.currentTime = Number(range.value) / 10))
-  const speed = el('button', { class: 'speed', title: 'Speed' }, `${a.playbackRate}×`)
+  const speed = el('button', { class: 'speed', title: t('speech.speed') }, `${a.playbackRate}×`)
   speed.addEventListener('click', () => {
     const next = SPEEDS[(SPEEDS.indexOf(a.playbackRate) + 1) % SPEEDS.length] ?? 1
     a.playbackRate = next
@@ -865,21 +869,21 @@ function player(v: AppView, t: Transcript): HTMLElement {
   return el(
     'div',
     { class: playing ? 'player playing' : 'player' },
-    el('button', { class: 'pp', title: 'Play or pause · Space', 'aria-label': 'Play or pause', onclick: () => (a.paused ? void a.play() : a.pause()) }, icon(playing ? 'debug-pause' : 'play')),
-    el('span', { class: 'ptime' }, `${clock(a.currentTime)} / ${clock(t.duration)}`),
+    el('button', { class: 'pp', title: t('tr.playSpace'), 'aria-label': t('tr.play'), onclick: () => (a.paused ? void a.play() : a.pause()) }, icon(playing ? 'debug-pause' : 'play')),
+    el('span', { class: 'ptime' }, `${clock(a.currentTime)} / ${clock(tr.duration)}`),
     range,
     speed,
   )
 }
 
 /** The utterance being heard gets a mark, and comes into view while playing. */
-function mark(t: Transcript, at: number, follow: boolean): void {
+function mark(tr: Transcript, at: number, follow: boolean): void {
   let lo = 0
-  let hi = t.utterances.length - 1
+  let hi = tr.utterances.length - 1
   let found = -1
   while (lo <= hi) {
     const mid = (lo + hi) >> 1
-    if ((t.utterances[mid]?.start ?? 0) <= at + 0.3) (found = mid), (lo = mid + 1)
+    if ((tr.utterances[mid]?.start ?? 0) <= at + 0.3) (found = mid), (lo = mid + 1)
     else hi = mid - 1
   }
   if (found === heard) return

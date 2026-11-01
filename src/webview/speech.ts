@@ -5,9 +5,9 @@
 // that lets speakers be told apart.
 
 import { cardText, mainCard, nvidiaCard, shortCpu } from '../hardware'
+import { levelName, sizeText, t, type Key } from '../i18n'
 import type { AppView, Choice, Feature, SpeechHealth, SpeechPart, SpeechResult } from '../protocol'
-import { LEVEL_NAMES } from '../settings'
-import { BASIS_TEXT, estimateText, minutes, MODELS, seconds, type FeaturePlan } from '../speechplan'
+import { estimateText, minutes, MODELS, seconds, type Basis } from '../speechplan'
 import { el, icon } from './dom'
 import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, post, radioRow, recommended, row, seg, toggleKnob } from './ui'
 
@@ -110,9 +110,48 @@ export function minutesPerHour(v: AppView): number {
 
 /** 40 s, 12 min, 1 h 4 min. */
 export function length(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)} s`
+  if (seconds < 60) return t('speech.sec', { n: Math.round(seconds) })
   const minutes = Math.round(seconds / 60)
-  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`
+  return minutes >= 60 ? t('speech.hMin', { h: Math.floor(minutes / 60), m: minutes % 60 }) : t('speech.min', { n: minutes })
+}
+
+/** 0.4 s, 2.1 s, 12 s; 12 min, 1 h 10 min: speechplan.ts's, in the interface's language. */
+export { minutes as minutesText, seconds as secondsText }
+
+const BASIS_KEYS: Record<Basis, Key> = { measured: 'speech.basisMeasured', scaled: 'speech.basisScaled', guess: 'speech.basisGuess' }
+
+/** engine/models.json's `about` of each model, in the interface's language. */
+const ABOUT: Record<string, Key> = {
+  tiny: 'speech.aboutTiny',
+  base: 'speech.aboutBase',
+  small: 'speech.aboutSmall',
+  'large-v3-turbo': 'speech.aboutTurbo',
+  'large-v3': 'speech.aboutLarge',
+  'parakeet-tdt-0.6b-v3': 'speech.aboutParakeet',
+}
+const aboutOf = (c: Choice) => (ABOUT[c.model] ? t(ABOUT[c.model] as Key) : c.about)
+
+/** speechplan.ts's reasons a model cannot run here, in the interface's language. */
+const WHY: Record<string, Key> = {
+  'too big for this graphics card': 'speech.whyTooBig',
+  'needs more memory than this computer has': 'speech.whyMemory',
+  'not for your language': 'speech.whyLanguage',
+  'not for every language you use': 'speech.whyLanguages',
+}
+const whyOf = (c: Choice) => (WHY[c.why] ? t(WHY[c.why] as Key) : c.why)
+
+/**
+ * Splits a phrase at its `{name}` places and puts the nodes given there:
+ * "Open {page} and…" with a link for `page`.
+ */
+export function phrase(text: string, nodes: Record<string, Node | string>): (Node | string)[] {
+  return text
+    .split(/(\{\w+\})/)
+    .filter(Boolean)
+    .map(part => {
+      const name = /^\{(\w+)\}$/.exec(part)?.[1]
+      return name && name in nodes ? (nodes[name] as Node | string) : part
+    })
 }
 
 // ---------------------------------------------------------------- messages
@@ -133,7 +172,7 @@ export function toast(text: string, action?: { label: string; run: () => void },
 }
 
 export const fault = (error: unknown) => toast(problem(error), undefined, true)
-export const showFile = (path: string) => ({ label: 'Show', run: () => post({ type: 'showInFolder', path }) })
+export const showFile = (path: string) => ({ label: t('speech.show'), run: () => post({ type: 'showInFolder', path }) })
 
 // ---------------------------------------------------------------- the engine's settings
 
@@ -175,8 +214,8 @@ export async function saveEngine(changes: Partial<EngineSettings> & { hfToken?: 
 
 /** The knowledge base: a folder of .md files (an Obsidian vault will do). */
 export async function pickKb(): Promise<void> {
-  const folder = (await window.tutorHost.call({ call: 'pickFolder', title: 'The knowledge base folder', current: engine?.kbDir ?? '' })) as string | null
-  if (folder && (await saveEngine({ kbDir: folder }))) toast(`Knowledge base: ${folder}`)
+  const folder = (await window.tutorHost.call({ call: 'pickFolder', title: t('speech.kbFolder'), current: engine?.kbDir ?? '' })) as string | null
+  if (folder && (await saveEngine({ kbDir: folder }))) toast(t('speech.kbSet', { folder }))
 }
 
 // ---------------------------------------------------------------- the parts
@@ -192,15 +231,15 @@ let withGpu = true
 /** A part being installed or removed now: its line with the bar, or undefined. */
 export function packWork(v: AppView): HTMLElement | undefined {
   const p = v.speech.pack
-  if (p.status === 'removing') return row('Removing the speech engine…', [], null)
+  if (p.status === 'removing') return row(t('speech.removing'), [], null)
   if (p.status !== 'installing') return undefined
   // A part taken out (Storage's ×): the same sync, with fewer parts.
-  if (p.installing && p.installing.length < p.parts.length) return row('Removing a part of the speech engine…', ['the speech engine is back in a moment', bar(p.progress ?? 0)], el('span', { class: 'pct' }, `${Math.round((p.progress ?? 0) * 100)}%`))
-  const what = p.step === 'tool' ? 'the Python manager' : 'the packages'
+  if (p.installing && p.installing.length < p.parts.length) return row(t('speech.removingPart'), [t('speech.backSoon'), bar(p.progress ?? 0)], el('span', { class: 'pct' }, `${Math.round((p.progress ?? 0) * 100)}%`))
+  const what = p.step === 'tool' ? t('speech.stepTool') : t('speech.stepPackages')
   const pct = Math.round((p.progress ?? 0) * 100)
   const parts = (p.installing ?? []).filter(x => !p.parts.includes(x))
-  const name = parts.includes('speakers') && p.parts.includes('core') ? 'Downloading the speakers part' : 'Downloading the speech engine'
-  return row(name, [`${what}; you can close this window, the download goes on`, bar(p.progress ?? 0)], el('span', { class: 'pct' }, `${pct}%`))
+  const name = parts.includes('speakers') && p.parts.includes('core') ? t('speech.dlSpeakers') : t('speech.dlEngine')
+  return row(name, [what, bar(p.progress ?? 0)], el('span', { class: 'pct' }, `${pct}%`))
 }
 
 /**
@@ -223,48 +262,57 @@ export function engineRows(v: AppView, feature: string): HTMLElement[] {
     const go = () => post({ type: 'installSpeech', parts: gpu ? ['core', 'gpu'] : ['core'] })
     const failed = s.pack.status === 'failed'
     const card = nvidiaCard(s.device)
-    const download = btn(failed ? 'Try again' : 'Download', go, 'primary')
+    const download = btn(failed ? t('common.tryAgain') : t('speech.download'), go, 'primary')
     download.disabled = short
     return [
       row(
-        `${feature} needs the speech engine`,
+        needsEngine(feature),
         [
-          failed ? bad(`The download stopped: ${s.pack.message ?? 'unknown error'}`) : `${size(mb)} to download, then it works offline; ${size(keeps)} on the disk (with the ${first.model} model)`,
-          short ? bad(`Needs ${size(needs)} free; ${s.disk.drive} has ${size(s.disk.freeMb)}`) : s.disk.freeMb > 0 ? `${size(s.disk.freeMb)} free on ${s.disk.drive}` : null,
+          failed
+            ? bad(t('speech.dlStopped', { why: s.pack.message ?? t('speech.unknownError') }))
+            : t('speech.dlOffer', { size: size(mb), disk: size(keeps), model: first.model }),
+          short
+            ? bad(t('speech.needsFree', { need: size(needs), drive: s.disk.drive, free: size(s.disk.freeMb) }))
+            : s.disk.freeMb > 0
+              ? t('speech.freeOn', { free: size(s.disk.freeMb), drive: s.disk.drive })
+              : null,
         ],
         download,
       ),
       s.pack.nvidia
         ? row(
-            'Use the graphics card',
-            [`${size(s.download.gpu)} more to download; a phrase takes about ${seconds(s.firstModel.cuda.phrase)} instead of ${seconds(s.firstModel.cpu.phrase)} (${card ? cardText(card) : 'NVIDIA'})`],
-            toggleKnob(withGpu, on => ((withGpu = on), redraw()), 'Use the graphics card'),
+            t('speech.useGpu'),
+            [t('speech.gpuMore', { size: size(s.download.gpu), gpu: seconds(s.firstModel.cuda.phrase), cpu: seconds(s.firstModel.cpu.phrase), card: card ? cardText(card) : 'NVIDIA' })],
+            toggleKnob(withGpu, on => ((withGpu = on), redraw()), t('speech.useGpu')),
           )
         : null,
     ].filter((n): n is HTMLElement => n !== null)
   }
   if (work) return [work]
-  if (s.service === 'starting' || s.service === 'off') return [row('The speech engine is starting…', [], null)]
-  if (s.service === 'down') return [row('The speech engine is not running',[bad(s.trouble ?? 'it stopped')], linkBtn('Restart', () => post({ type: 'restartSpeech' })))]
+  if (s.service === 'starting' || s.service === 'off') return [row(t('speech.starting'), [], null)]
+  if (s.service === 'down') return [row(t('speech.notRunning'), [bad(s.trouble ?? t('speech.itStopped'))], linkBtn(t('speech.restart'), () => post({ type: 'restartSpeech' })))]
   return []
 }
 
-/** 480 MB, 1.6 GB. */
-export function size(mb: number): string {
-  return mb >= 1000 ? `${(Math.round(mb / 100) / 10).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
+/** "Dictate needs the speech engine": the pages name the feature by its English id (Dictate, Transcribe, Google Meet). */
+function needsEngine(feature: string): string {
+  if (feature === 'Dictate') return t('speech.needsDictate')
+  if (feature === 'Transcribe') return t('speech.needsTranscribe')
+  if (feature === 'Google Meet') return t('speech.needsMeet')
+  return t('speech.needs', { feature })
 }
 
-const where = (c: Choice) => (c.device === 'cuda' ? 'graphics card' : 'processor')
+/** 480 MB, 1.6 GB. */
+export const size = sizeText
+
+const where = (c: Choice) => (c.device === 'cuda' ? t('speech.onCard') : t('speech.onProcessor'))
 
 /** The model a feature uses now, as the engine has it: downloading shows how far. */
 function liveModel(v: AppView, feature: Feature): SpeechHealth['models']['dictation'] | undefined {
   return v.speech.health?.models[feature === 'dictation' ? 'dictation' : 'transcripts']
 }
 
-const FEATURES: [Feature, string][] = [
-  ['dictation', 'Dictate'],
-  ['transcripts', 'Transcribe'],
-]
+const FEATURES: Feature[] = ['dictation', 'transcripts']
 const pin = (feature: Feature, model: string) => post({ type: 'saveSettings', patch: { [feature === 'dictation' ? 'dictationModel' : 'transcriptsModel']: model } })
 
 /**
@@ -280,22 +328,21 @@ export function speechChoiceRows(v: AppView, feature: Feature): HTMLElement[] {
   const plan = v.speech.plan
   const p = plan[feature]
   const other: Feature = feature === 'dictation' ? 'transcripts' : 'dictation'
-  const otherName = FEATURES.find(([f]) => f === other)?.[1] ?? ''
   // The other device's plan: what runs when the card refuses a model.
   const spare = plan.device === 'cuda' ? plan.engine.cpu : undefined
-  const budget = feature === 'dictation' ? `a phrase in ≈${seconds(p.budget)}` : `an hour in ≈${minutes(p.budget)}`
+  const budget = feature === 'dictation' ? t('speech.budgetPhrase', { time: seconds(p.budget) }) : t('speech.budgetHour', { time: minutes(p.budget) })
   const live = (name: string) => [liveModel(v, 'dictation'), liveModel(v, 'transcripts')].find(m => m?.name === name && m.state === 'downloading')
   const out: HTMLElement[] = [
     radioRow(
-      el('span', {}, 'Automatic', recommended()),
+      el('span', {}, t('speech.automatic'), recommended()),
       [
-        `the most accurate model that is quick enough here: ${budget}`,
-        p.pinned ? null : `uses ${p.chosen.label} now`,
+        t('speech.autoNote', { budget }),
+        p.pinned ? null : t('speech.usesNow', { model: p.chosen.label }),
         // Dictation leaves the card to the person's programs (speechplan.ts forDevice).
         feature === 'dictation' && plan.device === 'cuda' && (p.chosen.device === 'cpu' || p.better?.device === 'cpu')
           ? p.chosen.device === 'cpu'
-            ? 'on the processor: leaves the graphics card to your programs'
-            : `moves to ${p.better?.label} on the processor once it is downloaded, leaving the graphics card to your programs`
+            ? t('speech.autoCpu')
+            : t('speech.autoMoves', { model: p.better?.label ?? '' })
           : null,
       ],
       !p.pinned,
@@ -306,18 +353,23 @@ export function speechChoiceRows(v: AppView, feature: Feature): HTMLElement[] {
     const on = p.pinned && p.chosen.model === c.model
     const here = p.chosen.model === c.model
     const shared = plan[other].chosen.model === c.model
-    const backup = spare && !here && !shared ? FEATURES.filter(([f]) => spare[f]?.model === c.model).map(([, n]) => n) : []
+    const backup = spare && !here && !shared ? FEATURES.filter(f => spare[f]?.model === c.model) : []
     const loading = live(c.model)
     const notes: (string | HTMLElement | null)[] = c.why
-      ? [`${c.about} · ${c.why}`]
+      ? [`${aboutOf(c)} · ${whyOf(c)}`]
       : [
-          `${estimateText(feature, c)} · on the ${where(c)} · ${BASIS_TEXT[c.basis]}${on && !c.fits ? ' · slower than usual here' : ''}`,
-          `${c.about} · ${size(c.mb)}${c.downloaded ? ' on this computer' : ', downloads when picked'}`,
-          here && !p.pinned ? 'Automatic uses it now' : null,
-          shared ? `${otherName} uses it too: downloaded once, loaded once` : null,
+          [estimateText(feature, c), where(c), t(BASIS_KEYS[c.basis]), on && !c.fits ? t('speech.slower') : null].filter(Boolean).join(' · '),
+          `${aboutOf(c)} · ${c.downloaded ? t('speech.sizeHere', { size: size(c.mb) }) : t('speech.sizePick', { size: size(c.mb) })}`,
+          here && !p.pinned ? t('speech.autoUses') : null,
+          shared ? t(other === 'dictation' ? 'speech.sharedDictate' : 'speech.sharedTranscribe') : null,
           loading ? bar(loading.progress ?? 0) : null,
         ]
-    if (!here && !shared && c.downloaded) notes.push(backup.length ? `kept for ${backup.join(' and ')} on the processor, if the graphics card fails` : 'not used now')
+    if (!here && !shared && c.downloaded)
+      notes.push(
+        backup.length
+          ? t(backup.length > 1 ? 'speech.keptBoth' : backup[0] === 'dictation' ? 'speech.keptDictate' : 'speech.keptTranscribe')
+          : t('speech.notUsedNow'),
+      )
     const pick = c.why
       ? undefined
       : () => {
@@ -325,7 +377,7 @@ export function speechChoiceRows(v: AppView, feature: Feature): HTMLElement[] {
           pin(feature, c.model)
         }
     // The engine keeps a model it plans or holds: one nothing plans can go.
-    const remove = c.downloaded && !here && !shared && !backup.length && !loading ? ib('x', `Remove ${c.label} (${size(c.mb)}); it downloads again when picked`, () => post({ type: 'removeStored', id: 'speechModel', item: c.model })) : null
+    const remove = c.downloaded && !here && !shared && !backup.length && !loading ? ib('x', t('speech.removeModel', { model: c.label, size: size(c.mb) }),() => post({ type: 'removeStored', id: 'speechModel', item: c.model })) : null
     const node = radioRow(c.label, notes, on, pick, loading ? el('span', { class: 'pct' }, `${Math.round((loading.progress ?? 0) * 100)}%`) : null, remove)
     if (c.why) node.classList.add('dim')
     out.push(node)
@@ -336,13 +388,13 @@ export function speechChoiceRows(v: AppView, feature: Feature): HTMLElement[] {
 /** What Automatic leans to: accuracy or speed. */
 export function preferRow(v: AppView): HTMLElement {
   return row(
-    'Automatic prefers',
-    [v.settings.speechPrefer === 'speed' ? 'quicker models, a little less accurate' : 'the most accurate models this computer runs in time'],
+    t('speech.prefers'),
+    [v.settings.speechPrefer === 'speed' ? t('speech.preferSpeedNote') : t('speech.preferAccNote')],
     seg(
       v.settings.speechPrefer,
       [
-        ['accuracy', 'Accuracy'],
-        ['speed', 'Speed'],
+        ['accuracy', t('speech.accuracy')],
+        ['speed', t('speech.speed')],
       ],
       speechPrefer => post({ type: 'saveSettings', patch: { speechPrefer } }),
     ),
@@ -353,21 +405,21 @@ export function preferRow(v: AppView): HTMLElement {
 export function gpuRow(v: AppView): HTMLElement | null {
   const p = v.speech.pack
   if (!p.nvidia || !installed(v)) return null
-  if (hasPart(v, 'gpu')) return row('Speech on the graphics card', [el('small', { class: 'ok' }, 'Installed'), cardNote(v)])
+  if (hasPart(v, 'gpu')) return row(t('speech.gpuTitle'), [el('small', { class: 'ok' }, t('speech.installed')), cardNote(v)])
   return row(
-    'Speech on the graphics card',
-    [`${size(v.speech.download.gpu)} to download; Dictate and Transcribe get several times quicker`, cardNote(v)],
-    Object.assign(btn('Add', () => post({ type: 'installSpeech', parts: ['gpu'] })), { disabled: p.status !== 'ready' }),
+    t('speech.gpuTitle'),
+    [t('speech.gpuOffer', { size: size(v.speech.download.gpu) }), cardNote(v)],
+    Object.assign(btn(t('speech.add'),() => post({ type: 'installSpeech', parts: ['gpu'] })), { disabled: p.status !== 'ready' }),
   )
 }
 
 /** The speed test going on: which model, how far. */
 function testWork(v: AppView): HTMLElement | null {
-  const t = v.speech.health?.calibration
-  if (!t || (t.state !== 'running' && t.state !== 'waiting')) return null
-  const share = t.total ? t.done / t.total : 0
-  const what = t.state === 'waiting' ? 'waits until the engine is free' : `${t.current || 'starting'} · step ${Math.min(t.total, t.done + 1)} of ${t.total}`
-  return row('Testing this computer', [what, bar(share)], el('span', { class: 'pct' }, `${Math.round(share * 100)}%`))
+  const c = v.speech.health?.calibration
+  if (!c || (c.state !== 'running' && c.state !== 'waiting')) return null
+  const share = c.total ? c.done / c.total : 0
+  const what = c.state === 'waiting' ? t('speech.testWaits') : t('speech.testStep', { model: c.current || t('speech.testStarting'), n: Math.min(c.total, c.done + 1), total: c.total })
+  return row(t('speech.testing'), [what, bar(share)], el('span', { class: 'pct' }, `${Math.round(share * 100)}%`))
 }
 
 /**
@@ -378,8 +430,8 @@ function testWork(v: AppView): HTMLElement | null {
 export function testOffer(v: AppView): HTMLElement | null {
   const work = testWork(v)
   if (work) return work
-  const t = v.speech.test
-  if (!t.offer) return null
+  const test = v.speech.test
+  if (!test.offer) return null
   return el(
     'div',
     { class: 'offer' },
@@ -387,9 +439,9 @@ export function testOffer(v: AppView): HTMLElement | null {
     el(
       'div',
       { class: 'ot' },
-      el('b', {}, 'Test your computer to pick the best speech models?'),
-      el('small', {}, `Each downloaded model runs once on a short clip, about ${t.runs > 1 ? 'a minute or two' : 'a minute'}, in the background. Until then the times shown are guesses.`),
-      el('span', { class: 'acts' }, btn('Run the test', () => post({ type: 'testSpeech' }), 'primary'), linkBtn('Not now', () => post({ type: 'declineSpeechTest' }))),
+      el('b', {}, t('speech.testAsk')),
+      el('small', {}, test.runs > 1 ? t('speech.testNoteMany') : t('speech.testNoteOne')),
+      el('span', { class: 'acts' }, btn(t('speech.testRun'), () => post({ type: 'testSpeech' }), 'primary'), linkBtn(t('common.notNow'),() => post({ type: 'declineSpeechTest' }))),
     ),
   )
 }
@@ -398,19 +450,19 @@ export function testOffer(v: AppView): HTMLElement | null {
 export function computerRows(v: AppView): HTMLElement[] {
   const d = v.speech.device
   const card = mainCard(d)
-  const cpu = `${shortCpu(d.cpu.name)} · ${d.cpu.cores} cores · ${d.ramGb} GB${d.laptop ? ' · a laptop' : ''}`
-  const cards = card ? cardText(card) : d.at ? 'no graphics card of its own' : 'looking at the graphics card…'
+  const cpu = [shortCpu(d.cpu.name), t('speech.cores', { n: d.cpu.cores }), t('size.gb', { n: d.ramGb }), d.laptop ? t('speech.laptop') : null].filter(Boolean).join(' · ')
+  const cards = card ? cardText(card) : d.at ? t('speech.noCard') : t('speech.lookingCard')
   const plan = v.speech.plan
-  const tested = plan.measured ? 'the speech models’ times are measured here' : running(v) ? 'the times are first guesses until the test' : 'tested once the speech engine is here'
-  const t = testWork(v)
+  const tested = plan.measured ? t('speech.measured') : running(v) ? t('speech.guesses') : t('speech.testedLater')
+  const work = testWork(v)
   return [
     row(
       cpu,
       [cards, tested],
-      running(v) && !t ? linkBtn(v.speech.test.agreed && plan.measured ? 'Test again' : 'Test', () => post({ type: 'testSpeech' }), v.speech.test.runs === 0 && !plan.dictation.choices.some(c => c.downloaded)) : null,
+      running(v) && !work ? linkBtn(v.speech.test.agreed && plan.measured ? t('speech.testAgain') : t('speech.test'), () => post({ type: 'testSpeech' }), v.speech.test.runs === 0 && !plan.dictation.choices.some(c => c.downloaded)) : null,
     ),
-    ...(t ? [t] : []),
-    row('Right now', [heldNow(v)]),
+    ...(work ? [work] : []),
+    row(t('speech.rightNow'), [heldNow(v)]),
   ]
 }
 
@@ -425,14 +477,18 @@ export function heldNow(v: AppView): string {
   const l = v.llmLoaded
   if (l) {
     const mb = v.modelSpeed[l.model]?.card
-    ;(l.onCard ? card : processor).push(`${LEVEL_NAMES[l.model]}${l.onCard && mb ? ` (${size(mb)})` : ''}`)
+    ;(l.onCard ? card : processor).push(`${levelName(l.model)}${l.onCard && mb ? ` (${size(mb)})` : ''}`)
   }
   for (const m of v.speech.health?.loaded ?? []) {
-    const name = m.model === 'speakers' ? 'Who spoke when' : (MODELS.find(c => c.name === m.model)?.label ?? m.model)
+    const name = m.model === 'speakers' ? t('speech.whoSpoke') : (MODELS.find(c => c.name === m.model)?.label ?? m.model)
     ;(m.device === 'cuda' ? card : processor).push(name)
   }
-  if (!card.length && !processor.length) return 'nothing loaded: the graphics card and the memory are free for your programs'
-  return [card.length ? `on the graphics card: ${card.join(', ')}` : 'nothing on the graphics card', processor.length ? `on the processor: ${processor.join(', ')}` : null, card.length ? 'let go after 3 idle minutes' : null]
+  if (!card.length && !processor.length) return t('speech.nothingLoaded')
+  return [
+    card.length ? t('speech.heldCard', { list: card.join(', ') }) : t('speech.nothingCard'),
+    processor.length ? t('speech.heldCpu', { list: processor.join(', ') }) : null,
+    card.length ? t('speech.letGo') : null,
+  ]
     .filter(Boolean)
     .join(' · ')
 }
@@ -442,14 +498,14 @@ export function cardNote(v: AppView): string {
   const s = v.speech
   const card = mainCard(s.device)
   const gpuPart = hasPart(v, 'gpu')
-  if (!card) return s.device.at ? 'none of its own · speech runs on the processor' : 'looking…'
+  if (!card) return s.device.at ? t('speech.cardNone') : t('speech.looking')
   const name = cardText(card)
-  if (card.vendor !== 'nvidia') return `${name} · speech runs on the processor: only NVIDIA cards run it for now`
-  if (!s.pack.nvidia && !gpuPart) return `${name} · too old or too small for speech · the processor does it`
-  if (!gpuPart) return `${name} · add its part to use it`
-  if (s.health?.fallback) return `${name} · it would not take the model, so the processor does it`
-  if (s.plan.device === 'cpu') return `${name}, but the engine runs on the processor`
-  return `${name} · speech is recognized on it`
+  if (card.vendor !== 'nvidia') return t('speech.cardNotNvidia', { name })
+  if (!s.pack.nvidia && !gpuPart) return t('speech.cardTooSmall', { name })
+  if (!gpuPart) return t('speech.cardAddPart', { name })
+  if (s.health?.fallback) return t('speech.cardFallback', { name })
+  if (s.plan.device === 'cpu') return t('speech.cardCpuPlan', { name })
+  return t('speech.cardOn', { name })
 }
 
 // ---------------------------------------------------------------- speakers
@@ -462,14 +518,14 @@ const HF = {
 
 /** The speakers' model as the page says it: how it looks, and the words. */
 const DIARIZATION: Record<Diarization, ['' | 'busy' | 'bad' | 'ok', string]> = {
-  'needs-token': ['', 'needs a free Hugging Face key, once, to download the speakers’ model'],
-  checking: ['busy', 'checking the key…'],
-  downloading: ['busy', 'the key works · downloading the speakers’ model…'],
-  'bad-token': ['bad', 'the key did not work: copy it whole, and make it of type Read'],
-  'no-access': ['bad', 'the key works, but the model is not open to it yet: fill in the form on its page (step 2), then Check again'],
-  failed: ['bad', 'could not check the key'],
-  missing: ['', 'key saved · the model downloads with the first transcription'],
-  ready: ['ok', 'the model is here · speakers are told apart offline, no key needed any more'],
+  'needs-token': ['', t('speech.dzNeedsToken')],
+  checking: ['busy', t('speech.dzChecking')],
+  downloading: ['busy', t('speech.dzDownloading')],
+  'bad-token': ['bad', t('speech.dzBadToken')],
+  'no-access': ['bad', t('speech.dzNoAccess')],
+  failed: ['bad', t('speech.dzFailed')],
+  missing: ['', t('speech.dzMissing')],
+  ready: ['ok', t('speech.dzReady')],
 }
 
 /** "Replace key" was tapped: the field and the steps come back. */
@@ -500,8 +556,8 @@ export function speakerRows(v: AppView): HTMLElement[] {
   const s = v.speech
   const out: HTMLElement[] = [...speakersDeviceRows(v), ...speakersInstallRows(v)]
   if (!hasPart(v, 'speakers')) return out
-  if (!running(v)) return [...out, card('lock', 'The voices’ model', ['set up once the speech engine runs'], null)]
-  return [...out, grp('The voices’ model'), ...keyRows(v)]
+  if (!running(v)) return [...out, card('lock', t('speech.voicesModel'), [t('speech.voicesLater')], null)]
+  return [...out, grp(t('speech.voicesModel')), ...keyRows(v)]
 }
 
 export const DEVICE_NAMES = { cuda: 'graphics card', cpu: 'processor' } as const
@@ -517,19 +573,17 @@ function speakersDeviceRows(v: AppView): HTMLElement[] {
     const chosen = s.speakers.on === on
     const node = card(
       on === 'cuda' ? 'monitor' : 'cpu',
-      on === 'cuda' ? 'Graphics card' : 'Processor',
+      on === 'cuda' ? t('speech.card') : t('speech.processor'),
       [
-        time === undefined ? null : `an hour’s voices in ≈${minutes(time)} here${plan.advised === on ? ' · advised' : ''}`,
-        on === 'cuda'
-          ? `PyTorch for the card · ≈${size(sz.download)} download · ${size(sz.installed)} on the disk, in place of the card’s part`
-          : `PyTorch for the processor · ≈${size(sz.download)} download · ${size(sz.installed)} on the disk`,
+        time === undefined ? null : [t('speech.voicesHour', { time: minutes(time) }), plan.advised === on ? t('speech.advised') : null].filter(Boolean).join(' · '),
+        t(on === 'cuda' ? 'speech.torchCard' : 'speech.torchCpu', { download: size(sz.download), disk: size(sz.installed) }),
       ],
-      chosen ? chip('chosen', 'lit') : linkBtn('Use', () => pick(on)),
+      chosen ? chip(t('speech.chosen'), 'lit') : linkBtn(t('speech.use'), () => pick(on)),
     )
     if (chosen) node.classList.add('picked')
     return node
   }
-  const rows: HTMLElement[] = [aside('info', 'The words are recognized already. Telling the voices apart is another model; it runs on PyTorch, which is what downloads here.'), grp('Runs on')]
+  const rows: HTMLElement[] = [aside('info', t('speech.speakersInfo')), grp(t('speech.runsOn'))]
   if (s.plan.offers.speakersGpu && plan.cuda !== undefined) rows.push(option('cuda'))
   rows.push(option('cpu'))
   return rows
@@ -544,16 +598,29 @@ function speakersInstallRows(v: AppView): HTMLElement[] {
   const sz = s.speakers.sizes[on]
   const parts: SpeechPart[] = on === 'cuda' && !hasPart(v, 'gpu') ? ['gpu', 'speakers'] : ['speakers']
   const install = (label: string) => btn(label, () => post({ type: 'installSpeech', parts }), 'primary')
-  const model = s.speakers.model ? 'the voices’ model is here already: no Hugging Face key needed' : 'then a free Hugging Face key, once, for the voices’ model'
-  const room = s.disk.freeMb > 0 && s.disk.freeMb < sz.installed * 1.1 ? bad(`Needs ≈${size(sz.installed * 1.1)} free; ${s.disk.drive} has ${size(s.disk.freeMb)}`) : null
+  const model = s.speakers.model ? t('speech.voicesHere') : t('speech.voicesKey')
+  const room = s.disk.freeMb > 0 && s.disk.freeMb < sz.installed * 1.1 ? bad(t('speech.needsFreeAbout', { need: size(sz.installed * 1.1), drive: s.disk.drive, free: size(s.disk.freeMb) })) : null
+  const onCard = on === 'cuda'
   if (!hasPart(v, 'speakers')) {
-    return [grp('Download'), card('download', `Who spoke when, on the ${DEVICE_NAMES[on]}`, [`≈${size(sz.download)} download, once · ${model}`, s.pack.status === 'failed' ? bad(`The download stopped: ${s.pack.message ?? 'unknown error'}`) : room], install(s.pack.status === 'failed' ? 'Try again' : 'Download'))]
+    const failed = s.pack.status === 'failed'
+    return [
+      grp(t('speech.downloadGrp')),
+      card(
+        'download',
+        t(onCard ? 'speech.whoOnCard' : 'speech.whoOnCpu'),
+        [t('speech.dlOnce', { size: size(sz.download), model }), failed ? bad(t('speech.dlStopped', { why: s.pack.message ?? t('speech.unknownError') })) : room],
+        install(failed ? t('common.tryAgain') : t('speech.download')),
+      ),
+    ]
   }
   const there = s.pack.speakersOn ?? 'cpu'
   if (there !== on) {
-    return [grp('Installed'), card('rotate-cw', `On the ${DEVICE_NAMES[there]} now`, [`switching to the ${DEVICE_NAMES[on]}: ≈${size(sz.download)} download; the other PyTorch goes`, room], install('Switch'))]
+    return [grp(t('speech.installed')), card('rotate-cw', t(there === 'cuda' ? 'speech.nowCard' : 'speech.nowCpu'), [t(onCard ? 'speech.switchCard' : 'speech.switchCpu', { size: size(sz.download) }), room], install(t('speech.switch')))]
   }
-  return [grp('Installed'), card('circle-check', `Installed · on the ${DEVICE_NAMES[on]}`, [el('small', { class: 'ok' }, `an hour’s voices in ≈${minutes(s.plan.speakers[on] ?? s.plan.speakers.cpu)} here`)], null)]
+  return [
+    grp(t('speech.installed')),
+    card('circle-check', t(onCard ? 'speech.installedCard' : 'speech.installedCpu'), [el('small', { class: 'ok' }, t('speech.voicesHour', { time: minutes(s.plan.speakers[on] ?? s.plan.speakers.cpu) }))], null),
+  ]
 }
 
 /** The Hugging Face key with its live state, and the four steps to get one while it is needed. */
@@ -578,7 +645,7 @@ function keyRows(v: AppView): HTMLElement[] {
     placeholder: 'hf_…',
     autocomplete: 'off',
     spellcheck: 'false',
-    'aria-label': 'Hugging Face key',
+    'aria-label': t('speech.hfKey'),
     oninput: (event: Event) => (draft = (event.target as HTMLInputElement).value),
   })
   field.value = draft
@@ -594,32 +661,33 @@ function keyRows(v: AppView): HTMLElement[] {
     if (event.key === 'Enter') void saveKey()
     if (event.key === 'Escape' && replacing) (event.preventDefault(), (replacing = false), field.blur(), redraw())
   })
-  const entry = el('span', { class: 'kchg' }, field, btn('Save', () => void saveKey(), 'primary'))
+  const entry = el('span', { class: 'kchg' }, field, btn(t('speech.save'), () => void saveKey(), 'primary'))
   const settled = state === 'ready' || state === 'missing'
   const control =
     settled && !replacing
-      ? linkBtn('Replace key', () => {
+      ? linkBtn(t('speech.replaceKey'), () => {
           replacing = true
           redraw()
         })
       : state === 'no-access'
-        ? again('Check again')
+        ? again(t('speech.checkAgain'))
         : state === 'failed'
-          ? again('Try again')
+          ? again(t('common.tryAgain'))
           : null
   // Once the model is on the disk the key has done its work: nothing to replace.
-  if (state === 'ready' && !replacing) return [row('The voices’ model', [note], null)]
-  const out = [row('Hugging Face key', [note], control)]
+  if (state === 'ready' && !replacing) return [row(t('speech.voicesModel'), [note], null)]
+  const out = [row(t('speech.hfKey'), [note], control)]
   const typing = (!settled && state !== 'checking' && state !== 'downloading') || replacing
   if (typing) {
     out.push(
       el(
         'ol',
         { class: 'steps' },
-        el('li', {}, link(HF.join, 'Sign up at Hugging Face'), ', free.'),
-        el('li', {}, 'Open ', link(HF.model, 'the model’s page'), ' and fill in its form: Company or university, anything, your own name will do; Use case: ', el('b', {}, 'Meeting note taker'), '. Then Agree and access.'),
-        el('li', {}, 'Open ', link(HF.tokens, 'Access Tokens'), ' → Create new token → type ', el('b', {}, 'Read'), ' → copy the hf_… key.'),
-        el('li', {}, 'Paste it here and Save. The model downloads once; after that, everything works offline.', el('span', { class: 'kline' }, entry)),
+        el('li', {}, link(HF.join, t('speech.step1')), t('speech.step1Rest')),
+        // Hugging Face's own words (its form's fields, Access Tokens, Read) stay as its site writes them.
+        el('li', {}, ...phrase(t('speech.step2'), { page: link(HF.model, t('speech.step2Page')), use: el('b', {}, 'Meeting note taker') })),
+        el('li', {}, ...phrase(t('speech.step3'), { tokens: link(HF.tokens, 'Access Tokens'), read: el('b', {}, 'Read') })),
+        el('li', {}, t('speech.step4'), el('span', { class: 'kline' }, entry)),
       ),
     )
   }
@@ -631,6 +699,6 @@ export function speakersMissing(v: AppView, go: () => void): HTMLElement | null 
   if (!installed(v)) return null
   const state = v.speech.health?.diarization
   if (hasPart(v, 'speakers') && state !== 'needs-token' && state !== 'bad-token' && state !== 'no-access' && state !== 'failed') return null
-  const why = !hasPart(v, 'speakers') ? 'Speakers are not told apart yet: their part is not downloaded.' : 'Speakers are not told apart yet: a Hugging Face key is needed.'
-  return aside('users', why, ' ', linkBtn('Set up', go))
+  const why = !hasPart(v, 'speakers') ? t('speech.missingPart') : t('speech.missingKey')
+  return aside('users', why, ' ', linkBtn(t('speech.setUp'), go))
 }

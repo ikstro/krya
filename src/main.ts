@@ -54,6 +54,7 @@ import { createTranslator, NATIVES } from './engine'
 import { LEVEL_VRAM_MB, translationAdvice } from './hardware'
 import { hotkeyLabel, isAccelerator } from './hotkey'
 import { levelName, setUiLanguage, t } from './i18n'
+import { engineMessage } from './i18n/engine'
 import { FIX_LANGUAGES, KeyboardHelper, keyboardLayouts } from './keyboard'
 import { cardMemoryFree, cardMemoryUsed, driveOf, freeMb, loadModelSpeeds, loadVoiceSpeed, median, nextModelSpeed, nextVoiceSpeed, saveModelSpeeds, saveVoiceSpeed, type ModelSpeeds, type VoiceSpeed } from './device'
 import { defaultNative, findLanguage, langCode, scriptFor } from './languages'
@@ -417,6 +418,7 @@ function readSettings(): Settings {
 }
 
 function saveSettings(patch: Partial<Settings>): void {
+  const wasLanguage = settings.uiLanguage
   settings = normalize({ ...settings, ...patch }, settings.native)
   try {
     fs.mkdirSync(userDir(), { recursive: true })
@@ -432,7 +434,7 @@ function saveSettings(patch: Partial<Settings>): void {
   // Paused while a phrase is recorded: the phrase is dropped, as Esc would.
   if (patch.paused && settings.paused) dictation?.cancel()
   if ('theme' in patch) applyTheme()
-  if ('uiLanguage' in patch) applyUiLanguage()
+  if (settings.uiLanguage !== wasLanguage) applyUiLanguage()
   // The speech models are chosen from these (speechplan.ts), and the words to spell go with the plan: sent to the engine again.
   if (speech && (['native', 'speechPrefer', 'dictationModel', 'transcriptsModel', 'speechTestAgreed', 'vocabulary'] as const).some(k => k in patch)) speech.replan()
   if ('talkOnTop' in patch) talkWin?.setAlwaysOnTop(settings.talkOnTop)
@@ -448,6 +450,12 @@ function applyLoginItem(): void {
   app.setLoginItemSettings({ openAtLogin: settings.startWithWindows })
   // tu-talk's entry had its own name and points at a program long gone.
   app.setLoginItemSettings({ openAtLogin: false, name: 'com.ikstro.tu-talk' })
+}
+
+/** The uninstaller asks its one question in the interface's language (build/installer.nsh reads it here); a run from source or a test run leaves the registry alone. */
+function rememberUiLanguage(): void {
+  if (!app.isPackaged || TEST_HOME) return
+  execFile(system32('reg.exe'), ['add', 'HKCU\\Software\\Krya', '/v', 'UiLanguage', '/d', settings.uiLanguage, '/f'], { windowsHide: true, timeout: 5000 }, () => undefined)
 }
 
 function config(): ViewConfig {
@@ -471,6 +479,7 @@ const pageOptions = () => ({ query: pageQuery() })
  */
 function applyUiLanguage(): void {
   setUiLanguage(settings.uiLanguage)
+  rememberUiLanguage()
   const media = (page: string) => path.join(app.getAppPath(), 'media', page)
   if (appWin && !appWin.isDestroyed()) {
     appReady = false
@@ -819,7 +828,7 @@ async function resetSettings(): Promise<void> {
   }
   const { response } = appWin ? await dialog.showMessageBox(appWin, options) : await dialog.showMessageBox(options)
   if (response !== 0) return
-  saveSettings({ ...DEFAULTS, native: settings.native, languages: settings.languages, setupDone: true, introSeen: true })
+  saveSettings({ ...DEFAULTS, native: settings.native, languages: settings.languages, uiLanguage: settings.uiLanguage, setupDone: true, introSeen: true })
 }
 
 /** Every key back to how it came, after a question: the actions', the layouts' own, Ctrl+C twice and the keys turned off. */
@@ -3310,8 +3319,11 @@ function makeOwnFolder(p: unknown): void {
 /** A page's request with an answer: the speech engine's API, a folder to pick, a transcript to save. */
 async function hostCall(request: HostCall): Promise<unknown> {
   switch (request.call) {
-    case 'speech':
-      return speech.call(request.method, request.route, request.body)
+    case 'speech': {
+      // The engine's refusals in the interface's language (i18n/engine.ts); its data as it is.
+      const answer = await speech.call(request.method, request.route, request.body)
+      return answer.ok || !answer.error ? answer : { ...answer, error: engineMessage(answer.error) }
+    }
     case 'pickFolder': {
       const options: Electron.OpenDialogOptions = { title: request.title, defaultPath: request.current || app.getPath('documents'), properties: ['openDirectory', 'createDirectory'] }
       const { canceled, filePaths } = appWin ? await dialog.showOpenDialog(appWin, options) : await dialog.showOpenDialog(options)
@@ -3369,6 +3381,7 @@ function start(): void {
   const firstRun = !fs.existsSync(settingsFile())
   settings = readSettings()
   setUiLanguage(settings.uiLanguage)
+  if (settings.uiLanguage !== 'en') rememberUiLanguage()
   // Only a fresh install sees the setup; a settings file from before it counts as set up (the default).
   if (firstRun) saveSettings({ setupDone: false })
   applyTheme()

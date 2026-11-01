@@ -6,6 +6,8 @@
 // ("Control+Shift", as Windows switches layouts), a key alone ("Pause"), and
 // the mouse's side buttons ("MouseBack", "Control+MouseForward").
 
+import { t } from './i18n'
+
 export type Mod = 'Control' | 'Alt' | 'Shift' | 'Super'
 
 export type HotkeySpec =
@@ -145,7 +147,10 @@ export function hotkeyLabel(hotkey: string): string {
     .map(part => {
       const [key, times] = part.split('*')
       const side = /^(Left|Right)(Control|Shift|Alt|Super)$/.exec(key ?? '')
-      if (side) return `${side[1]} ${name(side[2] as string)}${times === '2' ? ' twice' : ''}`
+      if (side) {
+        const label = `${side[1]} ${name(side[2] as string)}`
+        return times === '2' ? t('keys.twice', { key: label }) : label
+      }
       if (part === 'CapsLock') return 'Caps Lock'
       if (part === 'ScrollLock') return 'Scroll Lock'
       if (part === 'MouseBack') return 'Mouse Back'

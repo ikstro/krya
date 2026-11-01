@@ -3,6 +3,7 @@
 import type { DeviceProfile } from '../../src/hardware'
 import { LANGUAGES } from '../../src/languages'
 import type { AppView, TalkSummary, TalksView, TalkTurn, TalkWindowView, TrayView } from '../../src/protocol'
+import { isUiLanguage } from '../../src/i18n'
 import { DEFAULTS } from '../../src/settings'
 import { planSpeech } from '../../src/speechplan'
 import { wordDiff } from '../../src/worddiff'
@@ -103,6 +104,8 @@ function full(over: Partial<AppView['settings']>, plan: AppView['speech']['plan'
   return {
     settings: {
       ...DEFAULTS,
+      // The interface language the pictures are taken in (harness.ts SHOTS_LANG), so Settings shows it picked.
+      uiLanguage: isUiLanguage(process.env.SHOTS_LANG) ? process.env.SHOTS_LANG : 'en',
       introSeen: true,
       native: 'Russian',
       languages: ['uk'],

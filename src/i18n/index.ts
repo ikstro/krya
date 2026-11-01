@@ -103,9 +103,19 @@ export const levelName = (level: TranslationLevel): string => t(`level.${level}`
 /** What kept the model slow, as a sentence names it: the graphics card or the processor. */
 export const busyPartName = (part: BusyPart): string => t(part === 'card' ? 'busy.card' : 'busy.processor')
 
+const numbers = new Map<string, Intl.NumberFormat>()
+
+/** A number with `digits` decimals as the interface's language writes it: "5.2" in English, "5,2" in Ukrainian and Russian. */
+export function numberText(n: number, digits = 0): string {
+  const id = `${current}:${digits}`
+  let format = numbers.get(id)
+  if (!format) numbers.set(id, (format = new Intl.NumberFormat(current, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false })))
+  return format.format(n)
+}
+
 /** A size in MB as the pages write it: "84 MB", "5.2 GB". */
 export function sizeText(mb: number): string {
-  return mb >= 1000 ? t('size.gb', { n: (Math.round(mb / 100) / 10).toFixed(1) }) : t('size.mb', { n: Math.max(1, Math.round(mb)) })
+  return mb >= 1000 ? t('size.gb', { n: numberText(Math.round(mb / 100) / 10, 1) }) : t('size.mb', { n: Math.max(1, Math.round(mb)) })
 }
 
 /** A time and date as the interface's language writes them. */

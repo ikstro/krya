@@ -12,6 +12,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import { t } from './i18n'
 import { oldLog } from './log'
 import { system32 } from './system32'
 
@@ -189,18 +190,18 @@ const headline = (message: string, most: number) => {
 
 /** The email: to Krya's author, the text and the facts in it, a line on the zip to attach (a link cannot carry it). */
 export function mailUrl(message: string, facts: ReportFacts, file: string): string {
-  const subject = encodeURIComponent(`Krya ${facts.version}: ${headline(message, 60) || 'a problem'}`)
-  const foot = `\r\n\r\n${factsLine(facts)}\r\nThe report is open in File Explorer: please attach "${file}".`
+  const subject = encodeURIComponent(`Krya ${facts.version}: ${headline(message, 60) || t('ui.reportSubject')}`)
+  const foot = `\r\n\r\n${factsLine(facts)}\r\n${t('ui.reportAttach', { file })}`
   const head = `mailto:${REPORT_EMAIL}?subject=${subject}&body=`
-  const said = (message.trim() || 'What happened?').replace(/\r?\n/g, '\r\n')
+  const said = (message.trim() || t('ui.reportAsk')).replace(/\r?\n/g, '\r\n')
   return head + encodeURIComponent(fitEncoded(said, MAIL_MOST - head.length - encodeURIComponent(foot).length) + foot)
 }
 
 /** A new GitHub issue with the text and the facts in it; the zip is dragged onto the page. */
 export function issueUrl(message: string, facts: ReportFacts, file: string): string {
-  const title = encodeURIComponent(headline(message, 80) || 'A problem')
-  const foot = `\n\n### Krya\n\n${factsLine(facts)}\n\n**The report:** drag \`${file}\` here from File Explorer (Krya's logs, your name and keys left out).`
+  const title = encodeURIComponent(headline(message, 80) || t('ui.reportTitle'))
+  const foot = `\n\n### Krya\n\n${factsLine(facts)}\n\n${t('ui.reportDrag', { file })}`
   const head = `${ISSUES}?title=${title}&body=`
-  const said = `### What happened\n\n${message.trim() || '…'}`
+  const said = `### ${t('ui.reportWhat')}\n\n${message.trim() || '…'}`
   return head + encodeURIComponent(fitEncoded(said, ISSUE_MOST - head.length - encodeURIComponent(foot).length) + foot)
 }

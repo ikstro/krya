@@ -75,7 +75,7 @@ export function radioRow(label: string | HTMLElement, notes: Note[], on: boolean
 }
 
 /** The advice for this computer, after a line's title. */
-export const recommended = () => el('span', { class: 'chip good' }, lucide('check', 's'), 'Recommended')
+export const recommended = () => el('span', { class: 'chip good' }, lucide('check', 's'), t('ui.recommended'))
 
 /** A small round-cornered icon button: remove, earlier, later. */
 export function ib(name: LucideName, label: string, onclick: () => void, disabled = false): HTMLButtonElement {
@@ -243,7 +243,7 @@ export function listPage(o: {
   /** A card after the add card: a suggestion, for instance. */
   extra?: HTMLElement | null
 }): HTMLElement[] {
-  const norm = o.normalize ?? (t => t.trim())
+  const norm = o.normalize ?? (text => text.trim())
   const add = (field: HTMLInputElement) => {
     const item = norm(field.value)
     if (!item) return field.focus()
@@ -256,12 +256,12 @@ export function listPage(o: {
   const addCard = el(
     'div',
     { class: 'row add' },
-    el('div', { class: 'fields' }, field, btn([lucide('plus', 's'), 'Add'], () => add(field), 'primary')),
+    el('div', { class: 'fields' }, field, btn([lucide('plus', 's'), t('ui.add')], () => add(field), 'primary')),
     o.note ? el('small', {}, o.note) : null,
   )
   const items = o.items.map(item => {
     const note = o.itemNote?.(item)
-    return el('div', { class: 'row' }, el('div', { class: 'l' }, item, note ? el('small', {}, note) : null), ib('x', `Remove ${item}`, () => o.remove(item)))
+    return el('div', { class: 'row' }, el('div', { class: 'l' }, item, note ? el('small', {}, note) : null), ib('x', t('ui.remove', { item }), () => o.remove(item)))
   })
   return [
     grp(o.label),

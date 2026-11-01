@@ -1,6 +1,8 @@
 // This computer's parts as Krya describes them (device.ts finds them out):
 // the types and what both the main process and the pages say of them.
 
+import { t } from './i18n'
+
 export type GpuVendor = 'nvidia' | 'amd' | 'intel' | 'other'
 
 export type Gpu = {
@@ -57,7 +59,7 @@ export function shortCpu(name: string): string {
 /** "NVIDIA GeForce RTX 2080 SUPER · 8 GB"; a card without memory of its own by its name alone. */
 export function cardText(g: Gpu): string {
   const name = g.name.replace(/\((R|TM)\)/gi, '').replace(/\s+/g, ' ').trim()
-  return g.vramMb >= 1024 ? `${name} · ${Math.round(g.vramMb / 1024)} GB` : name
+  return g.vramMb >= 1024 ? `${name} · ${t('size.gb', { n: Math.round(g.vramMb / 1024) })}` : name
 }
 
 /**

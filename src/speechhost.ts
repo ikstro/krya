@@ -12,6 +12,7 @@ import * as path from 'node:path'
 
 import { driveOf, fingerprint, freeMb, loadProfile, probeDevice, quickProfile, saveProfile, type DeviceProfile } from './device'
 import { langCode } from './languages'
+import { engineMessage } from './i18n/engine'
 import { log } from './log'
 import { freeFolderSoon, runningProcessesSoon } from './oldfolder'
 import type { SpeechView } from './protocol'
@@ -298,10 +299,17 @@ export class SpeechHost {
     const cpuPlan = planSpeech({ ...this.input, cuda: false }).dictation.chosen
     const first = (c: typeof gpuPlan) => ({ model: c.label, mb: c.downloaded ? 0 : c.mb, phrase: c.estimate })
     return {
-      pack: { ...this.pack.state, nvidia: this.plan.offers.gpu || (this.pack.state.parts.includes('gpu') && this.nvidiaDriver) },
+      // The states main and the engine write in English, for the log, shown in the interface's language (i18n/engine.ts).
+      pack: {
+        ...this.pack.state,
+        ...(this.pack.state.message ? { message: engineMessage(this.pack.state.message) } : {}),
+        nvidia: this.plan.offers.gpu || (this.pack.state.parts.includes('gpu') && this.nvidiaDriver),
+      },
       service: this.service.state,
-      ...(this.service.trouble ? { trouble: this.service.trouble } : {}),
-      ...(this.service.health ? { health: this.service.health } : {}),
+      ...(this.service.trouble ? { trouble: engineMessage(this.service.trouble) } : {}),
+      ...(this.service.health
+        ? { health: this.service.health.diarizationMessage ? { ...this.service.health, diarizationMessage: engineMessage(this.service.health.diarizationMessage) } : this.service.health }
+        : {}),
       port: this.o.port,
       extensionDir: this.o.extensionDir,
       extensionShipped: this.extensionShipped,

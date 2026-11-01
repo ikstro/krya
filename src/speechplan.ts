@@ -13,6 +13,7 @@
 
 import catalog from '../engine/models.json'
 import { nvidiaCard, type DeviceProfile } from './hardware'
+import { numberText, t } from './i18n'
 
 export type Feature = 'dictation' | 'transcripts'
 export type Device = 'cpu' | 'cuda'
@@ -342,18 +343,19 @@ export function testKey(input: PlanInput, plan: SpeechPlan): string {
 
 /** 0.4 s, 2.1 s, 12 s. */
 export function seconds(s: number): string {
-  return s < 10 ? `${(Math.round(s * 10) / 10).toFixed(1)} s` : `${Math.round(s)} s`
+  return t('speech.sec', { n: s < 10 ? numberText(Math.round(s * 10) / 10, 1) : Math.round(s) })
 }
 
 /** 12 min, 1 h 10 min. */
 export function minutes(m: number): string {
   const r = Math.max(1, Math.round(m))
-  return r >= 60 ? `${Math.floor(r / 60)} h${r % 60 ? ` ${r % 60} min` : ''}` : `${r} min`
+  if (r < 60) return t('speech.min', { n: r })
+  return r % 60 ? t('speech.hMin', { h: Math.floor(r / 60), m: r % 60 }) : t('speech.h', { h: Math.floor(r / 60) })
 }
 
 /** A choice's time as the pages say it: "≈0.4 s a phrase", "≈12 min an hour". */
 export function estimateText(feature: Feature, c: Choice): string {
-  return feature === 'dictation' ? `≈${seconds(c.estimate)} a phrase` : `≈${minutes(c.estimate)} an hour`
+  return feature === 'dictation' ? t('speech.perPhrase', { time: seconds(c.estimate) }) : t('speech.perHour', { time: minutes(c.estimate) })
 }
 
 export const BASIS_TEXT: Record<Basis, string> = { measured: 'measured here', scaled: 'from this computer’s test', guess: 'first guess' }
