@@ -1,8 +1,951 @@
 "use strict";
 (() => {
   // src/languages.ts
+  var LANGUAGES = [
+    { name: "English", native: "English", ru: "\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439", code: "en" },
+    { name: "Spanish", native: "Espa\xF1ol", ru: "\u0438\u0441\u043F\u0430\u043D\u0441\u043A\u0438\u0439", code: "es" },
+    { name: "German", native: "Deutsch", ru: "\u043D\u0435\u043C\u0435\u0446\u043A\u0438\u0439", code: "de" },
+    { name: "French", native: "Fran\xE7ais", ru: "\u0444\u0440\u0430\u043D\u0446\u0443\u0437\u0441\u043A\u0438\u0439", code: "fr" },
+    { name: "Italian", native: "Italiano", ru: "\u0438\u0442\u0430\u043B\u044C\u044F\u043D\u0441\u043A\u0438\u0439", code: "it" },
+    { name: "Portuguese", native: "Portugu\xEAs", ru: "\u043F\u043E\u0440\u0442\u0443\u0433\u0430\u043B\u044C\u0441\u043A\u0438\u0439", code: "pt" },
+    { name: "Russian", native: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439", ru: "\u0440\u0443\u0441\u0441\u043A\u0438\u0439", code: "ru" },
+    { name: "Ukrainian", native: "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430", ru: "\u0443\u043A\u0440\u0430\u0438\u043D\u0441\u043A\u0438\u0439", code: "uk" },
+    { name: "Polish", native: "Polski", ru: "\u043F\u043E\u043B\u044C\u0441\u043A\u0438\u0439", code: "pl" },
+    { name: "Czech", native: "\u010Ce\u0161tina", ru: "\u0447\u0435\u0448\u0441\u043A\u0438\u0439", code: "cs" },
+    { name: "Dutch", native: "Nederlands", ru: "\u043D\u0438\u0434\u0435\u0440\u043B\u0430\u043D\u0434\u0441\u043A\u0438\u0439", code: "nl" },
+    { name: "Swedish", native: "Svenska", ru: "\u0448\u0432\u0435\u0434\u0441\u043A\u0438\u0439", code: "sv" },
+    { name: "Norwegian", native: "Norsk", ru: "\u043D\u043E\u0440\u0432\u0435\u0436\u0441\u043A\u0438\u0439", code: "nb" },
+    { name: "Danish", native: "Dansk", ru: "\u0434\u0430\u0442\u0441\u043A\u0438\u0439", code: "da" },
+    { name: "Finnish", native: "Suomi", ru: "\u0444\u0438\u043D\u0441\u043A\u0438\u0439", code: "fi" },
+    { name: "Greek", native: "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC", ru: "\u0433\u0440\u0435\u0447\u0435\u0441\u043A\u0438\u0439", code: "el" },
+    { name: "Turkish", native: "T\xFCrk\xE7e", ru: "\u0442\u0443\u0440\u0435\u0446\u043A\u0438\u0439", code: "tr" },
+    { name: "Romanian", native: "Rom\xE2n\u0103", ru: "\u0440\u0443\u043C\u044B\u043D\u0441\u043A\u0438\u0439", code: "ro" },
+    { name: "Hungarian", native: "Magyar", ru: "\u0432\u0435\u043D\u0433\u0435\u0440\u0441\u043A\u0438\u0439", code: "hu" },
+    { name: "Bulgarian", native: "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438", ru: "\u0431\u043E\u043B\u0433\u0430\u0440\u0441\u043A\u0438\u0439", code: "bg" },
+    { name: "Serbian", native: "\u0421\u0440\u043F\u0441\u043A\u0438", ru: "\u0441\u0435\u0440\u0431\u0441\u043A\u0438\u0439", code: "sr" },
+    { name: "Croatian", native: "Hrvatski", ru: "\u0445\u043E\u0440\u0432\u0430\u0442\u0441\u043A\u0438\u0439", code: "hr" },
+    { name: "Georgian", native: "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8", ru: "\u0433\u0440\u0443\u0437\u0438\u043D\u0441\u043A\u0438\u0439", code: "ka" },
+    { name: "Armenian", native: "\u0540\u0561\u0575\u0565\u0580\u0565\u0576", ru: "\u0430\u0440\u043C\u044F\u043D\u0441\u043A\u0438\u0439", code: "hy" },
+    { name: "Kazakh", native: "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456", ru: "\u043A\u0430\u0437\u0430\u0445\u0441\u043A\u0438\u0439", code: "kk" },
+    { name: "Arabic", native: "\u0627\u0644\u0639\u0631\u0628\u064A\u0629", ru: "\u0430\u0440\u0430\u0431\u0441\u043A\u0438\u0439", code: "ar" },
+    { name: "Hebrew", native: "\u05E2\u05D1\u05E8\u05D9\u05EA", ru: "\u0438\u0432\u0440\u0438\u0442", code: "he" },
+    { name: "Persian", native: "\u0641\u0627\u0631\u0633\u06CC", ru: "\u043F\u0435\u0440\u0441\u0438\u0434\u0441\u043A\u0438\u0439", code: "fa" },
+    { name: "Hindi", native: "\u0939\u093F\u0928\u094D\u0926\u0940", ru: "\u0445\u0438\u043D\u0434\u0438", code: "hi" },
+    { name: "Chinese", native: "\u4E2D\u6587", ru: "\u043A\u0438\u0442\u0430\u0439\u0441\u043A\u0438\u0439", code: "zh" },
+    { name: "Japanese", native: "\u65E5\u672C\u8A9E", ru: "\u044F\u043F\u043E\u043D\u0441\u043A\u0438\u0439", code: "ja" },
+    { name: "Korean", native: "\uD55C\uAD6D\uC5B4", ru: "\u043A\u043E\u0440\u0435\u0439\u0441\u043A\u0438\u0439", code: "ko" },
+    { name: "Vietnamese", native: "Ti\u1EBFng Vi\u1EC7t", ru: "\u0432\u044C\u0435\u0442\u043D\u0430\u043C\u0441\u043A\u0438\u0439", code: "vi" },
+    { name: "Thai", native: "\u0E44\u0E17\u0E22", ru: "\u0442\u0430\u0439\u0441\u043A\u0438\u0439", code: "th" },
+    { name: "Indonesian", native: "Bahasa Indonesia", ru: "\u0438\u043D\u0434\u043E\u043D\u0435\u0437\u0438\u0439\u0441\u043A\u0438\u0439", code: "id" }
+  ];
+  function findLanguage(name) {
+    if (!name) return void 0;
+    const key = name.trim().toLowerCase();
+    return LANGUAGES.find((l) => l.name.toLowerCase() === key || l.native.toLowerCase() === key || l.code === key);
+  }
   function voiceMatches(voiceLang, code) {
     return voiceLang.toLowerCase().replace("_", "-").split("-")[0] === code.toLowerCase();
+  }
+
+  // src/i18n/en.ts
+  var en = {
+    // ------------------------------------------------------------ shared
+    "common.close": "Close",
+    "common.restore": "Restore",
+    "common.maximize": "Maximize",
+    "common.copy": "Copy",
+    "common.copied": "Copied",
+    "common.notNow": "Not now",
+    "common.retry": "Retry",
+    "common.tryAgain": "Try again",
+    "common.openSettings": "Open settings",
+    "common.listen": "Listen",
+    "common.stop": "Stop",
+    "common.paste": "Paste",
+    "common.listening": "Listening\u2026",
+    "common.checking": "Checking\u2026",
+    "common.or": "or",
+    "common.and": "and",
+    "common.cancel": "Cancel",
+    "main.saveWords": "Save the words for Anki",
+    "main.ankiText": "Text for Anki",
+    "main.saveBackup": "Save a backup",
+    "main.backupFile": "Krya backup",
+    "main.openBackup": "Open a backup",
+    "main.backupUnread": "This backup could not be read",
+    "main.importAsk": "Import this backup?",
+    "main.importDetail": "It holds {what}. Your settings become the backup's; its words, mistakes and history are added to yours, nothing of yours is removed.",
+    "main.import": "Import",
+    "main.resetAsk": "Reset all settings?",
+    "main.resetDetail": "Keys, switches and lists go back to how they came. Your language, words, transcripts and what Krya learned from your typing stay.",
+    "main.reset": "Reset",
+    "main.resetKeysAsk": "Reset all keys?",
+    "main.resetKeysDetail": "Every shortcut goes back to how it came: Ctrl+Alt+S, Ctrl+Alt+T, Ctrl+Alt+D, Ctrl+Alt+N and Ctrl+C twice; the others are cleared. Nothing else changes.",
+    "main.resetKeys": "Reset keys",
+    "main.saveTranscript": "Save the transcript",
+    "main.notTranslated": "Could not translate: {why}",
+    "main.noClipText": "The clipboard holds no text. Select a text and copy it first.",
+    "main.nothingCopied": "Nothing was copied. Select a text, then press the shortcut.",
+    "main.keysTaken": { one: "{keys} is taken by another program. Choose another in the settings.", other: "{keys} are taken by another program. Choose others in the settings." },
+    "main.copyTwiceOff": "Ctrl+C twice will not work: {why}. Use the tray menu.",
+    "backup.settings": "settings",
+    "backup.words": { one: "{n} word", other: "{n} words" },
+    "backup.mistakes": { one: "{n} mistake", other: "{n} mistakes" },
+    "backup.learned": { one: "{n} learned word", other: "{n} learned words" },
+    "backup.translations": { one: "{n} translation", other: "{n} translations" },
+    "backup.phrases": { one: "{n} dictated phrase", other: "{n} dictated phrases" },
+    "backup.talks": { one: "{n} talk", other: "{n} talks" },
+    "size.mb": "{n} MB",
+    "size.gb": "{n} GB",
+    "level.fast": "Fast",
+    "level.accurate": "Accurate",
+    "level.most": "Most accurate",
+    "busy.card": "graphics card",
+    "busy.processor": "processor",
+    "lang.pairEnglish": "{lang} \u21C4 English",
+    "lang.yours": "your language",
+    // ------------------------------------------------------------ the tray's panel
+    "tray.open": "Open",
+    "tray.openKrya": "Open Krya",
+    "tray.built": "Built {build}",
+    "tray.actions": "Actions",
+    "tray.listenCopied": "Listen to the copied text",
+    "tray.translateCopied": "Translate the copied text",
+    "tray.typeToTranslate": "Type to translate\u2026",
+    "tray.checkEnglish": "Check my English\u2026",
+    "tray.listenScreen": "Listen to a screen snip",
+    "tray.translateScreen": "Translate a screen snip",
+    "tray.saveNote": "Save the note",
+    "tray.newNote": "New note",
+    "tray.transcripts": "Transcripts",
+    "tray.quick": "Quick settings",
+    "tray.autoFix": "Fix the layout as I type",
+    "tray.switchWith": "Switch layouts with {key}",
+    "tray.layoutBadge": "Show the layout by the cursor",
+    "tray.trayLayout": "Show the layout in the tray",
+    "tray.doubleCopy": "Ctrl+C twice listens",
+    "tray.yourWords": "Your words",
+    "tray.keepWord": "Keep a word as typed\u2026",
+    "tray.keepWordTitle": "Never fix this word by itself (Kept as typed)",
+    "tray.keepPlaceholder": "a word, as you type it",
+    "tray.keepAria": "Keep a word as typed",
+    "tray.kept": "Kept: {word}",
+    "tray.vocabulary": "Add a word to spell\u2026",
+    "tray.keptList": "Words kept as typed",
+    "tray.pausedTitle": "Keys and Ctrl+C twice are off",
+    "tray.pauseTitle": "Every key and reaction off until resumed",
+    "tray.resume": "Resume",
+    "tray.pause": "Pause",
+    "tray.settings": "Settings",
+    "tray.report": "Report",
+    "tray.reportTitle": "Report a problem, with Krya\u2019s logs",
+    "tray.quit": "Quit",
+    "tray.paused": "paused",
+    "tray.ready": "ready",
+    "tray.readyTitle": "{pair}, offline",
+    "tray.downloading": "downloading\u2026",
+    "tray.firstUse": "translator on first use",
+    "tray.tipRecording": "Recording",
+    "tray.tipPaused": "Krya \xB7 paused",
+    "tray.tipListen": "{keys} to listen",
+    "tray.tipTranslate": "{key} to translate",
+    "tray.tipTwice": "Ctrl+C twice",
+    // ------------------------------------------------------------ the card
+    "kind.listen": "Listen",
+    "kind.translate": "Translate",
+    "kind.check": "Check",
+    "kind.screen": "screen",
+    "card.openedBy": "Opened by {keys}",
+    "card.openedByTwice": "Opened by {keys} twice",
+    "card.prev": "Previous sentence",
+    "card.next": "Next sentence",
+    "card.oneByOne": "One by one",
+    "card.spaceListen": "listen",
+    "card.spaceStop": "stop",
+    "card.text": "The text",
+    "card.from": "From",
+    "card.fromTitle": "The language of the text",
+    "card.into": "Into",
+    "card.intoTitle": "The language to translate into",
+    "card.swap": "Swap",
+    "card.swapTitle": "Swap the languages: the translation becomes the text",
+    "card.voiceOffer": "A natural voice sounds like a real person and reads offline.",
+    "card.voiceDownload": "Download \xB7 {size} MB",
+    "card.voiceFailed": "The natural voice did not download.",
+    "card.voiceDownloading": "Downloading the natural voice\u2026 {pct}%",
+    "card.voiceReady": "The natural voice is ready. Press Listen to hear it.",
+    "card.busyCard": "The graphics card is busy, so Fast translated this. {level} takes over again once it is free.",
+    "card.busyProcessor": "The processor is busy, so Fast translated this. {level} takes over again once it is free.",
+    "card.useAnyway": "Use {level} anyway",
+    "card.hideTranslation": "Hide the {lang} translation",
+    "card.showTranslation": "Show the {lang} translation",
+    "card.unpin": "Unpin: close when another window is clicked",
+    "card.pin": "Pin: keep open",
+    "card.oneOn": "Listen reads one sentence and waits; \u2190 \u2192 step",
+    "card.oneOff": "Read one sentence at a time",
+    "card.translatingFast": "Translating with Fast\u2026",
+    "card.translating": "Translating\u2026",
+    "card.translatingLevel": "Translating \xB7 {level}\u2026",
+    "card.ofGb": "{a} of {b} GB",
+    "card.ofMb": "{a} of {b} MB",
+    "card.firstUse": "first use \xB7 once",
+    "card.modelOf": "{name} model",
+    "card.translatorPair": "Translator, {pair}",
+    "card.fromMozilla": "Downloads once from Mozilla, then translates on this computer.",
+    "card.fromHfTranslates": "Downloads once from Hugging Face, then translates on this computer.",
+    "card.fromHfChecks": "Downloads once from Hugging Face, then checks on this computer.",
+    "card.readMeanwhile": "The English is read meanwhile.",
+    "card.notChecked": "Not checked",
+    "card.notTranslated": "Not translated",
+    "card.readingScreen": "Reading the text on the screen\u2026",
+    "card.noText": "No text here",
+    "card.noTextNote": "The piece of the screen holds no text Krya can read. Snip a piece with words in it.",
+    "card.noOcr": "Windows cannot read text yet",
+    "card.noOcrNote": "Add text recognition for {lang} or English: Settings \u2192 Time & language \u2192 Language & region \u2192 the language \u2192 Language options \u2192 Optical character recognition.",
+    "card.openLanguageSettings": "Open language settings",
+    "card.yourEnglish": "Your English",
+    "card.typeEnglish": "Type or paste your English",
+    "card.checkedBy": "Checked \xB7 {model}",
+    "card.improving": "Improving \xB7 {level}\u2026",
+    "card.translatedBy": "Translated \xB7 {level}",
+    "card.newLine": "{by} \xB7 Shift+Enter, a new line",
+    "card.yours": "Yours",
+    "card.allLanguages": "All languages",
+    "card.pasteOver": "Paste over the selection (Enter)",
+    "card.pasteLater": "Pastes once the accurate translation is in (Enter)",
+    "card.pasteChecked": "Paste the text set right over the selection (Enter)",
+    "card.looksRight": "Looks right",
+    "card.listenSpace": "Listen (Space)",
+    "card.listenParagraph": "Listen to this paragraph",
+    "card.naturalStopped": "The natural voice stopped ({message}). A system voice reads on.",
+    "card.noVoice": "No English voice on this computer.",
+    "card.openSpeechSettings": "Open speech settings",
+    "voice.stepsWin": "To add one: Windows Settings \u2192 Time & language \u2192 Speech \u2192 Add voices \u2192 {lang}, then restart Krya.",
+    "voice.stepsMac": "To add one: System Settings \u2192 Accessibility \u2192 Spoken Content \u2192 System voice \u2192 Manage Voices \u2192 {lang}, then restart Krya.",
+    "voice.none": "Reading aloud uses the voices of Windows or macOS; this system has none the panel can use.",
+    // ------------------------------------------------------------ the word card
+    "word.from": "from {word}",
+    "word.say": "Say it",
+    "word.save": "Save to Words",
+    "word.remove": "Remove from Words",
+    "word.notFound": "Not in the dictionary.",
+    "word.pair": "English \u2192 {lang}",
+    "word.notEnglish": "Word meanings are for English only, for now; the {lang} translation is below.",
+    "word.noDictionary": "No {pair} dictionary yet; the translation is below.",
+    "word.downloading": "Downloading the {pair} dictionary, once\u2026",
+    "word.failed": "Couldn\u2019t download the {pair} dictionary. Check the internet connection; it tries again in a minute.",
+    "word.off": "The {pair} dictionary isn\u2019t downloaded.",
+    // ------------------------------------------------------------ the talk window
+    "talk.yourTalks": "Your talks",
+    "talk.hideTalks": "Hide your talks",
+    "talk.settings": "Talk settings",
+    "talk.toEnd": "To the last line",
+    "talk.typePlaceholder": "Or type a line and press Enter",
+    "talk.typeOnly": "Type a line and press Enter",
+    "talk.typeAria": "Type a line to the duck",
+    "talk.newTitle": "Put this talk away in your talks and start a new one",
+    "talk.new": "New talk",
+    "talk.closeList": "Close the list",
+    "talk.today": "Today",
+    "talk.yesterday": "Yesterday",
+    "talk.earlier": "Earlier",
+    "talk.lines": { one: "{n} line", other: "{n} lines" },
+    "talk.withMistake": "{n} with a mistake",
+    "talk.goingOnMeta": "going on",
+    "talk.goingOnTitle": "The talk going on",
+    "talk.goOn": "Go on with this talk",
+    "talk.firstLine": "The duck\u2019s first line",
+    "talk.delete": "Delete this talk",
+    "talk.goingOn": "Going on",
+    "talk.historyEmpty": "New talk puts a talk here, to go on with it later. Kept 30 days on this computer, 50 at most.",
+    "talk.sureOne": "Sure? Delete it",
+    "talk.sureAll": "Sure? Delete all {n}",
+    "talk.clearAll": "Clear all",
+    "talk.needsCard": "Talk needs a graphics card with 4 GB of its own memory or more",
+    "talk.needsCardNote": "On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.",
+    "talk.downloading": "downloading, {pct}%; the talk starts once it is here",
+    "talk.downloadFailed": "the download failed",
+    "talk.downloadIt": "download it in the settings; Check my English and Translate can use it too",
+    "talk.needsModel": "The duck needs its model: {name}, {size}",
+    "talk.noEngine": "Type to the duck, or add speech to talk",
+    "talk.noEngineNote": "Talk hears you through the speech engine Dictate uses; download it in the settings.",
+    "talk.engineStarting": "The speech engine is starting\u2026",
+    "talk.slow": "{name} is slow on this computer: the duck may take a while to answer. {accurate} answers in about 3 seconds.",
+    "talk.busyCard": "Another program is using the graphics card: the duck may answer slowly.",
+    "talk.busyProcessor": "Another program is using the processor: the duck may answer slowly.",
+    "talk.intro": "Speak English. The duck answers aloud, and your mistakes are marked in your own lines.",
+    "talk.orTypeHello": "Or type hello below.",
+    "talk.orSayHello": "Or just press the button and say hello.",
+    "talk.unpin": "Stop keeping it on top",
+    "talk.pin": "Keep it on top of other windows",
+    "talk.modelTitle": "The duck runs on {model}, the same model as Check my English, on this computer. Click to change it.",
+    "talk.failed": "The duck could not answer: {message}. Say it again, or type it.",
+    "talk.noAnswer": "no answer",
+    "talk.startingMic": "Starting the microphone\u2026",
+    "talk.send": "Send",
+    "talk.talk": "Talk",
+    "talk.notPossible": "Talk is not possible yet: see above.",
+    "talk.speaking": "The duck is speaking",
+    "talk.thinking": "The duck is thinking\u2026",
+    "talk.typingOnly": "Typing only, until speech is here",
+    "talk.pressAgain": "Press again to try.",
+    "talk.listeningPress": "Listening \xB7 press {keys} to send",
+    "talk.speakingPress": "The duck is speaking \xB7 press {keys} to answer",
+    "talk.thinkingPress": "The duck is thinking \xB7 press {keys} to talk over it",
+    "talk.press": "Press {keys} to talk",
+    "talk.finishing": "Finishing the line\u2026",
+    "talk.nothingHeard": "Nothing was heard.",
+    "turn.again": "Say it again",
+    "turn.checking": "checking\u2026",
+    "turn.setRight": "set right above",
+    "turn.hearRight": "Hear it said right",
+    "turn.hear": "Hear it",
+    "topic.free": "Free talk",
+    "topic.day": "My day",
+    "topic.trip": "A trip",
+    "topic.cafe": "At a caf\xE9",
+    "topic.interview": "Job interview",
+    "topic.work": "My work",
+    // ------------------------------------------------------------ the microphone and the dictation badge
+    "mic.denied": "No access to the microphone: allow it in Windows Settings \u2192 Privacy \u2192 Microphone",
+    "mic.none": "No microphone found",
+    "mic.busy": "Another program holds the microphone",
+    "dict.type": "Dictate",
+    "dict.english": "Dictate in English",
+    "dict.note": "A note",
+    "dict.check": "Practice English",
+    "dict.gettingModel": "Getting the speech model {pct}%",
+    "dict.savingNote": "Saving the note\u2026",
+    "dict.catchingUp": "Catching up\u2026",
+    "dict.typing": "Typing\u2026",
+    "dict.saved": "Saved",
+    "dict.typed": "Typed",
+    "dict.noteFailed": "The note was not saved",
+    "dict.nothingTyped": "Nothing typed",
+    "dict.fastCard": "Typed with Fast: the graphics card is busy",
+    "dict.fastProcessor": "Typed with Fast: the processor is busy",
+    "badge.fastCard": "Fast \xB7 graphics card busy",
+    "badge.fastProcessor": "Fast \xB7 processor busy",
+    "settings.uiLanguage": "Interface language",
+    "settings.uiLanguageNote": "Krya\u2019s menus and pages; what it teaches stays English"
+  };
+
+  // src/i18n/ru.ts
+  var ru = {
+    // ------------------------------------------------------------ shared
+    "common.close": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+    "common.restore": "\u0412\u043E\u0441\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C",
+    "common.maximize": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+    "common.copy": "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
+    "common.copied": "\u0421\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u043E",
+    "common.notNow": "\u041D\u0435 \u0441\u0435\u0439\u0447\u0430\u0441",
+    "common.retry": "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C",
+    "common.tryAgain": "\u041F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0435\u0449\u0451 \u0440\u0430\u0437",
+    "common.openSettings": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+    "common.listen": "\u0421\u043B\u0443\u0448\u0430\u0442\u044C",
+    "common.stop": "\u0421\u0442\u043E\u043F",
+    "common.paste": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C",
+    "common.listening": "\u0421\u043B\u0443\u0448\u0430\u044E\u2026",
+    "common.checking": "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430\u2026",
+    "common.or": "\u0438\u043B\u0438",
+    "common.and": "\u0438",
+    "common.cancel": "\u041E\u0442\u043C\u0435\u043D\u0430",
+    "main.saveWords": "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0441\u043B\u043E\u0432\u0430 \u0434\u043B\u044F Anki",
+    "main.ankiText": "\u0422\u0435\u043A\u0441\u0442 \u0434\u043B\u044F Anki",
+    "main.saveBackup": "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443\u044E \u043A\u043E\u043F\u0438\u044E",
+    "main.backupFile": "\u0420\u0435\u0437\u0435\u0440\u0432\u043D\u0430\u044F \u043A\u043E\u043F\u0438\u044F Krya",
+    "main.openBackup": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443\u044E \u043A\u043E\u043F\u0438\u044E",
+    "main.backupUnread": "\u042D\u0442\u0443 \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443\u044E \u043A\u043E\u043F\u0438\u044E \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C",
+    "main.importAsk": "\u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u044D\u0442\u0443 \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443\u044E \u043A\u043E\u043F\u0438\u044E?",
+    "main.importDetail": "\u0412 \u043D\u0435\u0439: {what}. \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u0442\u0430\u043D\u0443\u0442 \u0442\u0430\u043A\u0438\u043C\u0438, \u043A\u0430\u043A \u0432 \u043A\u043E\u043F\u0438\u0438; \u0435\u0451 \u0441\u043B\u043E\u0432\u0430, \u043E\u0448\u0438\u0431\u043A\u0438 \u0438 \u0438\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u043E\u0431\u0430\u0432\u044F\u0442\u0441\u044F \u043A \u0432\u0430\u0448\u0438\u043C, \u043D\u0438\u0447\u0435\u0433\u043E \u0432\u0430\u0448\u0435\u0433\u043E \u043D\u0435 \u0443\u0434\u0430\u043B\u044F\u0435\u0442\u0441\u044F.",
+    "main.import": "\u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
+    "main.resetAsk": "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438?",
+    "main.resetDetail": "\u041A\u043B\u0430\u0432\u0438\u0448\u0438, \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438 \u0438 \u0441\u043F\u0438\u0441\u043A\u0438 \u0432\u0435\u0440\u043D\u0443\u0442\u0441\u044F \u043A \u0438\u0441\u0445\u043E\u0434\u043D\u044B\u043C. \u0412\u0430\u0448 \u044F\u0437\u044B\u043A, \u0441\u043B\u043E\u0432\u0430, \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0438 \u0438 \u0442\u043E, \u0447\u0435\u043C\u0443 Krya \u043D\u0430\u0443\u0447\u0438\u043B\u0430\u0441\u044C \u043F\u043E \u0432\u0430\u0448\u0435\u043C\u0443 \u043D\u0430\u0431\u043E\u0440\u0443, \u043E\u0441\u0442\u0430\u043D\u0443\u0442\u0441\u044F.",
+    "main.reset": "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
+    "main.resetKeysAsk": "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435 \u043A\u043B\u0430\u0432\u0438\u0448\u0438?",
+    "main.resetKeysDetail": "\u041A\u0430\u0436\u0434\u043E\u0435 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448 \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F \u043A \u0438\u0441\u0445\u043E\u0434\u043D\u043E\u043C\u0443: Ctrl+Alt+S, Ctrl+Alt+T, Ctrl+Alt+D, Ctrl+Alt+N \u0438 Ctrl+C \u0434\u0432\u0430\u0436\u0434\u044B; \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0435 \u0431\u0443\u0434\u0443\u0442 \u043E\u0447\u0438\u0449\u0435\u043D\u044B. \u0411\u043E\u043B\u044C\u0448\u0435 \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u0441\u044F.",
+    "main.resetKeys": "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043A\u043B\u0430\u0432\u0438\u0448\u0438",
+    "main.saveTranscript": "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0443",
+    "main.notTranslated": "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438: {why}",
+    "main.noClipText": "\u0412 \u0431\u0443\u0444\u0435\u0440\u0435 \u043E\u0431\u043C\u0435\u043D\u0430 \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430. \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0432\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0438 \u0441\u043A\u043E\u043F\u0438\u0440\u0443\u0439\u0442\u0435 \u0435\u0433\u043E.",
+    "main.nothingCopied": "\u041D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u043E. \u0412\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442, \u0437\u0430\u0442\u0435\u043C \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448.",
+    "main.keysTaken": { one: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435 {keys} \u0437\u0430\u043D\u044F\u0442\u043E \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u043E\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.", few: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u044F {keys} \u0437\u0430\u043D\u044F\u0442\u044B \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u0438\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.", many: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u044F {keys} \u0437\u0430\u043D\u044F\u0442\u044B \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u0438\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.", other: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u044F {keys} \u0437\u0430\u043D\u044F\u0442\u044B \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u0438\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445." },
+    "main.copyTwiceOff": "Ctrl+C \u0434\u0432\u0430\u0436\u0434\u044B \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C: {why}. \u041F\u043E\u043B\u044C\u0437\u0443\u0439\u0442\u0435\u0441\u044C \u043C\u0435\u043D\u044E \u0432 \u0442\u0440\u0435\u0435.",
+    "backup.settings": "\u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+    "backup.words": { one: "{n} \u0441\u043B\u043E\u0432\u043E", few: "{n} \u0441\u043B\u043E\u0432\u0430", many: "{n} \u0441\u043B\u043E\u0432", other: "{n} \u0441\u043B\u043E\u0432\u0430" },
+    "backup.mistakes": { one: "{n} \u043E\u0448\u0438\u0431\u043A\u0430", few: "{n} \u043E\u0448\u0438\u0431\u043A\u0438", many: "{n} \u043E\u0448\u0438\u0431\u043E\u043A", other: "{n} \u043E\u0448\u0438\u0431\u043A\u0438" },
+    "backup.learned": { one: "{n} \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u043E\u0435 \u0441\u043B\u043E\u0432\u043E", few: "{n} \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 \u0441\u043B\u043E\u0432\u0430", many: "{n} \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 \u0441\u043B\u043E\u0432", other: "{n} \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u043B\u043E\u0432\u0430" },
+    "backup.translations": { one: "{n} \u043F\u0435\u0440\u0435\u0432\u043E\u0434", few: "{n} \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430", many: "{n} \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u043E\u0432", other: "{n} \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430" },
+    "backup.phrases": { one: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u043D\u0430\u044F \u0444\u0440\u0430\u0437\u0430", few: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0444\u0440\u0430\u0437\u044B", many: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u0444\u0440\u0430\u0437", other: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u043D\u043E\u0439 \u0444\u0440\u0430\u0437\u044B" },
+    "backup.talks": { one: "{n} \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440", few: "{n} \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0430", many: "{n} \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u043E\u0432", other: "{n} \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0430" },
+    "size.mb": "{n} \u041C\u0411",
+    "size.gb": "{n} \u0413\u0411",
+    "level.fast": "\u0411\u044B\u0441\u0442\u0440\u044B\u0439",
+    "level.accurate": "\u0422\u043E\u0447\u043D\u044B\u0439",
+    "level.most": "\u0421\u0430\u043C\u044B\u0439 \u0442\u043E\u0447\u043D\u044B\u0439",
+    "busy.card": "\u0432\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430",
+    "busy.processor": "\u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440",
+    "lang.pairEnglish": "{lang} \u21C4 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439",
+    "lang.yours": "\u0432\u0430\u0448 \u044F\u0437\u044B\u043A",
+    // ------------------------------------------------------------ the tray's panel
+    "tray.open": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C",
+    "tray.openKrya": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C Krya",
+    "tray.built": "\u0421\u043E\u0431\u0440\u0430\u043D\u043E {build}",
+    "tray.actions": "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F",
+    "tray.listenCopied": "\u041F\u0440\u043E\u0441\u043B\u0443\u0448\u0430\u0442\u044C \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u043E\u0435",
+    "tray.translateCopied": "\u041F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438 \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u043E\u0435",
+    "tray.typeToTranslate": "\u0412\u0432\u0435\u0441\u0442\u0438 \u0442\u0435\u043A\u0441\u0442 \u0434\u043B\u044F \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430\u2026",
+    "tray.checkEnglish": "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439\u2026",
+    "tray.listenScreen": "\u041F\u0440\u043E\u0441\u043B\u0443\u0448\u0430\u0442\u044C \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u044D\u043A\u0440\u0430\u043D\u0430",
+    "tray.translateScreen": "\u041F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u044D\u043A\u0440\u0430\u043D\u0430",
+    "tray.saveNote": "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0437\u0430\u043C\u0435\u0442\u043A\u0443",
+    "tray.newNote": "\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043C\u0435\u0442\u043A\u0430",
+    "tray.transcripts": "\u0420\u0430\u0441\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0438",
+    "tray.quick": "\u0411\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+    "tray.autoFix": "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u043F\u0440\u0438 \u043D\u0430\u0431\u043E\u0440\u0435",
+    "tray.switchWith": "\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0442\u044C \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443: {key}",
+    "tray.layoutBadge": "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0443 \u043A\u0443\u0440\u0441\u043E\u0440\u0430",
+    "tray.trayLayout": "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 \u0442\u0440\u0435\u0435",
+    "tray.doubleCopy": "Ctrl+C \u0434\u0432\u0430\u0436\u0434\u044B \u2014 \u043F\u0440\u043E\u0441\u043B\u0443\u0448\u0430\u0442\u044C",
+    "tray.yourWords": "\u0412\u0430\u0448\u0438 \u0441\u043B\u043E\u0432\u0430",
+    "tray.keepWord": "\u041D\u0435 \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0441\u043B\u043E\u0432\u043E\u2026",
+    "tray.keepWordTitle": "\u041D\u0438\u043A\u043E\u0433\u0434\u0430 \u043D\u0435 \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u044D\u0442\u043E \u0441\u043B\u043E\u0432\u043E \u0441\u0430\u043C\u043E\u0441\u0442\u043E\u044F\u0442\u0435\u043B\u044C\u043D\u043E (\u041D\u0435 \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C)",
+    "tray.keepPlaceholder": "\u0441\u043B\u043E\u0432\u043E, \u043A\u0430\u043A \u0432\u044B \u0435\u0433\u043E \u043D\u0430\u0431\u0438\u0440\u0430\u0435\u0442\u0435",
+    "tray.keepAria": "\u041D\u0435 \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0441\u043B\u043E\u0432\u043E",
+    "tray.kept": "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: {word}",
+    "tray.vocabulary": "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u043B\u043E\u0432\u043E \u0434\u043B\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438\u2026",
+    "tray.keptList": "\u0421\u043B\u043E\u0432\u0430, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u043D\u0435 \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C",
+    "tray.pausedTitle": "\u041A\u043B\u0430\u0432\u0438\u0448\u0438 \u0438 Ctrl+C \u0434\u0432\u0430\u0436\u0434\u044B \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u044B",
+    "tray.pauseTitle": "\u0412\u0441\u0435 \u043A\u043B\u0430\u0432\u0438\u0448\u0438 \u0438 \u0440\u0435\u0430\u043A\u0446\u0438\u0438 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u044B, \u043F\u043E\u043A\u0430 \u043D\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u0435",
+    "tray.resume": "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C",
+    "tray.pause": "\u041F\u0430\u0443\u0437\u0430",
+    "tray.settings": "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+    "tray.report": "\u041F\u0440\u043E\u0431\u043B\u0435\u043C\u0430",
+    "tray.reportTitle": "\u0421\u043E\u043E\u0431\u0449\u0438\u0442\u044C \u043E \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u0435, \u0441 \u0436\u0443\u0440\u043D\u0430\u043B\u0430\u043C\u0438 Krya",
+    "tray.quit": "\u0412\u044B\u0439\u0442\u0438",
+    "tray.paused": "\u043F\u0430\u0443\u0437\u0430",
+    "tray.ready": "\u0433\u043E\u0442\u043E\u0432\u043E",
+    "tray.readyTitle": "{pair}, \u0431\u0435\u0437 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0430",
+    "tray.downloading": "\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026",
+    "tray.firstUse": "\u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0447\u0438\u043A \u2014 \u043F\u0440\u0438 \u043F\u0435\u0440\u0432\u043E\u043C \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D\u0438\u0438",
+    "tray.tipRecording": "\u0417\u0430\u043F\u0438\u0441\u044C",
+    "tray.tipPaused": "Krya \xB7 \u043F\u0430\u0443\u0437\u0430",
+    "tray.tipListen": "{keys} \u2014 \u043F\u0440\u043E\u0441\u043B\u0443\u0448\u0430\u0442\u044C",
+    "tray.tipTranslate": "{key} \u2014 \u043F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438",
+    "tray.tipTwice": "Ctrl+C \u0434\u0432\u0430\u0436\u0434\u044B",
+    // ------------------------------------------------------------ the card
+    "kind.listen": "\u0421\u043B\u0443\u0448\u0430\u0442\u044C",
+    "kind.translate": "\u041F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438",
+    "kind.check": "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C",
+    "kind.screen": "\u044D\u043A\u0440\u0430\u043D",
+    "card.openedBy": "\u041E\u0442\u043A\u0440\u044B\u0442\u043E \u043A\u043B\u0430\u0432\u0438\u0448\u0430\u043C\u0438 {keys}",
+    "card.openedByTwice": "\u041E\u0442\u043A\u0440\u044B\u0442\u043E: {keys} \u0434\u0432\u0430\u0436\u0434\u044B",
+    "card.prev": "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0435\u0435 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435",
+    "card.next": "\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0435 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435",
+    "card.oneByOne": "\u041F\u043E \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044E",
+    "card.spaceListen": "\u0441\u043B\u0443\u0448\u0430\u0442\u044C",
+    "card.spaceStop": "\u0441\u0442\u043E\u043F",
+    "card.text": "\u0422\u0435\u043A\u0441\u0442",
+    "card.from": "\u0421 \u044F\u0437\u044B\u043A\u0430",
+    "card.fromTitle": "\u042F\u0437\u044B\u043A \u0442\u0435\u043A\u0441\u0442\u0430",
+    "card.into": "\u041D\u0430 \u044F\u0437\u044B\u043A",
+    "card.intoTitle": "\u042F\u0437\u044B\u043A, \u043D\u0430 \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u043F\u0435\u0440\u0435\u0432\u0435\u0441\u0442\u0438",
+    "card.swap": "\u041F\u043E\u043C\u0435\u043D\u044F\u0442\u044C",
+    "card.swapTitle": "\u041F\u043E\u043C\u0435\u043D\u044F\u0442\u044C \u044F\u0437\u044B\u043A\u0438 \u043C\u0435\u0441\u0442\u0430\u043C\u0438: \u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u0441\u0442\u0430\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u043E\u043C",
+    "card.voiceOffer": "\u0415\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441 \u0437\u0432\u0443\u0447\u0438\u0442 \u043A\u0430\u043A \u0436\u0438\u0432\u043E\u0439 \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u0438 \u0447\u0438\u0442\u0430\u0435\u0442 \u0431\u0435\u0437 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0430.",
+    "card.voiceDownload": "\u0421\u043A\u0430\u0447\u0430\u0442\u044C \xB7 {size} \u041C\u0411",
+    "card.voiceFailed": "\u0415\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441 \u043D\u0435 \u0441\u043A\u0430\u0447\u0430\u043B\u0441\u044F.",
+    "card.voiceDownloading": "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0433\u043E \u0433\u043E\u043B\u043E\u0441\u0430\u2026 {pct}%",
+    "card.voiceReady": "\u0415\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441 \u0433\u043E\u0442\u043E\u0432. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u0421\u043B\u0443\u0448\u0430\u0442\u044C\xBB, \u0447\u0442\u043E\u0431\u044B \u0443\u0441\u043B\u044B\u0448\u0430\u0442\u044C \u0435\u0433\u043E.",
+    "card.busyCard": "\u0412\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u043D\u044F\u0442\u0430, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u044D\u0442\u043E \u043F\u0435\u0440\u0435\u0432\u0451\u043B \xAB\u0411\u044B\u0441\u0442\u0440\u044B\u0439\xBB. \xAB{level}\xBB \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F, \u043A\u0430\u043A \u0442\u043E\u043B\u044C\u043A\u043E \u043E\u043D\u0430 \u043E\u0441\u0432\u043E\u0431\u043E\u0434\u0438\u0442\u0441\u044F.",
+    "card.busyProcessor": "\u041F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440 \u0437\u0430\u043D\u044F\u0442, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u044D\u0442\u043E \u043F\u0435\u0440\u0435\u0432\u0451\u043B \xAB\u0411\u044B\u0441\u0442\u0440\u044B\u0439\xBB. \xAB{level}\xBB \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F, \u043A\u0430\u043A \u0442\u043E\u043B\u044C\u043A\u043E \u043E\u043D \u043E\u0441\u0432\u043E\u0431\u043E\u0434\u0438\u0442\u0441\u044F.",
+    "card.useAnyway": "\u0412\u0441\u0451 \u0440\u0430\u0432\u043D\u043E \xAB{level}\xBB",
+    "card.hideTranslation": "\u0421\u043A\u0440\u044B\u0442\u044C \u043F\u0435\u0440\u0435\u0432\u043E\u0434 ({lang})",
+    "card.showTranslation": "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u043F\u0435\u0440\u0435\u0432\u043E\u0434 ({lang})",
+    "card.unpin": "\u041E\u0442\u043A\u0440\u0435\u043F\u0438\u0442\u044C: \u0437\u0430\u043A\u0440\u044B\u0432\u0430\u0442\u044C \u043F\u0440\u0438 \u0449\u0435\u043B\u0447\u043A\u0435 \u043F\u043E \u0434\u0440\u0443\u0433\u043E\u043C\u0443 \u043E\u043A\u043D\u0443",
+    "card.pin": "\u0417\u0430\u043A\u0440\u0435\u043F\u0438\u0442\u044C: \u043D\u0435 \u0437\u0430\u043A\u0440\u044B\u0432\u0430\u0442\u044C",
+    "card.oneOn": "\u0427\u0438\u0442\u0430\u0435\u0442 \u043E\u0434\u043D\u043E \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0438 \u0436\u0434\u0451\u0442; \u2190 \u2192 \u2014 \u0448\u0430\u0433",
+    "card.oneOff": "\u0427\u0438\u0442\u0430\u0442\u044C \u043F\u043E \u043E\u0434\u043D\u043E\u043C\u0443 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044E",
+    "card.translatingFast": "\u041F\u0435\u0440\u0435\u0432\u043E\u0434\u0438\u0442 \xAB\u0411\u044B\u0441\u0442\u0440\u044B\u0439\xBB\u2026",
+    "card.translating": "\u041F\u0435\u0440\u0435\u0432\u043E\u0434\u2026",
+    "card.translatingLevel": "\u041F\u0435\u0440\u0435\u0432\u043E\u0434 \xB7 {level}\u2026",
+    "card.ofGb": "{a} \u0438\u0437 {b} \u0413\u0411",
+    "card.ofMb": "{a} \u0438\u0437 {b} \u041C\u0411",
+    "card.firstUse": "\u043F\u0435\u0440\u0432\u043E\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D\u0438\u0435 \xB7 \u043E\u0434\u0438\u043D \u0440\u0430\u0437",
+    "card.modelOf": "\u041C\u043E\u0434\u0435\u043B\u044C \xAB{name}\xBB",
+    "card.translatorPair": "\u041F\u0435\u0440\u0435\u0432\u043E\u0434\u0447\u0438\u043A, {pair}",
+    "card.fromMozilla": "\u0421\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0438\u0437 Mozilla, \u0434\u0430\u043B\u044C\u0448\u0435 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0438\u0442 \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435.",
+    "card.fromHfTranslates": "\u0421\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0438\u0437 Hugging Face, \u0434\u0430\u043B\u044C\u0448\u0435 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0438\u0442 \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435.",
+    "card.fromHfChecks": "\u0421\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0438\u0437 Hugging Face, \u0434\u0430\u043B\u044C\u0448\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442 \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435.",
+    "card.readMeanwhile": "\u0410\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439 \u0442\u0435\u043A\u0441\u0442 \u043F\u043E\u043A\u0430 \u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044F.",
+    "card.notChecked": "\u041D\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u0435\u043D\u043E",
+    "card.notTranslated": "\u041D\u0435 \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u043E",
+    "card.readingScreen": "\u0427\u0438\u0442\u0430\u044E \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u044D\u043A\u0440\u0430\u043D\u0435\u2026",
+    "card.noText": "\u0417\u0434\u0435\u0441\u044C \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430",
+    "card.noTextNote": "\u041D\u0430 \u044D\u0442\u043E\u043C \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442\u0435 \u044D\u043A\u0440\u0430\u043D\u0430 \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 Krya \u043C\u043E\u0436\u0435\u0442 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C. \u0412\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u0441\u043E \u0441\u043B\u043E\u0432\u0430\u043C\u0438.",
+    "card.noOcr": "Windows \u043F\u043E\u043A\u0430 \u043D\u0435 \u0443\u043C\u0435\u0435\u0442 \u0447\u0438\u0442\u0430\u0442\u044C \u0442\u0435\u043A\u0441\u0442",
+    "card.noOcrNote": "\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u0442\u0435\u043A\u0441\u0442\u0430 \u0434\u043B\u044F \u044F\u0437\u044B\u043A\u0430 \xAB{lang}\xBB \u0438\u043B\u0438 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E: \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u2192 \u0412\u0440\u0435\u043C\u044F \u0438 \u044F\u0437\u044B\u043A \u2192 \u042F\u0437\u044B\u043A \u0438 \u0440\u0435\u0433\u0438\u043E\u043D \u2192 \u044F\u0437\u044B\u043A \u2192 \u042F\u0437\u044B\u043A\u043E\u0432\u044B\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u2192 \u041E\u043F\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432.",
+    "card.openLanguageSettings": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u044F\u0437\u044B\u043A\u043E\u0432\u044B\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B",
+    "card.yourEnglish": "\u0412\u0430\u0448 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439",
+    "card.typeEnglish": "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0438\u043B\u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u043C",
+    "card.checkedBy": "\u041F\u0440\u043E\u0432\u0435\u0440\u0435\u043D\u043E \xB7 {model}",
+    "card.improving": "\u0423\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F \xB7 {level}\u2026",
+    "card.translatedBy": "\u041F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u043E \xB7 {level}",
+    "card.newLine": "{by} \xB7 Shift+Enter \u2014 \u043D\u043E\u0432\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430",
+    "card.yours": "\u0412\u0430\u0448\u0438",
+    "card.allLanguages": "\u0412\u0441\u0435 \u044F\u0437\u044B\u043A\u0438",
+    "card.pasteOver": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0432\u043C\u0435\u0441\u0442\u043E \u0432\u044B\u0434\u0435\u043B\u0435\u043D\u043D\u043E\u0433\u043E (Enter)",
+    "card.pasteLater": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u0441\u044F, \u043A\u0430\u043A \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438\u0434\u0451\u0442 \u0442\u043E\u0447\u043D\u044B\u0439 \u043F\u0435\u0440\u0435\u0432\u043E\u0434 (Enter)",
+    "card.pasteChecked": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043D\u044B\u0439 \u0442\u0435\u043A\u0441\u0442 \u0432\u043C\u0435\u0441\u0442\u043E \u0432\u044B\u0434\u0435\u043B\u0435\u043D\u043D\u043E\u0433\u043E (Enter)",
+    "card.looksRight": "\u041F\u043E\u0445\u043E\u0436\u0435, \u0432\u0441\u0451 \u0432\u0435\u0440\u043D\u043E",
+    "card.listenSpace": "\u0421\u043B\u0443\u0448\u0430\u0442\u044C (Space)",
+    "card.listenParagraph": "\u041F\u0440\u043E\u0441\u043B\u0443\u0448\u0430\u0442\u044C \u044D\u0442\u043E\u0442 \u0430\u0431\u0437\u0430\u0446",
+    "card.naturalStopped": "\u0415\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u043B\u0441\u044F ({message}). \u0414\u0430\u043B\u044C\u0448\u0435 \u0447\u0438\u0442\u0430\u0435\u0442 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441.",
+    "card.noVoice": "\u041D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435 \u043D\u0435\u0442 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E \u0433\u043E\u043B\u043E\u0441\u0430.",
+    "card.openSpeechSettings": "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u0440\u0435\u0447\u0438",
+    "voice.stepsWin": "\u0427\u0442\u043E\u0431\u044B \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C: \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B Windows \u2192 \u0412\u0440\u0435\u043C\u044F \u0438 \u044F\u0437\u044B\u043A \u2192 \u0420\u0435\u0447\u044C \u2192 \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0433\u043E\u043B\u043E\u0441\u0430 \u2192 {lang}, \u0437\u0430\u0442\u0435\u043C \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 Krya.",
+    "voice.stepsMac": "\u0427\u0442\u043E\u0431\u044B \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C: \u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u2192 \u0423\u043D\u0438\u0432\u0435\u0440\u0441\u0430\u043B\u044C\u043D\u044B\u0439 \u0434\u043E\u0441\u0442\u0443\u043F \u2192 \u0423\u0441\u0442\u043D\u044B\u0439 \u043A\u043E\u043D\u0442\u0435\u043D\u0442 \u2192 \u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0439 \u0433\u043E\u043B\u043E\u0441 \u2192 \u0423\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0433\u043E\u043B\u043E\u0441\u0430\u043C\u0438 \u2192 {lang}, \u0437\u0430\u0442\u0435\u043C \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 Krya.",
+    "voice.none": "\u0414\u043B\u044F \u0447\u0442\u0435\u043D\u0438\u044F \u0432\u0441\u043B\u0443\u0445 \u043D\u0443\u0436\u043D\u044B \u0433\u043E\u043B\u043E\u0441\u0430 Windows \u0438\u043B\u0438 macOS; \u0432 \u044D\u0442\u043E\u0439 \u0441\u0438\u0441\u0442\u0435\u043C\u0435 \u043D\u0435\u0442 \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E \u043F\u043E\u0434\u0445\u043E\u0434\u044F\u0449\u0435\u0433\u043E.",
+    // ------------------------------------------------------------ the word card
+    "word.from": "\u0444\u043E\u0440\u043C\u0430: {word}",
+    "word.say": "\u041F\u0440\u043E\u0438\u0437\u043D\u0435\u0441\u0442\u0438",
+    "word.save": "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0432 \xAB\u0421\u043B\u043E\u0432\u0430\xBB",
+    "word.remove": "\u0423\u0431\u0440\u0430\u0442\u044C \u0438\u0437 \xAB\u0421\u043B\u043E\u0432\xBB",
+    "word.notFound": "\u041D\u0435\u0442 \u0432 \u0441\u043B\u043E\u0432\u0430\u0440\u0435.",
+    "word.pair": "\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439 \u2192 {lang}",
+    "word.notEnglish": "\u0417\u043D\u0430\u0447\u0435\u043D\u0438\u044F \u0441\u043B\u043E\u0432 \u043F\u043E\u043A\u0430 \u0435\u0441\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u0434\u043B\u044F \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E; \u043F\u0435\u0440\u0435\u0432\u043E\u0434 ({lang}) \u2014 \u043D\u0438\u0436\u0435.",
+    "word.noDictionary": "\u0421\u043B\u043E\u0432\u0430\u0440\u044F {pair} \u043F\u043E\u043A\u0430 \u043D\u0435\u0442; \u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u2014 \u043D\u0438\u0436\u0435.",
+    "word.downloading": "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0441\u043B\u043E\u0432\u0430\u0440\u044F {pair}, \u043E\u0434\u0438\u043D \u0440\u0430\u0437\u2026",
+    "word.failed": "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u0430\u0447\u0430\u0442\u044C \u0441\u043B\u043E\u0432\u0430\u0440\u044C {pair}. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043A \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0443; \u043D\u043E\u0432\u0430\u044F \u043F\u043E\u043F\u044B\u0442\u043A\u0430 \u0447\u0435\u0440\u0435\u0437 \u043C\u0438\u043D\u0443\u0442\u0443.",
+    "word.off": "\u0421\u043B\u043E\u0432\u0430\u0440\u044C {pair} \u043D\u0435 \u0441\u043A\u0430\u0447\u0430\u043D.",
+    // ------------------------------------------------------------ the talk window
+    "talk.yourTalks": "\u0412\u0430\u0448\u0438 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u044B",
+    "talk.hideTalks": "\u0421\u043A\u0440\u044B\u0442\u044C \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u044B",
+    "talk.settings": "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0430",
+    "talk.toEnd": "\u041A \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0439 \u0440\u0435\u043F\u043B\u0438\u043A\u0435",
+    "talk.typePlaceholder": "\u0418\u043B\u0438 \u043D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0440\u0435\u043F\u043B\u0438\u043A\u0443",
+    "talk.typeOnly": "\u041D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 Enter",
+    "talk.typeAria": "\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u0440\u0435\u043F\u043B\u0438\u043A\u0443 \u0443\u0442\u043A\u0435",
+    "talk.newTitle": "\u0423\u0431\u0440\u0430\u0442\u044C \u044D\u0442\u043E\u0442 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440 \u0432 \u0438\u0441\u0442\u043E\u0440\u0438\u044E \u0438 \u043D\u0430\u0447\u0430\u0442\u044C \u043D\u043E\u0432\u044B\u0439",
+    "talk.new": "\u041D\u043E\u0432\u044B\u0439 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440",
+    "talk.closeList": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C \u0441\u043F\u0438\u0441\u043E\u043A",
+    "talk.today": "\u0421\u0435\u0433\u043E\u0434\u043D\u044F",
+    "talk.yesterday": "\u0412\u0447\u0435\u0440\u0430",
+    "talk.earlier": "\u0420\u0430\u043D\u0435\u0435",
+    "talk.lines": { one: "{n} \u0440\u0435\u043F\u043B\u0438\u043A\u0430", few: "{n} \u0440\u0435\u043F\u043B\u0438\u043A\u0438", many: "{n} \u0440\u0435\u043F\u043B\u0438\u043A", other: "{n} \u0440\u0435\u043F\u043B\u0438\u043A\u0438" },
+    "talk.withMistake": "\u0441 \u043E\u0448\u0438\u0431\u043A\u043E\u0439: {n}",
+    "talk.goingOnMeta": "\u0438\u0434\u0451\u0442",
+    "talk.goingOnTitle": "\u0422\u0435\u043A\u0443\u0449\u0438\u0439 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440",
+    "talk.goOn": "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u044D\u0442\u043E\u0442 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440",
+    "talk.firstLine": "\u041F\u0435\u0440\u0432\u0430\u044F \u0440\u0435\u043F\u043B\u0438\u043A\u0430 \u0443\u0442\u043A\u0438",
+    "talk.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u044D\u0442\u043E\u0442 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440",
+    "talk.goingOn": "\u0418\u0434\u0451\u0442 \u0441\u0435\u0439\u0447\u0430\u0441",
+    "talk.historyEmpty": "\xAB\u041D\u043E\u0432\u044B\u0439 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\xBB \u043F\u0435\u0440\u0435\u043D\u043E\u0441\u0438\u0442 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440 \u0441\u044E\u0434\u0430, \u0447\u0442\u043E\u0431\u044B \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0435\u0433\u043E \u043F\u043E\u0437\u0436\u0435. \u0425\u0440\u0430\u043D\u0438\u0442\u0441\u044F 30 \u0434\u043D\u0435\u0439 \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435, \u043D\u0435 \u0431\u043E\u043B\u044C\u0448\u0435 50.",
+    "talk.sureOne": "\u0422\u043E\u0447\u043D\u043E? \u0423\u0434\u0430\u043B\u0438\u0442\u044C",
+    "talk.sureAll": "\u0422\u043E\u0447\u043D\u043E? \u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0432\u0441\u0435 ({n})",
+    "talk.clearAll": "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u0432\u0441\u0451",
+    "talk.needsCard": "\u0414\u043B\u044F \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0430 \u043D\u0443\u0436\u043D\u0430 \u0432\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0441 4 \u0413\u0411 \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0439 \u043F\u0430\u043C\u044F\u0442\u0438 \u0438\u043B\u0438 \u0431\u043E\u043B\u044C\u0448\u0435",
+    "talk.needsCardNote": "\u041D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435 \u0443\u0442\u043A\u0430 \u043E\u0442\u0432\u0435\u0447\u0430\u043B\u0430 \u0431\u044B 15 \u0441\u0435\u043A\u0443\u043D\u0434 \u0438 \u0434\u043E\u043B\u044C\u0448\u0435 \u2014 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E \u0434\u043B\u044F \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0430. \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E\xBB \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043A\u0430\u043A \u043F\u0440\u0435\u0436\u0434\u0435.",
+    "talk.downloading": "\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430, {pct}%; \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440 \u043D\u0430\u0447\u043D\u0451\u0442\u0441\u044F, \u043A\u0430\u043A \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u043E\u0434\u0435\u043B\u044C \u0431\u0443\u0434\u0435\u0442 \u0437\u0434\u0435\u0441\u044C",
+    "talk.downloadFailed": "\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043D\u0435 \u0443\u0434\u0430\u043B\u0430\u0441\u044C",
+    "talk.downloadIt": "\u0441\u043A\u0430\u0447\u0430\u0439\u0442\u0435 \u0435\u0451 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445; \u0435\u0451 \u0442\u0430\u043A\u0436\u0435 \u043C\u043E\u0433\u0443\u0442 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E\xBB \u0438 \xAB\u041F\u0435\u0440\u0435\u0432\u043E\u0434\xBB",
+    "talk.needsModel": "\u0423\u0442\u043A\u0435 \u043D\u0443\u0436\u043D\u0430 \u0435\u0451 \u043C\u043E\u0434\u0435\u043B\u044C: {name}, {size}",
+    "talk.noEngine": "\u041F\u0438\u0448\u0438\u0442\u0435 \u0443\u0442\u043A\u0435 \u0438\u043B\u0438 \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u0440\u0435\u0447\u0438, \u0447\u0442\u043E\u0431\u044B \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u044C",
+    "talk.noEngineNote": "\u0420\u0430\u0437\u0433\u043E\u0432\u043E\u0440 \u0441\u043B\u044B\u0448\u0438\u0442 \u0432\u0430\u0441 \u0447\u0435\u0440\u0435\u0437 \u0434\u0432\u0438\u0436\u043E\u043A \u0440\u0435\u0447\u0438, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \xAB\u0414\u0438\u043A\u0442\u043E\u0432\u043A\u0430\xBB; \u0441\u043A\u0430\u0447\u0430\u0439\u0442\u0435 \u0435\u0433\u043E \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.",
+    "talk.engineStarting": "\u0414\u0432\u0438\u0436\u043E\u043A \u0440\u0435\u0447\u0438 \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u0442\u0441\u044F\u2026",
+    "talk.slow": "\xAB{name}\xBB \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E: \u0443\u0442\u043A\u0430 \u043C\u043E\u0436\u0435\u0442 \u043E\u0442\u0432\u0435\u0447\u0430\u0442\u044C \u0434\u043E\u043B\u0433\u043E. \xAB{accurate}\xBB \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u043F\u0440\u0438\u043C\u0435\u0440\u043D\u043E \u0437\u0430 3 \u0441\u0435\u043A\u0443\u043D\u0434\u044B.",
+    "talk.busyCard": "\u0412\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0443 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0434\u0440\u0443\u0433\u0430\u044F \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u0430: \u0443\u0442\u043A\u0430 \u043C\u043E\u0436\u0435\u0442 \u043E\u0442\u0432\u0435\u0447\u0430\u0442\u044C \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E.",
+    "talk.busyProcessor": "\u041F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0434\u0440\u0443\u0433\u0430\u044F \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u0430: \u0443\u0442\u043A\u0430 \u043C\u043E\u0436\u0435\u0442 \u043E\u0442\u0432\u0435\u0447\u0430\u0442\u044C \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E.",
+    "talk.intro": "\u0413\u043E\u0432\u043E\u0440\u0438\u0442\u0435 \u043F\u043E-\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438. \u0423\u0442\u043A\u0430 \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0432\u0441\u043B\u0443\u0445, \u0430 \u0432\u0430\u0448\u0438 \u043E\u0448\u0438\u0431\u043A\u0438 \u043E\u0442\u043C\u0435\u0447\u0430\u044E\u0442\u0441\u044F \u0432 \u0432\u0430\u0448\u0438\u0445 \u0440\u0435\u043F\u043B\u0438\u043A\u0430\u0445.",
+    "talk.orTypeHello": "\u0418\u043B\u0438 \u043D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 hello \u043D\u0438\u0436\u0435.",
+    "talk.orSayHello": "\u0418\u043B\u0438 \u043F\u0440\u043E\u0441\u0442\u043E \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443 \u0438 \u0441\u043A\u0430\u0436\u0438\u0442\u0435 hello.",
+    "talk.unpin": "\u041D\u0435 \u0434\u0435\u0440\u0436\u0430\u0442\u044C \u043F\u043E\u0432\u0435\u0440\u0445 \u0434\u0440\u0443\u0433\u0438\u0445 \u043E\u043A\u043E\u043D",
+    "talk.pin": "\u0414\u0435\u0440\u0436\u0430\u0442\u044C \u043F\u043E\u0432\u0435\u0440\u0445 \u0434\u0440\u0443\u0433\u0438\u0445 \u043E\u043A\u043E\u043D",
+    "talk.modelTitle": "\u0423\u0442\u043A\u0430 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043D\u0430 {model} \u2014 \u0442\u043E\u0439 \u0436\u0435 \u043C\u043E\u0434\u0435\u043B\u0438, \u0447\u0442\u043E \u0438 \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E\xBB, \u043D\u0430 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435. \u041D\u0430\u0436\u043C\u0438\u0442\u0435, \u0447\u0442\u043E\u0431\u044B \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C.",
+    "talk.failed": "\u0423\u0442\u043A\u0430 \u043D\u0435 \u0441\u043C\u043E\u0433\u043B\u0430 \u043E\u0442\u0432\u0435\u0442\u0438\u0442\u044C: {message}. \u0421\u043A\u0430\u0436\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437 \u0438\u043B\u0438 \u043D\u0430\u043F\u0438\u0448\u0438\u0442\u0435.",
+    "talk.noAnswer": "\u043D\u0435\u0442 \u043E\u0442\u0432\u0435\u0442\u0430",
+    "talk.startingMic": "\u0412\u043A\u043B\u044E\u0447\u0430\u044E \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u2026",
+    "talk.send": "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C",
+    "talk.talk": "\u0413\u043E\u0432\u043E\u0440\u0438\u0442\u044C",
+    "talk.notPossible": "\u0420\u0430\u0437\u0433\u043E\u0432\u043E\u0440 \u043F\u043E\u043A\u0430 \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u0435\u043D: \u0441\u043C. \u0432\u044B\u0448\u0435.",
+    "talk.speaking": "\u0423\u0442\u043A\u0430 \u0433\u043E\u0432\u043E\u0440\u0438\u0442",
+    "talk.thinking": "\u0423\u0442\u043A\u0430 \u0434\u0443\u043C\u0430\u0435\u0442\u2026",
+    "talk.typingOnly": "\u0422\u043E\u043B\u044C\u043A\u043E \u0442\u0435\u043A\u0441\u0442\u043E\u043C, \u043F\u043E\u043A\u0430 \u043D\u0435\u0442 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F \u0440\u0435\u0447\u0438",
+    "talk.pressAgain": "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437, \u0447\u0442\u043E\u0431\u044B \u043F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C.",
+    "talk.listeningPress": "\u0421\u043B\u0443\u0448\u0430\u044E \xB7 {keys} \u2014 \u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C",
+    "talk.speakingPress": "\u0423\u0442\u043A\u0430 \u0433\u043E\u0432\u043E\u0440\u0438\u0442 \xB7 {keys} \u2014 \u043E\u0442\u0432\u0435\u0442\u0438\u0442\u044C",
+    "talk.thinkingPress": "\u0423\u0442\u043A\u0430 \u0434\u0443\u043C\u0430\u0435\u0442 \xB7 {keys} \u2014 \u043F\u0435\u0440\u0435\u0431\u0438\u0442\u044C",
+    "talk.press": "{keys} \u2014 \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u044C",
+    "talk.finishing": "\u0417\u0430\u0432\u0435\u0440\u0448\u0430\u044E \u0440\u0435\u043F\u043B\u0438\u043A\u0443\u2026",
+    "talk.nothingHeard": "\u041D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u0443\u0441\u043B\u044B\u0448\u0430\u043D\u043E.",
+    "turn.again": "\u0421\u043A\u0430\u0437\u0430\u0442\u044C \u0435\u0449\u0451 \u0440\u0430\u0437",
+    "turn.checking": "\u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430\u2026",
+    "turn.setRight": "\u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0432\u044B\u0448\u0435",
+    "turn.hearRight": "\u0423\u0441\u043B\u044B\u0448\u0430\u0442\u044C, \u043A\u0430\u043A \u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E",
+    "turn.hear": "\u0423\u0441\u043B\u044B\u0448\u0430\u0442\u044C",
+    "topic.free": "\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0439 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440",
+    "topic.day": "\u041C\u043E\u0439 \u0434\u0435\u043D\u044C",
+    "topic.trip": "\u041F\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432\u0438\u0435",
+    "topic.cafe": "\u0412 \u043A\u0430\u0444\u0435",
+    "topic.interview": "\u0421\u043E\u0431\u0435\u0441\u0435\u0434\u043E\u0432\u0430\u043D\u0438\u0435",
+    "topic.work": "\u041C\u043E\u044F \u0440\u0430\u0431\u043E\u0442\u0430",
+    // ------------------------------------------------------------ the microphone and the dictation badge
+    "mic.denied": "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443: \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u0435 \u0435\u0433\u043E \u0432 \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0430\u0445 Windows \u2192 \u041A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u2192 \u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D",
+    "mic.none": "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D",
+    "mic.busy": "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D \u0437\u0430\u043D\u044F\u0442 \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u043E\u0439",
+    "dict.type": "\u0414\u0438\u043A\u0442\u043E\u0432\u043A\u0430",
+    "dict.english": "\u0414\u0438\u043A\u0442\u043E\u0432\u043A\u0430 \u043D\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u043C",
+    "dict.note": "\u0417\u0430\u043C\u0435\u0442\u043A\u0430",
+    "dict.check": "\u041F\u0440\u0430\u043A\u0442\u0438\u043A\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E",
+    "dict.gettingModel": "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043C\u043E\u0434\u0435\u043B\u0438 \u0440\u0435\u0447\u0438 {pct}%",
+    "dict.savingNote": "\u0421\u043E\u0445\u0440\u0430\u043D\u044F\u044E \u0437\u0430\u043C\u0435\u0442\u043A\u0443\u2026",
+    "dict.catchingUp": "\u0414\u043E\u0433\u043E\u043D\u044F\u044E\u2026",
+    "dict.typing": "\u041F\u0435\u0447\u0430\u0442\u0430\u044E\u2026",
+    "dict.saved": "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E",
+    "dict.typed": "\u041D\u0430\u043F\u0435\u0447\u0430\u0442\u0430\u043D\u043E",
+    "dict.noteFailed": "\u0417\u0430\u043C\u0435\u0442\u043A\u0430 \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430",
+    "dict.nothingTyped": "\u041D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u043D\u0430\u043F\u0435\u0447\u0430\u0442\u0430\u043D\u043E",
+    "dict.fastCard": "\u041D\u0430\u043F\u0435\u0447\u0430\u0442\u0430\u043D\u043E \xAB\u0411\u044B\u0441\u0442\u0440\u044B\u043C\xBB: \u0432\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u043D\u044F\u0442\u0430",
+    "dict.fastProcessor": "\u041D\u0430\u043F\u0435\u0447\u0430\u0442\u0430\u043D\u043E \xAB\u0411\u044B\u0441\u0442\u0440\u044B\u043C\xBB: \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440 \u0437\u0430\u043D\u044F\u0442",
+    "badge.fastCard": "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \xB7 \u0432\u0438\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u043D\u044F\u0442\u0430",
+    "badge.fastProcessor": "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \xB7 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440 \u0437\u0430\u043D\u044F\u0442",
+    "settings.uiLanguage": "\u042F\u0437\u044B\u043A \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430",
+    "settings.uiLanguageNote": "\u043C\u0435\u043D\u044E \u0438 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B Krya; \u0442\u043E, \u0447\u0435\u043C\u0443 \u043E\u043D\u0430 \u0443\u0447\u0438\u0442, \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u043D\u0430 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u043C"
+  };
+
+  // src/i18n/uk.ts
+  var uk = {
+    // ------------------------------------------------------------ shared
+    "common.close": "\u0417\u0430\u043A\u0440\u0438\u0442\u0438",
+    "common.restore": "\u0412\u0456\u0434\u043D\u043E\u0432\u0438\u0442\u0438",
+    "common.maximize": "\u0420\u043E\u0437\u0433\u043E\u0440\u043D\u0443\u0442\u0438",
+    "common.copy": "\u041A\u043E\u043F\u0456\u044E\u0432\u0430\u0442\u0438",
+    "common.copied": "\u0421\u043A\u043E\u043F\u0456\u0439\u043E\u0432\u0430\u043D\u043E",
+    "common.notNow": "\u041D\u0435 \u0437\u0430\u0440\u0430\u0437",
+    "common.retry": "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0438",
+    "common.tryAgain": "\u0421\u043F\u0440\u043E\u0431\u0443\u0432\u0430\u0442\u0438 \u0449\u0435 \u0440\u0430\u0437",
+    "common.openSettings": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F",
+    "common.listen": "\u0421\u043B\u0443\u0445\u0430\u0442\u0438",
+    "common.stop": "\u0421\u0442\u043E\u043F",
+    "common.paste": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u0438",
+    "common.listening": "\u0421\u043B\u0443\u0445\u0430\u044E\u2026",
+    "common.checking": "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430\u2026",
+    "common.or": "\u0430\u0431\u043E",
+    "common.and": "\u0456",
+    "common.cancel": "\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438",
+    "main.saveWords": "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0441\u043B\u043E\u0432\u0430 \u0434\u043B\u044F Anki",
+    "main.ankiText": "\u0422\u0435\u043A\u0441\u0442 \u0434\u043B\u044F Anki",
+    "main.saveBackup": "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443 \u043A\u043E\u043F\u0456\u044E",
+    "main.backupFile": "\u0420\u0435\u0437\u0435\u0440\u0432\u043D\u0430 \u043A\u043E\u043F\u0456\u044F Krya",
+    "main.openBackup": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438 \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443 \u043A\u043E\u043F\u0456\u044E",
+    "main.backupUnread": "\u0426\u044E \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443 \u043A\u043E\u043F\u0456\u044E \u043D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u0438",
+    "main.importAsk": "\u0406\u043C\u043F\u043E\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0446\u044E \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u0443 \u043A\u043E\u043F\u0456\u044E?",
+    "main.importDetail": "\u0423 \u043D\u0456\u0439: {what}. \u041D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F \u0441\u0442\u0430\u043D\u0443\u0442\u044C \u0442\u0430\u043A\u0438\u043C\u0438, \u044F\u043A \u0443 \u043A\u043E\u043F\u0456\u0457; \u0457\u0457 \u0441\u043B\u043E\u0432\u0430, \u043F\u043E\u043C\u0438\u043B\u043A\u0438 \u0442\u0430 \u0456\u0441\u0442\u043E\u0440\u0456\u044E \u0431\u0443\u0434\u0435 \u0434\u043E\u0434\u0430\u043D\u043E \u0434\u043E \u0432\u0430\u0448\u0438\u0445, \u043D\u0456\u0447\u043E\u0433\u043E \u0432\u0430\u0448\u043E\u0433\u043E \u043D\u0435 \u0432\u0438\u0434\u0430\u043B\u044F\u0454\u0442\u044C\u0441\u044F.",
+    "main.import": "\u0406\u043C\u043F\u043E\u0440\u0442\u0443\u0432\u0430\u0442\u0438",
+    "main.resetAsk": "\u0421\u043A\u0438\u043D\u0443\u0442\u0438 \u0432\u0441\u0456 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F?",
+    "main.resetDetail": "\u041A\u043B\u0430\u0432\u0456\u0448\u0456, \u043F\u0435\u0440\u0435\u043C\u0438\u043A\u0430\u0447\u0456 \u0442\u0430 \u0441\u043F\u0438\u0441\u043A\u0438 \u043F\u043E\u0432\u0435\u0440\u043D\u0443\u0442\u044C\u0441\u044F \u0434\u043E \u043F\u043E\u0447\u0430\u0442\u043A\u043E\u0432\u0438\u0445. \u0412\u0430\u0448\u0430 \u043C\u043E\u0432\u0430, \u0441\u043B\u043E\u0432\u0430, \u0440\u043E\u0437\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0438 \u0456 \u0442\u0435, \u0447\u043E\u0433\u043E Krya \u043D\u0430\u0432\u0447\u0438\u043B\u0430\u0441\u044F \u0437 \u0432\u0430\u0448\u043E\u0433\u043E \u043D\u0430\u0431\u043E\u0440\u0443, \u0437\u0430\u043B\u0438\u0448\u0430\u0442\u044C\u0441\u044F.",
+    "main.reset": "\u0421\u043A\u0438\u043D\u0443\u0442\u0438",
+    "main.resetKeysAsk": "\u0421\u043A\u0438\u043D\u0443\u0442\u0438 \u0432\u0441\u0456 \u043A\u043B\u0430\u0432\u0456\u0448\u0456?",
+    "main.resetKeysDetail": "\u041A\u043E\u0436\u043D\u0435 \u0441\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F \u043A\u043B\u0430\u0432\u0456\u0448 \u043F\u043E\u0432\u0435\u0440\u043D\u0435\u0442\u044C\u0441\u044F \u0434\u043E \u043F\u043E\u0447\u0430\u0442\u043A\u043E\u0432\u043E\u0433\u043E: Ctrl+Alt+S, Ctrl+Alt+T, Ctrl+Alt+D, Ctrl+Alt+N \u0456 Ctrl+C \u0434\u0432\u0456\u0447\u0456; \u0440\u0435\u0448\u0442\u0443 \u0431\u0443\u0434\u0435 \u043E\u0447\u0438\u0449\u0435\u043D\u043E. \u0411\u0456\u043B\u044C\u0448\u0435 \u043D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u0437\u043C\u0456\u043D\u0438\u0442\u044C\u0441\u044F.",
+    "main.resetKeys": "\u0421\u043A\u0438\u043D\u0443\u0442\u0438 \u043A\u043B\u0430\u0432\u0456\u0448\u0456",
+    "main.saveTranscript": "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0440\u043E\u0437\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0443",
+    "main.notTranslated": "\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438: {why}",
+    "main.noClipText": "\u0423 \u0431\u0443\u0444\u0435\u0440\u0456 \u043E\u0431\u043C\u0456\u043D\u0443 \u043D\u0435\u043C\u0430\u0454 \u0442\u0435\u043A\u0441\u0442\u0443. \u0421\u043F\u0435\u0440\u0448\u0443 \u0432\u0438\u0434\u0456\u043B\u0456\u0442\u044C \u0442\u0435\u043A\u0441\u0442 \u0456 \u0441\u043A\u043E\u043F\u0456\u044E\u0439\u0442\u0435 \u0439\u043E\u0433\u043E.",
+    "main.nothingCopied": "\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u0441\u043A\u043E\u043F\u0456\u0439\u043E\u0432\u0430\u043D\u043E. \u0412\u0438\u0434\u0456\u043B\u0456\u0442\u044C \u0442\u0435\u043A\u0441\u0442, \u043F\u043E\u0442\u0456\u043C \u043D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u0441\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F \u043A\u043B\u0430\u0432\u0456\u0448.",
+    "main.keysTaken": { one: "\u0421\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F {keys} \u0437\u0430\u0439\u043D\u044F\u0442\u0435 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E. \u0412\u0438\u0431\u0435\u0440\u0456\u0442\u044C \u0456\u043D\u0448\u0435 \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445.", few: "\u0421\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F {keys} \u0437\u0430\u0439\u043D\u044F\u0442\u0456 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E. \u0412\u0438\u0431\u0435\u0440\u0456\u0442\u044C \u0456\u043D\u0448\u0456 \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445.", many: "\u0421\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F {keys} \u0437\u0430\u0439\u043D\u044F\u0442\u0456 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E. \u0412\u0438\u0431\u0435\u0440\u0456\u0442\u044C \u0456\u043D\u0448\u0456 \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445.", other: "\u0421\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044F {keys} \u0437\u0430\u0439\u043D\u044F\u0442\u0456 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E. \u0412\u0438\u0431\u0435\u0440\u0456\u0442\u044C \u0456\u043D\u0448\u0456 \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445." },
+    "main.copyTwiceOff": "Ctrl+C \u0434\u0432\u0456\u0447\u0456 \u043D\u0435 \u043F\u0440\u0430\u0446\u044E\u0432\u0430\u0442\u0438\u043C\u0435: {why}. \u041A\u043E\u0440\u0438\u0441\u0442\u0443\u0439\u0442\u0435\u0441\u044F \u043C\u0435\u043D\u044E \u0432 \u0442\u0440\u0435\u0457.",
+    "backup.settings": "\u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F",
+    "backup.words": { one: "{n} \u0441\u043B\u043E\u0432\u043E", few: "{n} \u0441\u043B\u043E\u0432\u0430", many: "{n} \u0441\u043B\u0456\u0432", other: "{n} \u0441\u043B\u043E\u0432\u0430" },
+    "backup.mistakes": { one: "{n} \u043F\u043E\u043C\u0438\u043B\u043A\u0430", few: "{n} \u043F\u043E\u043C\u0438\u043B\u043A\u0438", many: "{n} \u043F\u043E\u043C\u0438\u043B\u043E\u043A", other: "{n} \u043F\u043E\u043C\u0438\u043B\u043A\u0438" },
+    "backup.learned": { one: "{n} \u0432\u0438\u0432\u0447\u0435\u043D\u0435 \u0441\u043B\u043E\u0432\u043E", few: "{n} \u0432\u0438\u0432\u0447\u0435\u043D\u0456 \u0441\u043B\u043E\u0432\u0430", many: "{n} \u0432\u0438\u0432\u0447\u0435\u043D\u0438\u0445 \u0441\u043B\u0456\u0432", other: "{n} \u0432\u0438\u0432\u0447\u0435\u043D\u043E\u0433\u043E \u0441\u043B\u043E\u0432\u0430" },
+    "backup.translations": { one: "{n} \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434", few: "{n} \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0438", many: "{n} \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0456\u0432", other: "{n} \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0443" },
+    "backup.phrases": { one: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u0430 \u0444\u0440\u0430\u0437\u0430", few: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u0456 \u0444\u0440\u0430\u0437\u0438", many: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u0438\u0445 \u0444\u0440\u0430\u0437", other: "{n} \u043D\u0430\u0434\u0438\u043A\u0442\u043E\u0432\u0430\u043D\u043E\u0457 \u0444\u0440\u0430\u0437\u0438" },
+    "backup.talks": { one: "{n} \u0440\u043E\u0437\u043C\u043E\u0432\u0430", few: "{n} \u0440\u043E\u0437\u043C\u043E\u0432\u0438", many: "{n} \u0440\u043E\u0437\u043C\u043E\u0432", other: "{n} \u0440\u043E\u0437\u043C\u043E\u0432\u0438" },
+    "size.mb": "{n} \u041C\u0411",
+    "size.gb": "{n} \u0413\u0411",
+    "level.fast": "\u0428\u0432\u0438\u0434\u043A\u0438\u0439",
+    "level.accurate": "\u0422\u043E\u0447\u043D\u0438\u0439",
+    "level.most": "\u041D\u0430\u0439\u0442\u043E\u0447\u043D\u0456\u0448\u0438\u0439",
+    "busy.card": "\u0432\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430",
+    "busy.processor": "\u043F\u0440\u043E\u0446\u0435\u0441\u043E\u0440",
+    "lang.pairEnglish": "{lang} \u21C4 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u0430",
+    "lang.yours": "\u0432\u0430\u0448\u0430 \u043C\u043E\u0432\u0430",
+    // ------------------------------------------------------------ the tray's panel
+    "tray.open": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438",
+    "tray.openKrya": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438 Krya",
+    "tray.built": "\u0417\u0456\u0431\u0440\u0430\u043D\u043E {build}",
+    "tray.actions": "\u0414\u0456\u0457",
+    "tray.listenCopied": "\u041F\u0440\u043E\u0441\u043B\u0443\u0445\u0430\u0442\u0438 \u0441\u043A\u043E\u043F\u0456\u0439\u043E\u0432\u0430\u043D\u0438\u0439 \u0442\u0435\u043A\u0441\u0442",
+    "tray.translateCopied": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438 \u0441\u043A\u043E\u043F\u0456\u0439\u043E\u0432\u0430\u043D\u0438\u0439 \u0442\u0435\u043A\u0441\u0442",
+    "tray.typeToTranslate": "\u0412\u0432\u0435\u0441\u0442\u0438 \u0442\u0435\u043A\u0441\u0442 \u0434\u043B\u044F \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0443\u2026",
+    "tray.checkEnglish": "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u0438\u0442\u0438 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u0443\u2026",
+    "tray.listenScreen": "\u041F\u0440\u043E\u0441\u043B\u0443\u0445\u0430\u0442\u0438 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u0435\u043A\u0440\u0430\u043D\u0430",
+    "tray.translateScreen": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u0435\u043A\u0440\u0430\u043D\u0430",
+    "tray.saveNote": "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u043D\u043E\u0442\u0430\u0442\u043A\u0443",
+    "tray.newNote": "\u041D\u043E\u0432\u0430 \u043D\u043E\u0442\u0430\u0442\u043A\u0430",
+    "tray.transcripts": "\u0420\u043E\u0437\u0448\u0438\u0444\u0440\u043E\u0432\u043A\u0438",
+    "tray.quick": "\u0428\u0432\u0438\u0434\u043A\u0456 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F",
+    "tray.autoFix": "\u0412\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438 \u0440\u043E\u0437\u043A\u043B\u0430\u0434\u043A\u0443 \u043F\u0456\u0434 \u0447\u0430\u0441 \u043D\u0430\u0431\u043E\u0440\u0443",
+    "tray.switchWith": "\u041F\u0435\u0440\u0435\u043C\u0438\u043A\u0430\u0442\u0438 \u0440\u043E\u0437\u043A\u043B\u0430\u0434\u043A\u0443: {key}",
+    "tray.layoutBadge": "\u041F\u043E\u043A\u0430\u0437\u0443\u0432\u0430\u0442\u0438 \u0440\u043E\u0437\u043A\u043B\u0430\u0434\u043A\u0443 \u0431\u0456\u043B\u044F \u043A\u0443\u0440\u0441\u043E\u0440\u0430",
+    "tray.trayLayout": "\u041F\u043E\u043A\u0430\u0437\u0443\u0432\u0430\u0442\u0438 \u0440\u043E\u0437\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 \u0442\u0440\u0435\u0457",
+    "tray.doubleCopy": "Ctrl+C \u0434\u0432\u0456\u0447\u0456 \u2014 \u043F\u0440\u043E\u0441\u043B\u0443\u0445\u0430\u0442\u0438",
+    "tray.yourWords": "\u0412\u0430\u0448\u0456 \u0441\u043B\u043E\u0432\u0430",
+    "tray.keepWord": "\u041D\u0435 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438 \u0441\u043B\u043E\u0432\u043E\u2026",
+    "tray.keepWordTitle": "\u041D\u0456\u043A\u043E\u043B\u0438 \u043D\u0435 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438 \u0446\u0435 \u0441\u043B\u043E\u0432\u043E \u0441\u0430\u043C\u043E\u0441\u0442\u0456\u0439\u043D\u043E (\u041D\u0435 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438)",
+    "tray.keepPlaceholder": "\u0441\u043B\u043E\u0432\u043E, \u044F\u043A \u0432\u0438 \u0439\u043E\u0433\u043E \u043D\u0430\u0431\u0438\u0440\u0430\u0454\u0442\u0435",
+    "tray.keepAria": "\u041D\u0435 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438 \u0441\u043B\u043E\u0432\u043E",
+    "tray.kept": "\u0414\u043E\u0434\u0430\u043D\u043E: {word}",
+    "tray.vocabulary": "\u0414\u043E\u0434\u0430\u0442\u0438 \u0441\u043B\u043E\u0432\u043E \u0434\u043B\u044F \u0434\u0438\u043A\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u2026",
+    "tray.keptList": "\u0421\u043B\u043E\u0432\u0430, \u044F\u043A\u0456 \u043D\u0435 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u0438",
+    "tray.pausedTitle": "\u041A\u043B\u0430\u0432\u0456\u0448\u0456 \u0439 Ctrl+C \u0434\u0432\u0456\u0447\u0456 \u0432\u0438\u043C\u043A\u043D\u0435\u043D\u043E",
+    "tray.pauseTitle": "\u0423\u0441\u0456 \u043A\u043B\u0430\u0432\u0456\u0448\u0456 \u0439 \u0440\u0435\u0430\u043A\u0446\u0456\u0457 \u0432\u0438\u043C\u043A\u043D\u0435\u043D\u043E, \u0434\u043E\u043A\u0438 \u043D\u0435 \u043F\u0440\u043E\u0434\u043E\u0432\u0436\u0438\u0442\u0435",
+    "tray.resume": "\u041F\u0440\u043E\u0434\u043E\u0432\u0436\u0438\u0442\u0438",
+    "tray.pause": "\u041F\u0430\u0443\u0437\u0430",
+    "tray.settings": "\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438",
+    "tray.report": "\u041F\u0440\u043E\u0431\u043B\u0435\u043C\u0430",
+    "tray.reportTitle": "\u041F\u043E\u0432\u0456\u0434\u043E\u043C\u0438\u0442\u0438 \u043F\u0440\u043E \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u0443, \u0437 \u0436\u0443\u0440\u043D\u0430\u043B\u0430\u043C\u0438 Krya",
+    "tray.quit": "\u0412\u0438\u0439\u0442\u0438",
+    "tray.paused": "\u043F\u0430\u0443\u0437\u0430",
+    "tray.ready": "\u0433\u043E\u0442\u043E\u0432\u043E",
+    "tray.readyTitle": "{pair}, \u0431\u0435\u0437 \u0456\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0443",
+    "tray.downloading": "\u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F\u2026",
+    "tray.firstUse": "\u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0430\u0447 \u2014 \u043F\u0456\u0434 \u0447\u0430\u0441 \u043F\u0435\u0440\u0448\u043E\u0433\u043E \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u0430\u043D\u043D\u044F",
+    "tray.tipRecording": "\u0417\u0430\u043F\u0438\u0441",
+    "tray.tipPaused": "Krya \xB7 \u043F\u0430\u0443\u0437\u0430",
+    "tray.tipListen": "{keys} \u2014 \u043F\u0440\u043E\u0441\u043B\u0443\u0445\u0430\u0442\u0438",
+    "tray.tipTranslate": "{key} \u2014 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438",
+    "tray.tipTwice": "Ctrl+C \u0434\u0432\u0456\u0447\u0456",
+    // ------------------------------------------------------------ the card
+    "kind.listen": "\u0421\u043B\u0443\u0445\u0430\u0442\u0438",
+    "kind.translate": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438",
+    "kind.check": "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u0438\u0442\u0438",
+    "kind.screen": "\u0435\u043A\u0440\u0430\u043D",
+    "card.openedBy": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u043E \u043A\u043B\u0430\u0432\u0456\u0448\u0430\u043C\u0438 {keys}",
+    "card.openedByTwice": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u043E: {keys} \u0434\u0432\u0456\u0447\u0456",
+    "card.prev": "\u041F\u043E\u043F\u0435\u0440\u0435\u0434\u043D\u0454 \u0440\u0435\u0447\u0435\u043D\u043D\u044F",
+    "card.next": "\u041D\u0430\u0441\u0442\u0443\u043F\u043D\u0435 \u0440\u0435\u0447\u0435\u043D\u043D\u044F",
+    "card.oneByOne": "\u041F\u043E \u0440\u0435\u0447\u0435\u043D\u043D\u044E",
+    "card.spaceListen": "\u0441\u043B\u0443\u0445\u0430\u0442\u0438",
+    "card.spaceStop": "\u0441\u0442\u043E\u043F",
+    "card.text": "\u0422\u0435\u043A\u0441\u0442",
+    "card.from": "\u0417 \u043C\u043E\u0432\u0438",
+    "card.fromTitle": "\u041C\u043E\u0432\u0430 \u0442\u0435\u043A\u0441\u0442\u0443",
+    "card.into": "\u041D\u0430 \u043C\u043E\u0432\u0443",
+    "card.intoTitle": "\u041C\u043E\u0432\u0430, \u043D\u0430 \u044F\u043A\u0443 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0441\u0442\u0438",
+    "card.swap": "\u041F\u043E\u043C\u0456\u043D\u044F\u0442\u0438",
+    "card.swapTitle": "\u041F\u043E\u043C\u0456\u043D\u044F\u0442\u0438 \u043C\u043E\u0432\u0438 \u043C\u0456\u0441\u0446\u044F\u043C\u0438: \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 \u0441\u0442\u0430\u043D\u0435 \u0442\u0435\u043A\u0441\u0442\u043E\u043C",
+    "card.voiceOffer": "\u041F\u0440\u0438\u0440\u043E\u0434\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441 \u0437\u0432\u0443\u0447\u0438\u0442\u044C \u044F\u043A \u0436\u0438\u0432\u0430 \u043B\u044E\u0434\u0438\u043D\u0430 \u0439 \u0447\u0438\u0442\u0430\u0454 \u0431\u0435\u0437 \u0456\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0443.",
+    "card.voiceDownload": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \xB7 {size} \u041C\u0411",
+    "card.voiceFailed": "\u041F\u0440\u0438\u0440\u043E\u0434\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441 \u043D\u0435 \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0432\u0441\u044F.",
+    "card.voiceDownloading": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u043F\u0440\u0438\u0440\u043E\u0434\u043D\u043E\u0433\u043E \u0433\u043E\u043B\u043E\u0441\u0443\u2026 {pct}%",
+    "card.voiceReady": "\u041F\u0440\u0438\u0440\u043E\u0434\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441 \u0433\u043E\u0442\u043E\u0432\u0438\u0439. \u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \xAB\u0421\u043B\u0443\u0445\u0430\u0442\u0438\xBB, \u0449\u043E\u0431 \u043F\u043E\u0447\u0443\u0442\u0438 \u0439\u043E\u0433\u043E.",
+    "card.busyCard": "\u0412\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u0439\u043D\u044F\u0442\u0430, \u0442\u043E\u043C\u0443 \u0446\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0432 \xAB\u0428\u0432\u0438\u0434\u043A\u0438\u0439\xBB. \xAB{level}\xBB \u043F\u043E\u0432\u0435\u0440\u043D\u0435\u0442\u044C\u0441\u044F, \u0449\u043E\u0439\u043D\u043E \u0432\u043E\u043D\u0430 \u0437\u0432\u0456\u043B\u044C\u043D\u0438\u0442\u044C\u0441\u044F.",
+    "card.busyProcessor": "\u041F\u0440\u043E\u0446\u0435\u0441\u043E\u0440 \u0437\u0430\u0439\u043D\u044F\u0442\u0438\u0439, \u0442\u043E\u043C\u0443 \u0446\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0432 \xAB\u0428\u0432\u0438\u0434\u043A\u0438\u0439\xBB. \xAB{level}\xBB \u043F\u043E\u0432\u0435\u0440\u043D\u0435\u0442\u044C\u0441\u044F, \u0449\u043E\u0439\u043D\u043E \u0432\u0456\u043D \u0437\u0432\u0456\u043B\u044C\u043D\u0438\u0442\u044C\u0441\u044F.",
+    "card.useAnyway": "\u0423\u0441\u0435 \u043E\u0434\u043D\u043E \xAB{level}\xBB",
+    "card.hideTranslation": "\u0421\u0445\u043E\u0432\u0430\u0442\u0438 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 ({lang})",
+    "card.showTranslation": "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u0438 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 ({lang})",
+    "card.unpin": "\u0412\u0456\u0434\u043A\u0440\u0456\u043F\u0438\u0442\u0438: \u0437\u0430\u043A\u0440\u0438\u0432\u0430\u0442\u0438, \u043A\u043E\u043B\u0438 \u043A\u043B\u0430\u0446\u043D\u0443\u0442\u043E \u0456\u043D\u0448\u0435 \u0432\u0456\u043A\u043D\u043E",
+    "card.pin": "\u0417\u0430\u043A\u0440\u0456\u043F\u0438\u0442\u0438: \u043D\u0435 \u0437\u0430\u043A\u0440\u0438\u0432\u0430\u0442\u0438",
+    "card.oneOn": "\u0427\u0438\u0442\u0430\u0454 \u043E\u0434\u043D\u0435 \u0440\u0435\u0447\u0435\u043D\u043D\u044F \u0439 \u0447\u0435\u043A\u0430\u0454; \u2190 \u2192 \u2014 \u043A\u0440\u043E\u043A",
+    "card.oneOff": "\u0427\u0438\u0442\u0430\u0442\u0438 \u043F\u043E \u043E\u0434\u043D\u043E\u043C\u0443 \u0440\u0435\u0447\u0435\u043D\u043D\u044E",
+    "card.translatingFast": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0430\u0454 \xAB\u0428\u0432\u0438\u0434\u043A\u0438\u0439\xBB\u2026",
+    "card.translating": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u2026",
+    "card.translatingLevel": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 \xB7 {level}\u2026",
+    "card.ofGb": "{a} \u0437 {b} \u0413\u0411",
+    "card.ofMb": "{a} \u0437 {b} \u041C\u0411",
+    "card.firstUse": "\u043F\u0435\u0440\u0448\u0435 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u0430\u043D\u043D\u044F \xB7 \u043E\u0434\u0438\u043D \u0440\u0430\u0437",
+    "card.modelOf": "\u041C\u043E\u0434\u0435\u043B\u044C \xAB{name}\xBB",
+    "card.translatorPair": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0430\u0447, {pair}",
+    "card.fromMozilla": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0443\u0454\u0442\u044C\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0456\u0437 Mozilla, \u0434\u0430\u043B\u0456 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0430\u0454 \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456.",
+    "card.fromHfTranslates": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0443\u0454\u0442\u044C\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0456\u0437 Hugging Face, \u0434\u0430\u043B\u0456 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0430\u0454 \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456.",
+    "card.fromHfChecks": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0443\u0454\u0442\u044C\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0456\u0437 Hugging Face, \u0434\u0430\u043B\u0456 \u043F\u0435\u0440\u0435\u0432\u0456\u0440\u044F\u0454 \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456.",
+    "card.readMeanwhile": "\u0410\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u0438\u0439 \u0442\u0435\u043A\u0441\u0442 \u0442\u0438\u043C \u0447\u0430\u0441\u043E\u043C \u0447\u0438\u0442\u0430\u0454\u0442\u044C\u0441\u044F.",
+    "card.notChecked": "\u041D\u0435 \u043F\u0435\u0440\u0435\u0432\u0456\u0440\u0435\u043D\u043E",
+    "card.notTranslated": "\u041D\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0435\u043D\u043E",
+    "card.readingScreen": "\u0427\u0438\u0442\u0430\u044E \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0435\u043A\u0440\u0430\u043D\u0456\u2026",
+    "card.noText": "\u0422\u0443\u0442 \u043D\u0435\u043C\u0430\u0454 \u0442\u0435\u043A\u0441\u0442\u0443",
+    "card.noTextNote": "\u041D\u0430 \u0446\u044C\u043E\u043C\u0443 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442\u0456 \u0435\u043A\u0440\u0430\u043D\u0430 \u043D\u0435\u043C\u0430\u0454 \u0442\u0435\u043A\u0441\u0442\u0443, \u044F\u043A\u0438\u0439 Krya \u043C\u043E\u0436\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u0438. \u0412\u0438\u0434\u0456\u043B\u0456\u0442\u044C \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u0437\u0456 \u0441\u043B\u043E\u0432\u0430\u043C\u0438.",
+    "card.noOcr": "Windows \u043F\u043E\u043A\u0438 \u043D\u0435 \u0432\u043C\u0456\u0454 \u0447\u0438\u0442\u0430\u0442\u0438 \u0442\u0435\u043A\u0441\u0442",
+    "card.noOcrNote": "\u0414\u043E\u0434\u0430\u0439\u0442\u0435 \u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u0432\u0430\u043D\u043D\u044F \u0442\u0435\u043A\u0441\u0442\u0443 \u0434\u043B\u044F \u043C\u043E\u0432\u0438 \xAB{lang}\xBB \u0430\u0431\u043E \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457: \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 \u2192 \u0427\u0430\u0441 \u0456 \u043C\u043E\u0432\u0430 \u2192 \u041C\u043E\u0432\u0430 \u0442\u0430 \u0440\u0435\u0433\u0456\u043E\u043D \u2192 \u043C\u043E\u0432\u0430 \u2192 \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 \u043C\u043E\u0432\u0438 \u2192 \u041E\u043F\u0442\u0438\u0447\u043D\u0435 \u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u0432\u0430\u043D\u043D\u044F \u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432.",
+    "card.openLanguageSettings": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 \u043C\u043E\u0432\u0438",
+    "card.yourEnglish": "\u0412\u0430\u0448\u0430 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u0430",
+    "card.typeEnglish": "\u0412\u0432\u0435\u0434\u0456\u0442\u044C \u0430\u0431\u043E \u0432\u0441\u0442\u0430\u0432\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u044E",
+    "card.checkedBy": "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u0435\u043D\u043E \xB7 {model}",
+    "card.improving": "\u0423\u0442\u043E\u0447\u043D\u044E\u0454\u0442\u044C\u0441\u044F \xB7 {level}\u2026",
+    "card.translatedBy": "\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\u0435\u043D\u043E \xB7 {level}",
+    "card.newLine": "{by} \xB7 Shift+Enter \u2014 \u043D\u043E\u0432\u0438\u0439 \u0440\u044F\u0434\u043E\u043A",
+    "card.yours": "\u0412\u0430\u0448\u0456",
+    "card.allLanguages": "\u0423\u0441\u0456 \u043C\u043E\u0432\u0438",
+    "card.pasteOver": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u0438 \u0437\u0430\u043C\u0456\u0441\u0442\u044C \u0432\u0438\u0434\u0456\u043B\u0435\u043D\u043E\u0433\u043E (Enter)",
+    "card.pasteLater": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\u0441\u044F, \u0449\u043E\u0439\u043D\u043E \u043D\u0430\u0434\u0456\u0439\u0434\u0435 \u0442\u043E\u0447\u043D\u0438\u0439 \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 (Enter)",
+    "card.pasteChecked": "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u0438 \u0432\u0438\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0439 \u0442\u0435\u043A\u0441\u0442 \u0437\u0430\u043C\u0456\u0441\u0442\u044C \u0432\u0438\u0434\u0456\u043B\u0435\u043D\u043E\u0433\u043E (Enter)",
+    "card.looksRight": "\u0421\u0445\u043E\u0436\u0435, \u0443\u0441\u0435 \u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E",
+    "card.listenSpace": "\u0421\u043B\u0443\u0445\u0430\u0442\u0438 (Space)",
+    "card.listenParagraph": "\u041F\u0440\u043E\u0441\u043B\u0443\u0445\u0430\u0442\u0438 \u0446\u0435\u0439 \u0430\u0431\u0437\u0430\u0446",
+    "card.naturalStopped": "\u041F\u0440\u0438\u0440\u043E\u0434\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441 \u0437\u0443\u043F\u0438\u043D\u0438\u0432\u0441\u044F ({message}). \u0414\u0430\u043B\u0456 \u0447\u0438\u0442\u0430\u0454 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441.",
+    "card.noVoice": "\u041D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456 \u043D\u0435\u043C\u0430\u0454 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0433\u043E \u0433\u043E\u043B\u043E\u0441\u0443.",
+    "card.openSpeechSettings": "\u0412\u0456\u0434\u043A\u0440\u0438\u0442\u0438 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F",
+    "voice.stepsWin": "\u0429\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438: \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 Windows \u2192 \u0427\u0430\u0441 \u0456 \u043C\u043E\u0432\u0430 \u2192 \u041C\u043E\u0432\u043B\u0435\u043D\u043D\u044F \u2192 \u0414\u043E\u0434\u0430\u0442\u0438 \u0433\u043E\u043B\u043E\u0441\u0438 \u2192 {lang}, \u043F\u043E\u0442\u0456\u043C \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0456\u0442\u044C Krya.",
+    "voice.stepsMac": "\u0429\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438: \u0421\u0438\u0441\u0442\u0435\u043C\u043D\u0456 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0438 \u2192 \u0414\u043E\u0441\u0442\u0443\u043F\u043D\u0456\u0441\u0442\u044C \u2192 \u041E\u0437\u0432\u0443\u0447\u0435\u043D\u0438\u0439 \u0432\u043C\u0456\u0441\u0442 \u2192 \u0421\u0438\u0441\u0442\u0435\u043C\u043D\u0438\u0439 \u0433\u043E\u043B\u043E\u0441 \u2192 \u041A\u0435\u0440\u0443\u0432\u0430\u0442\u0438 \u0433\u043E\u043B\u043E\u0441\u0430\u043C\u0438 \u2192 {lang}, \u043F\u043E\u0442\u0456\u043C \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0456\u0442\u044C Krya.",
+    "voice.none": "\u0414\u043B\u044F \u0447\u0438\u0442\u0430\u043D\u043D\u044F \u0432\u0433\u043E\u043B\u043E\u0441 \u043F\u043E\u0442\u0440\u0456\u0431\u043D\u0456 \u0433\u043E\u043B\u043E\u0441\u0438 Windows \u0430\u0431\u043E macOS; \u0443 \u0446\u0456\u0439 \u0441\u0438\u0441\u0442\u0435\u043C\u0456 \u043D\u0435\u043C\u0430\u0454 \u0436\u043E\u0434\u043D\u043E\u0433\u043E \u043F\u0440\u0438\u0434\u0430\u0442\u043D\u043E\u0433\u043E.",
+    // ------------------------------------------------------------ the word card
+    "word.from": "\u0444\u043E\u0440\u043C\u0430: {word}",
+    "word.say": "\u0412\u0438\u043C\u043E\u0432\u0438\u0442\u0438",
+    "word.save": "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0432 \xAB\u0421\u043B\u043E\u0432\u0430\xBB",
+    "word.remove": "\u041F\u0440\u0438\u0431\u0440\u0430\u0442\u0438 \u0437\u0456 \xAB\u0421\u043B\u0456\u0432\xBB",
+    "word.notFound": "\u041D\u0435\u043C\u0430\u0454 \u0432 \u0441\u043B\u043E\u0432\u043D\u0438\u043A\u0443.",
+    "word.pair": "\u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u0430 \u2192 {lang}",
+    "word.notEnglish": "\u0417\u043D\u0430\u0447\u0435\u043D\u043D\u044F \u0441\u043B\u0456\u0432 \u043F\u043E\u043A\u0438 \u0454 \u043B\u0438\u0448\u0435 \u0434\u043B\u044F \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457; \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 ({lang}) \u2014 \u043D\u0438\u0436\u0447\u0435.",
+    "word.noDictionary": "\u0421\u043B\u043E\u0432\u043D\u0438\u043A\u0430 {pair} \u043F\u043E\u043A\u0438 \u043D\u0435\u043C\u0430\u0454; \u043F\u0435\u0440\u0435\u043A\u043B\u0430\u0434 \u2014 \u043D\u0438\u0436\u0447\u0435.",
+    "word.downloading": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u0441\u043B\u043E\u0432\u043D\u0438\u043A\u0430 {pair}, \u043E\u0434\u0438\u043D \u0440\u0430\u0437\u2026",
+    "word.failed": "\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u0441\u043B\u043E\u0432\u043D\u0438\u043A {pair}. \u041F\u0435\u0440\u0435\u0432\u0456\u0440\u0442\u0435 \u0437\u2019\u0454\u0434\u043D\u0430\u043D\u043D\u044F \u0437 \u0456\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u043E\u043C; \u043D\u043E\u0432\u0430 \u0441\u043F\u0440\u043E\u0431\u0430 \u0437\u0430 \u0445\u0432\u0438\u043B\u0438\u043D\u0443.",
+    "word.off": "\u0421\u043B\u043E\u0432\u043D\u0438\u043A {pair} \u043D\u0435 \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043E.",
+    // ------------------------------------------------------------ the talk window
+    "talk.yourTalks": "\u0412\u0430\u0448\u0456 \u0440\u043E\u0437\u043C\u043E\u0432\u0438",
+    "talk.hideTalks": "\u0421\u0445\u043E\u0432\u0430\u0442\u0438 \u0440\u043E\u0437\u043C\u043E\u0432\u0438",
+    "talk.settings": "\u041D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F \u0440\u043E\u0437\u043C\u043E\u0432\u0438",
+    "talk.toEnd": "\u0414\u043E \u043E\u0441\u0442\u0430\u043D\u043D\u044C\u043E\u0457 \u0440\u0435\u043F\u043B\u0456\u043A\u0438",
+    "talk.typePlaceholder": "\u0410\u0431\u043E \u043D\u0430\u043F\u0438\u0448\u0456\u0442\u044C \u0440\u0435\u043F\u043B\u0456\u043A\u0443",
+    "talk.typeOnly": "\u041D\u0430\u043F\u0438\u0448\u0456\u0442\u044C \u0456 \u043D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C Enter",
+    "talk.typeAria": "\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u0438 \u0440\u0435\u043F\u043B\u0456\u043A\u0443 \u043A\u0430\u0447\u0446\u0456",
+    "talk.newTitle": "\u041F\u0440\u0438\u0431\u0440\u0430\u0442\u0438 \u0446\u044E \u0440\u043E\u0437\u043C\u043E\u0432\u0443 \u0434\u043E \u0456\u0441\u0442\u043E\u0440\u0456\u0457 \u0439 \u043F\u043E\u0447\u0430\u0442\u0438 \u043D\u043E\u0432\u0443",
+    "talk.new": "\u041D\u043E\u0432\u0430 \u0440\u043E\u0437\u043C\u043E\u0432\u0430",
+    "talk.closeList": "\u0417\u0430\u043A\u0440\u0438\u0442\u0438 \u0441\u043F\u0438\u0441\u043E\u043A",
+    "talk.today": "\u0421\u044C\u043E\u0433\u043E\u0434\u043D\u0456",
+    "talk.yesterday": "\u0423\u0447\u043E\u0440\u0430",
+    "talk.earlier": "\u0420\u0430\u043D\u0456\u0448\u0435",
+    "talk.lines": { one: "{n} \u0440\u0435\u043F\u043B\u0456\u043A\u0430", few: "{n} \u0440\u0435\u043F\u043B\u0456\u043A\u0438", many: "{n} \u0440\u0435\u043F\u043B\u0456\u043A", other: "{n} \u0440\u0435\u043F\u043B\u0456\u043A\u0438" },
+    "talk.withMistake": "\u0437 \u043F\u043E\u043C\u0438\u043B\u043A\u043E\u044E: {n}",
+    "talk.goingOnMeta": "\u0442\u0440\u0438\u0432\u0430\u0454",
+    "talk.goingOnTitle": "\u041F\u043E\u0442\u043E\u0447\u043D\u0430 \u0440\u043E\u0437\u043C\u043E\u0432\u0430",
+    "talk.goOn": "\u041F\u0440\u043E\u0434\u043E\u0432\u0436\u0438\u0442\u0438 \u0446\u044E \u0440\u043E\u0437\u043C\u043E\u0432\u0443",
+    "talk.firstLine": "\u041F\u0435\u0440\u0448\u0430 \u0440\u0435\u043F\u043B\u0456\u043A\u0430 \u043A\u0430\u0447\u043A\u0438",
+    "talk.delete": "\u0412\u0438\u0434\u0430\u043B\u0438\u0442\u0438 \u0446\u044E \u0440\u043E\u0437\u043C\u043E\u0432\u0443",
+    "talk.goingOn": "\u0422\u0440\u0438\u0432\u0430\u0454",
+    "talk.historyEmpty": "\xAB\u041D\u043E\u0432\u0430 \u0440\u043E\u0437\u043C\u043E\u0432\u0430\xBB \u043F\u0435\u0440\u0435\u043D\u043E\u0441\u0438\u0442\u044C \u0440\u043E\u0437\u043C\u043E\u0432\u0443 \u0441\u044E\u0434\u0438, \u0449\u043E\u0431 \u043F\u0440\u043E\u0434\u043E\u0432\u0436\u0438\u0442\u0438 \u0457\u0457 \u043F\u0456\u0437\u043D\u0456\u0448\u0435. \u0417\u0431\u0435\u0440\u0456\u0433\u0430\u0454\u0442\u044C\u0441\u044F 30 \u0434\u043D\u0456\u0432 \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456, \u043D\u0435 \u0431\u0456\u043B\u044C\u0448\u0435 50.",
+    "talk.sureOne": "\u0422\u043E\u0447\u043D\u043E? \u0412\u0438\u0434\u0430\u043B\u0438\u0442\u0438",
+    "talk.sureAll": "\u0422\u043E\u0447\u043D\u043E? \u0412\u0438\u0434\u0430\u043B\u0438\u0442\u0438 \u0432\u0441\u0456 ({n})",
+    "talk.clearAll": "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u0432\u0441\u0435",
+    "talk.needsCard": "\u0414\u043B\u044F \u0440\u043E\u0437\u043C\u043E\u0432\u0438 \u043F\u043E\u0442\u0440\u0456\u0431\u043D\u0430 \u0432\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437 4 \u0413\u0411 \u0432\u043B\u0430\u0441\u043D\u043E\u0457 \u043F\u0430\u043C\u2019\u044F\u0442\u0456 \u0430\u0431\u043E \u0431\u0456\u043B\u044C\u0448\u0435",
+    "talk.needsCardNote": "\u041D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456 \u043A\u0430\u0447\u043A\u0430 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u043B\u0430 \u0431 15 \u0441\u0435\u043A\u0443\u043D\u0434 \u0456 \u0434\u043E\u0432\u0448\u0435 \u2014 \u043D\u0430\u0434\u0442\u043E \u043F\u043E\u0432\u0456\u043B\u044C\u043D\u043E \u0434\u043B\u044F \u0440\u043E\u0437\u043C\u043E\u0432\u0438. \xAB\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457\xBB \u043F\u0440\u0430\u0446\u044E\u0454 \u044F\u043A \u0456 \u0440\u0430\u043D\u0456\u0448\u0435.",
+    "talk.downloading": "\u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F, {pct}%; \u0440\u043E\u0437\u043C\u043E\u0432\u0430 \u043F\u043E\u0447\u043D\u0435\u0442\u044C\u0441\u044F, \u0449\u043E\u0439\u043D\u043E \u043C\u043E\u0434\u0435\u043B\u044C \u0431\u0443\u0434\u0435 \u0442\u0443\u0442",
+    "talk.downloadFailed": "\u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u043D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F",
+    "talk.downloadIt": "\u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0442\u0435 \u0457\u0457 \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445; \u0457\u0457 \u0442\u0430\u043A\u043E\u0436 \u043C\u043E\u0436\u0443\u0442\u044C \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u0432\u0430\u0442\u0438 \xAB\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457\xBB \u0439 \xAB\u041F\u0435\u0440\u0435\u043A\u043B\u0430\u0434\xBB",
+    "talk.needsModel": "\u041A\u0430\u0447\u0446\u0456 \u043F\u043E\u0442\u0440\u0456\u0431\u043D\u0430 \u0457\u0457 \u043C\u043E\u0434\u0435\u043B\u044C: {name}, {size}",
+    "talk.noEngine": "\u041F\u0438\u0448\u0456\u0442\u044C \u043A\u0430\u0447\u0446\u0456 \u0430\u0431\u043E \u0434\u043E\u0434\u0430\u0439\u0442\u0435 \u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u0432\u0430\u043D\u043D\u044F \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F, \u0449\u043E\u0431 \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u0438",
+    "talk.noEngineNote": "\u0420\u043E\u0437\u043C\u043E\u0432\u0430 \u0447\u0443\u0454 \u0432\u0430\u0441 \u0447\u0435\u0440\u0435\u0437 \u0440\u0443\u0448\u0456\u0439 \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F, \u044F\u043A\u0438\u0439 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u0454 \xAB\u0414\u0438\u043A\u0442\u0443\u0432\u0430\u043D\u043D\u044F\xBB; \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0442\u0435 \u0439\u043E\u0433\u043E \u0432 \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F\u0445.",
+    "talk.engineStarting": "\u0420\u0443\u0448\u0456\u0439 \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u0454\u0442\u044C\u0441\u044F\u2026",
+    "talk.slow": "\xAB{name}\xBB \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456 \u043F\u0440\u0430\u0446\u044E\u0454 \u043F\u043E\u0432\u0456\u043B\u044C\u043D\u043E: \u043A\u0430\u0447\u043A\u0430 \u043C\u043E\u0436\u0435 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0442\u0438 \u0434\u043E\u0432\u0433\u043E. \xAB{accurate}\xBB \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0454 \u043F\u0440\u0438\u0431\u043B\u0438\u0437\u043D\u043E \u0437\u0430 3 \u0441\u0435\u043A\u0443\u043D\u0434\u0438.",
+    "talk.busyCard": "\u0412\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0443 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u0454 \u0456\u043D\u0448\u0430 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u0430: \u043A\u0430\u0447\u043A\u0430 \u043C\u043E\u0436\u0435 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0442\u0438 \u043F\u043E\u0432\u0456\u043B\u044C\u043D\u043E.",
+    "talk.busyProcessor": "\u041F\u0440\u043E\u0446\u0435\u0441\u043E\u0440 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u0454 \u0456\u043D\u0448\u0430 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u0430: \u043A\u0430\u0447\u043A\u0430 \u043C\u043E\u0436\u0435 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0442\u0438 \u043F\u043E\u0432\u0456\u043B\u044C\u043D\u043E.",
+    "talk.intro": "\u0413\u043E\u0432\u043E\u0440\u0456\u0442\u044C \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u044E. \u041A\u0430\u0447\u043A\u0430 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u0454 \u0432\u0433\u043E\u043B\u043E\u0441, \u0430 \u0432\u0430\u0448\u0456 \u043F\u043E\u043C\u0438\u043B\u043A\u0438 \u043F\u043E\u0437\u043D\u0430\u0447\u0430\u044E\u0442\u044C\u0441\u044F \u0443 \u0432\u0430\u0448\u0438\u0445 \u0440\u0435\u043F\u043B\u0456\u043A\u0430\u0445.",
+    "talk.orTypeHello": "\u0410\u0431\u043E \u043D\u0430\u043F\u0438\u0448\u0456\u0442\u044C hello \u043D\u0438\u0436\u0447\u0435.",
+    "talk.orSayHello": "\u0410\u0431\u043E \u043F\u0440\u043E\u0441\u0442\u043E \u043D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043A\u043D\u043E\u043F\u043A\u0443 \u0439 \u0441\u043A\u0430\u0436\u0456\u0442\u044C hello.",
+    "talk.unpin": "\u041D\u0435 \u0442\u0440\u0438\u043C\u0430\u0442\u0438 \u043F\u043E\u0432\u0435\u0440\u0445 \u0456\u043D\u0448\u0438\u0445 \u0432\u0456\u043A\u043E\u043D",
+    "talk.pin": "\u0422\u0440\u0438\u043C\u0430\u0442\u0438 \u043F\u043E\u0432\u0435\u0440\u0445 \u0456\u043D\u0448\u0438\u0445 \u0432\u0456\u043A\u043E\u043D",
+    "talk.modelTitle": "\u041A\u0430\u0447\u043A\u0430 \u043F\u0440\u0430\u0446\u044E\u0454 \u043D\u0430 {model} \u2014 \u0442\u0456\u0439 \u0441\u0430\u043C\u0456\u0439 \u043C\u043E\u0434\u0435\u043B\u0456, \u0449\u043E \u0439 \xAB\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457\xBB, \u043D\u0430 \u0446\u044C\u043E\u043C\u0443 \u043A\u043E\u043C\u043F\u2019\u044E\u0442\u0435\u0440\u0456. \u041A\u043B\u0430\u0446\u043D\u0456\u0442\u044C, \u0449\u043E\u0431 \u0437\u043C\u0456\u043D\u0438\u0442\u0438.",
+    "talk.failed": "\u041A\u0430\u0447\u043A\u0430 \u043D\u0435 \u0437\u043C\u043E\u0433\u043B\u0430 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0441\u0442\u0438: {message}. \u0421\u043A\u0430\u0436\u0456\u0442\u044C \u0449\u0435 \u0440\u0430\u0437 \u0430\u0431\u043E \u043D\u0430\u043F\u0438\u0448\u0456\u0442\u044C.",
+    "talk.noAnswer": "\u043D\u0435\u043C\u0430\u0454 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0456",
+    "talk.startingMic": "\u0412\u043C\u0438\u043A\u0430\u044E \u043C\u0456\u043A\u0440\u043E\u0444\u043E\u043D\u2026",
+    "talk.send": "\u041D\u0430\u0434\u0456\u0441\u043B\u0430\u0442\u0438",
+    "talk.talk": "\u0413\u043E\u0432\u043E\u0440\u0438\u0442\u0438",
+    "talk.notPossible": "\u0420\u043E\u0437\u043C\u043E\u0432\u0430 \u043F\u043E\u043A\u0438 \u043D\u0435\u043C\u043E\u0436\u043B\u0438\u0432\u0430: \u0434\u0438\u0432. \u0432\u0438\u0449\u0435.",
+    "talk.speaking": "\u041A\u0430\u0447\u043A\u0430 \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u044C",
+    "talk.thinking": "\u041A\u0430\u0447\u043A\u0430 \u0434\u0443\u043C\u0430\u0454\u2026",
+    "talk.typingOnly": "\u041B\u0438\u0448\u0435 \u0442\u0435\u043A\u0441\u0442\u043E\u043C, \u0434\u043E\u043A\u0438 \u043D\u0435\u043C\u0430\u0454 \u0440\u043E\u0437\u043F\u0456\u0437\u043D\u0430\u0432\u0430\u043D\u043D\u044F \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F",
+    "talk.pressAgain": "\u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u0449\u0435 \u0440\u0430\u0437, \u0449\u043E\u0431 \u0441\u043F\u0440\u043E\u0431\u0443\u0432\u0430\u0442\u0438.",
+    "talk.listeningPress": "\u0421\u043B\u0443\u0445\u0430\u044E \xB7 {keys} \u2014 \u043D\u0430\u0434\u0456\u0441\u043B\u0430\u0442\u0438",
+    "talk.speakingPress": "\u041A\u0430\u0447\u043A\u0430 \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u044C \xB7 {keys} \u2014 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0441\u0442\u0438",
+    "talk.thinkingPress": "\u041A\u0430\u0447\u043A\u0430 \u0434\u0443\u043C\u0430\u0454 \xB7 {keys} \u2014 \u043F\u0435\u0440\u0435\u0431\u0438\u0442\u0438",
+    "talk.press": "{keys} \u2014 \u0433\u043E\u0432\u043E\u0440\u0438\u0442\u0438",
+    "talk.finishing": "\u0417\u0430\u0432\u0435\u0440\u0448\u0443\u044E \u0440\u0435\u043F\u043B\u0456\u043A\u0443\u2026",
+    "talk.nothingHeard": "\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u043F\u043E\u0447\u0443\u0442\u043E.",
+    "turn.again": "\u0421\u043A\u0430\u0437\u0430\u0442\u0438 \u0449\u0435 \u0440\u0430\u0437",
+    "turn.checking": "\u043F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430\u2026",
+    "turn.setRight": "\u0432\u0438\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0432\u0438\u0449\u0435",
+    "turn.hearRight": "\u041F\u043E\u0447\u0443\u0442\u0438, \u044F\u043A \u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E",
+    "turn.hear": "\u041F\u043E\u0447\u0443\u0442\u0438",
+    "topic.free": "\u0412\u0456\u043B\u044C\u043D\u0430 \u0440\u043E\u0437\u043C\u043E\u0432\u0430",
+    "topic.day": "\u041C\u0456\u0439 \u0434\u0435\u043D\u044C",
+    "topic.trip": "\u041F\u043E\u0434\u043E\u0440\u043E\u0436",
+    "topic.cafe": "\u0423 \u043A\u0430\u0444\u0435",
+    "topic.interview": "\u0421\u043F\u0456\u0432\u0431\u0435\u0441\u0456\u0434\u0430",
+    "topic.work": "\u041C\u043E\u044F \u0440\u043E\u0431\u043E\u0442\u0430",
+    // ------------------------------------------------------------ the microphone and the dictation badge
+    "mic.denied": "\u041D\u0435\u043C\u0430\u0454 \u0434\u043E\u0441\u0442\u0443\u043F\u0443 \u0434\u043E \u043C\u0456\u043A\u0440\u043E\u0444\u043E\u043D\u0430: \u0434\u043E\u0437\u0432\u043E\u043B\u044C\u0442\u0435 \u0439\u043E\u0433\u043E \u0432 \u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u0430\u0445 Windows \u2192 \u041A\u043E\u043D\u0444\u0456\u0434\u0435\u043D\u0446\u0456\u0439\u043D\u0456\u0441\u0442\u044C \u2192 \u041C\u0456\u043A\u0440\u043E\u0444\u043E\u043D",
+    "mic.none": "\u041C\u0456\u043A\u0440\u043E\u0444\u043E\u043D \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E",
+    "mic.busy": "\u041C\u0456\u043A\u0440\u043E\u0444\u043E\u043D \u0437\u0430\u0439\u043D\u044F\u0442\u0438\u0439 \u0456\u043D\u0448\u043E\u044E \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043E\u044E",
+    "dict.type": "\u0414\u0438\u043A\u0442\u0443\u0432\u0430\u043D\u043D\u044F",
+    "dict.english": "\u0414\u0438\u043A\u0442\u0443\u0432\u0430\u043D\u043D\u044F \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u044E",
+    "dict.note": "\u041D\u043E\u0442\u0430\u0442\u043A\u0430",
+    "dict.check": "\u041F\u0440\u0430\u043A\u0442\u0438\u043A\u0430 \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u0457",
+    "dict.gettingModel": "\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u043C\u043E\u0434\u0435\u043B\u0456 \u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F {pct}%",
+    "dict.savingNote": "\u0417\u0431\u0435\u0440\u0456\u0433\u0430\u044E \u043D\u043E\u0442\u0430\u0442\u043A\u0443\u2026",
+    "dict.catchingUp": "\u041D\u0430\u0437\u0434\u043E\u0433\u0430\u043D\u044F\u044E\u2026",
+    "dict.typing": "\u0414\u0440\u0443\u043A\u0443\u044E\u2026",
+    "dict.saved": "\u0417\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E",
+    "dict.typed": "\u041D\u0430\u0434\u0440\u0443\u043A\u043E\u0432\u0430\u043D\u043E",
+    "dict.noteFailed": "\u041D\u043E\u0442\u0430\u0442\u043A\u0443 \u043D\u0435 \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E",
+    "dict.nothingTyped": "\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u043D\u0430\u0434\u0440\u0443\u043A\u043E\u0432\u0430\u043D\u043E",
+    "dict.fastCard": "\u041D\u0430\u0434\u0440\u0443\u043A\u043E\u0432\u0430\u043D\u043E \xAB\u0428\u0432\u0438\u0434\u043A\u0438\u043C\xBB: \u0432\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u0439\u043D\u044F\u0442\u0430",
+    "dict.fastProcessor": "\u041D\u0430\u0434\u0440\u0443\u043A\u043E\u0432\u0430\u043D\u043E \xAB\u0428\u0432\u0438\u0434\u043A\u0438\u043C\xBB: \u043F\u0440\u043E\u0446\u0435\u0441\u043E\u0440 \u0437\u0430\u0439\u043D\u044F\u0442\u0438\u0439",
+    "badge.fastCard": "\u0428\u0432\u0438\u0434\u043A\u0438\u0439 \xB7 \u0432\u0456\u0434\u0435\u043E\u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u0439\u043D\u044F\u0442\u0430",
+    "badge.fastProcessor": "\u0428\u0432\u0438\u0434\u043A\u0438\u0439 \xB7 \u043F\u0440\u043E\u0446\u0435\u0441\u043E\u0440 \u0437\u0430\u0439\u043D\u044F\u0442\u0438\u0439",
+    "settings.uiLanguage": "\u041C\u043E\u0432\u0430 \u0456\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0443",
+    "settings.uiLanguageNote": "\u043C\u0435\u043D\u044E \u0439 \u0441\u0442\u043E\u0440\u0456\u043D\u043A\u0438 Krya; \u0442\u0435, \u0447\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u043D\u0430\u0432\u0447\u0430\u0454, \u043B\u0438\u0448\u0430\u0454\u0442\u044C\u0441\u044F \u0430\u043D\u0433\u043B\u0456\u0439\u0441\u044C\u043A\u043E\u044E"
+  };
+
+  // src/i18n/index.ts
+  var PHRASES = { en, uk, ru };
+  var isUiLanguage = (v) => v === "en" || v === "uk" || v === "ru";
+  var current = "en";
+  if (typeof location !== "undefined") {
+    const asked = new URLSearchParams(location.search).get("lang");
+    if (isUiLanguage(asked)) current = asked;
+    if (typeof document !== "undefined") document.documentElement.lang = current;
+  }
+  var rules = /* @__PURE__ */ new Map();
+  function pluralOf(n) {
+    let r = rules.get(current);
+    if (!r) rules.set(current, r = new Intl.PluralRules(current));
+    return r.select(n);
+  }
+  var isPlural = (p) => typeof p === "object";
+  function t(key, vars) {
+    const p = PHRASES[current][key] ?? en[key];
+    if (p === void 0) return key;
+    let s;
+    if (isPlural(p)) {
+      const n = Number(vars?.n ?? 0);
+      s = p[pluralOf(n)] ?? p.other;
+    } else s = p;
+    if (!vars) return s;
+    return s.replace(/\{(\w+)\}/g, (whole, name) => name in vars ? String(vars[name]) : whole);
+  }
+  var displayNames = /* @__PURE__ */ new Map();
+  function languageName(nameOrCode) {
+    const language = findLanguage(nameOrCode);
+    if (!language) return nameOrCode;
+    if (current === "en") return language.name;
+    let names = displayNames.get(current);
+    if (names === void 0) {
+      try {
+        names = new Intl.DisplayNames([current], { type: "language" });
+      } catch {
+        names = null;
+      }
+      displayNames.set(current, names);
+    }
+    const name = names?.of(language.code);
+    return name && name !== language.code ? name : language.name;
+  }
+  var levelName = (level) => t(`level.${level}`);
+  function sizeText(mb) {
+    return mb >= 1e3 ? t("size.gb", { n: (Math.round(mb / 100) / 10).toFixed(1) }) : t("size.mb", { n: Math.max(1, Math.round(mb)) });
+  }
+  function formatDate(d, options) {
+    return d.toLocaleString(current === "en" ? "en-GB" : current, options);
   }
 
   // src/natural.ts
@@ -309,17 +1252,17 @@
         "div",
         { class: "wc-head" },
         el("span", { class: "wc-word" }, leadsWithBase ? gloss.base : hit.word),
-        leadsWithBase ? el("span", { class: "wc-form" }, `from ${hit.word}`) : null,
+        leadsWithBase ? el("span", { class: "wc-form" }, t("word.from", { word: hit.word })) : null,
         ipa ? el("span", { class: "wc-ipa" }, `/${ipa}/`) : null,
         this.clicked ? el("span", { class: "grow" }) : null,
-        this.clicked ? el("button", { class: "icon-btn", title: "Say it", "aria-label": "Say it", onclick: () => this.options.speak(hit.word) }, icon("unmute")) : null,
+        this.clicked ? el("button", { class: "icon-btn", title: t("word.say"), "aria-label": t("word.say"), onclick: () => this.options.speak(hit.word) }, icon("unmute")) : null,
         this.clicked ? el(
           "button",
           {
             class: "icon-btn",
             "aria-pressed": String(saved),
-            title: saved ? "Remove from Words" : "Save to Words",
-            "aria-label": saved ? "Remove from Words" : "Save to Words",
+            title: saved ? t("word.remove") : t("word.save"),
+            "aria-label": saved ? t("word.remove") : t("word.save"),
             onclick: () => this.toggleSaved(hit, saved)
           },
           icon(saved ? "star-full" : "star-empty")
@@ -329,7 +1272,7 @@
       let body;
       if (!answer || answer === "pending") body = [el("div", { class: "wc-note" }, "\u2026")];
       else if (answer.missing && answer.missing !== "not-found") body = [el("div", { class: "wc-note" }, this.note(answer.missing))];
-      else if (!gloss) body = [el("div", { class: "wc-note" }, "Not in the dictionary.")];
+      else if (!gloss) body = [el("div", { class: "wc-note" }, t("word.notFound"))];
       else
         body = gloss.entries.flatMap(
           (entry, i) => i === 0 ? entry.senses.map(sense) : [el("div", { class: "wc-also" }, entry.form), ...entry.senses.map(sense)]
@@ -344,18 +1287,18 @@
       else this.options.post({ type: "saveWord", word: hit.word, sentence: this.sentenceOf(hit) });
     }
     note(missing) {
-      const pair = `English \u2192 ${this.options.nativeName()}`;
+      const pair = t("word.pair", { lang: this.options.nativeName() });
       switch (missing) {
         case "not-english":
-          return `Word meanings are for English only, for now; the ${this.options.nativeName()} translation is below.`;
+          return t("word.notEnglish", { lang: this.options.nativeName() });
         case "no-dictionary":
-          return `No ${pair} dictionary yet; the translation is below.`;
+          return t("word.noDictionary", { pair });
         case "downloading":
-          return `Downloading the ${pair} dictionary, once\u2026`;
+          return t("word.downloading", { pair });
         case "download-failed":
-          return `Couldn't download the ${pair} dictionary. Check the internet connection; it tries again in a minute.`;
+          return t("word.failed", { pair });
         case "download-off":
-          return `The ${pair} dictionary isn't downloaded.`;
+          return t("word.off", { pair });
         default:
           return "";
       }
@@ -661,8 +1604,8 @@
       if (this.route === "host" && id === this.hostId) this.finish();
     }
     reset() {
-      const current = this.items[this.index];
-      current?.el.classList.remove("speaking");
+      const current2 = this.items[this.index];
+      current2?.el.classList.remove("speaking");
       clearWord();
       this.key = null;
       this.items = [];
@@ -756,21 +1699,21 @@
     followAudio() {
       const audio = this.audio;
       if (this.route !== "natural" || !audio) return;
-      const t = audio.currentTime;
-      const current = this.scheduled.find((s) => t >= s.at && t < s.end);
-      if (current) {
-        if (current.index !== this.index) {
-          this.enter(current.index);
-          this.post({ type: "naturalAt", id: this.hostId, index: current.index });
+      const t2 = audio.currentTime;
+      const current2 = this.scheduled.find((s) => t2 >= s.at && t2 < s.end);
+      if (current2) {
+        if (current2.index !== this.index) {
+          this.enter(current2.index);
+          this.post({ type: "naturalAt", id: this.hostId, index: current2.index });
         }
-        const item = this.items[current.index];
-        const word = current.words.find((w) => t - current.at >= w.at && t - current.at < w.until);
-        const mark = word ? `${current.index}:${word.start}` : "";
+        const item = this.items[current2.index];
+        const word = current2.words.find((w) => t2 - current2.at >= w.at && t2 - current2.at < w.until);
+        const mark = word ? `${current2.index}:${word.start}` : "";
         if (word && item && mark !== this.lastWord) {
           this.lastWord = mark;
           this.highlight(item, word.start, word.length);
         }
-      } else if (this.nextIndex >= this.items.length && t >= this.endAt) {
+      } else if (this.nextIndex >= this.items.length && t2 >= this.endAt) {
         this.finish();
       }
     }
@@ -1185,9 +2128,9 @@
   };
   function micTrouble(error) {
     const name = error instanceof DOMException ? error.name : "";
-    if (name === "NotAllowedError") return "No access to the microphone: allow it in Windows Settings \u2192 Privacy \u2192 Microphone";
-    if (name === "NotFoundError") return "No microphone found";
-    if (name === "NotReadableError") return "Another program holds the microphone";
+    if (name === "NotAllowedError") return t("mic.denied");
+    if (name === "NotFoundError") return t("mic.none");
+    if (name === "NotReadableError") return t("mic.busy");
     return error instanceof Error ? error.message : String(error);
   }
 
@@ -1211,15 +2154,15 @@
   function duckTurn(turn, again) {
     const sentences = splitSentences(turn.text);
     const bubble = el("div", { class: "bubble", "data-words": "" }, ...(sentences.length ? sentences : [turn.text]).flatMap((s, i) => [i ? " " : "", el("span", { class: "s", "data-i": String(i) }, s)]));
-    const button = again ? el("button", { class: "ib again", title: "Say it again", "aria-label": "Say it again", onclick: again }, lucide("volume-2")) : null;
+    const button = again ? el("button", { class: "ib again", title: t("turn.again"), "aria-label": t("turn.again"), onclick: again }, lucide("volume-2")) : null;
     return el("div", { class: "turn duck", "data-id": String(turn.id) }, tile(28), bubble, button);
   }
   function myTurn(turn, hear) {
     const marked = !!turn.parts?.length;
     const line = el("span", { class: "said marks" }, ...marked ? withMarks(turn.parts) : [turn.text]);
-    const under = turn.checking ? el("small", { class: "checking" }, lucide("loader", "s turning"), "checking\u2026") : marked ? el("small", {}, turn.note || "set right above") : null;
+    const under = turn.checking ? el("small", { class: "checking" }, lucide("loader", "s turning"), t("turn.checking")) : marked ? el("small", {}, turn.note || t("turn.setRight")) : null;
     const cls = marked ? "bubble fixed" : "bubble";
-    const bubble = hear ? el("button", { class: cls, title: marked ? "Hear it said right" : "Hear it", onclick: hear }, line, under) : el("div", { class: cls }, line, under);
+    const bubble = hear ? el("button", { class: cls, title: marked ? t("turn.hearRight") : t("turn.hear"), onclick: hear }, line, under) : el("div", { class: cls }, line, under);
     return el("div", { class: "turn me", "data-id": String(turn.id) }, bubble);
   }
 
@@ -1333,7 +2276,7 @@
   var root = document.getElementById("root");
   root.className = "talk";
   var keyCaps = el("span", { class: "head-key" });
-  var historyButton = el("button", { class: "ib", title: "Your talks", "aria-label": "Your talks", "aria-pressed": "false", onclick: () => showHistory(!historyShown()) }, lucide("history"));
+  var historyButton = el("button", { class: "ib", title: t("talk.yourTalks"), "aria-label": t("talk.yourTalks"), "aria-pressed": "false", onclick: () => showHistory(!historyShown()) }, lucide("history"));
   var modelChip = el("button", { class: "model-chip", onclick: () => post({ type: "talkWindow", action: "model" }) });
   var pinButton = el("button", { class: "ib", onclick: () => post({ type: "talkPin", on: !view?.onTop }) });
   var maxButton = el("button", { class: "ib", onclick: () => post({ type: "talkWindow", action: "maximize" }) });
@@ -1347,9 +2290,9 @@
     modelChip,
     el("span", { class: "grow" }),
     pinButton,
-    el("button", { class: "ib", title: "Talk settings", "aria-label": "Talk settings", onclick: () => post({ type: "talkWindow", action: "settings" }) }, lucide("settings")),
+    el("button", { class: "ib", title: t("talk.settings"), "aria-label": t("talk.settings"), onclick: () => post({ type: "talkWindow", action: "settings" }) }, lucide("settings")),
     maxButton,
-    el("button", { class: "ib", title: "Close", "aria-label": "Close", onclick: () => post({ type: "talkWindow", action: "close" }) }, lucide("x"))
+    el("button", { class: "ib", title: t("common.close"), "aria-label": t("common.close"), onclick: () => post({ type: "talkWindow", action: "close" }) }, lucide("x"))
   );
   var notice = el("div", { class: "talk-notice" });
   var empty = el("div", { class: "talk-empty" });
@@ -1359,10 +2302,10 @@
   var failed = el("p", { class: "warn talk-failed", hidden: true });
   var feedIn = el("div", { class: "feed-in" }, empty, list, live, typing, failed);
   var feed = el("div", { class: "feed" }, feedIn);
-  var toEnd = el("button", { class: "to-end", hidden: true, title: "To the last line", "aria-label": "To the last line", onclick: () => follow(true) }, lucide("arrow-down", "s"));
+  var toEnd = el("button", { class: "to-end", hidden: true, title: t("talk.toEnd"), "aria-label": t("talk.toEnd"), onclick: () => follow(true) }, lucide("arrow-down", "s"));
   var micButton = el("button", { class: "mic", onclick: () => toggle() });
   var status = el("div", { class: "cstatus", "aria-live": "polite" });
-  var field = el("input", { type: "text", class: "field", placeholder: "Or type a line and press Enter", autocomplete: "off", spellcheck: "false", "aria-label": "Type a line to the duck" });
+  var field = el("input", { type: "text", class: "field", placeholder: t("talk.typePlaceholder"), autocomplete: "off", spellcheck: "false", "aria-label": t("talk.typeAria") });
   field.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && field.value.trim()) {
       event.preventDefault();
@@ -1374,7 +2317,7 @@
       field.value = "";
     }
   });
-  var newButton = el("button", { class: "btn new", title: "Put this talk away in your talks and start a new one", onclick: () => newTalk() }, lucide("square-pen"), "New talk");
+  var newButton = el("button", { class: "btn new", title: t("talk.newTitle"), onclick: () => newTalk() }, lucide("square-pen"), t("talk.new"));
   var composer = el("div", { class: "composer" }, el("div", { class: "composer-in" }, micButton, el("div", { class: "cmain" }, status, el("div", { class: "crow" }, field, newButton))));
   var wave = new Wave();
   var time = el("span", { class: "time" }, "0:00");
@@ -1382,9 +2325,9 @@
   var historyFoot = el("div", { class: "hfoot" });
   var history = el(
     "aside",
-    { class: "history", "aria-label": "Your talks" },
-    el("div", { class: "hhead" }, el("span", { class: "htitle" }, "Your talks"), el("button", { class: "ib hclose", title: "Close", "aria-label": "Close the list", onclick: () => showHistory(false) }, lucide("x"))),
-    el("button", { class: "btn hnew", onclick: () => newTalk() }, lucide("square-pen"), "New talk"),
+    { class: "history", "aria-label": t("talk.yourTalks") },
+    el("div", { class: "hhead" }, el("span", { class: "htitle" }, t("talk.yourTalks")), el("button", { class: "ib hclose", title: t("common.close"), "aria-label": t("talk.closeList"), onclick: () => showHistory(false) }, lucide("x"))),
+    el("button", { class: "btn hnew", onclick: () => newTalk() }, lucide("square-pen"), t("talk.new")),
     historyList,
     historyFoot
   );
@@ -1394,7 +2337,7 @@
     host: document.body,
     area: feed,
     post,
-    nativeName: () => view?.native ?? "your language",
+    nativeName: () => view?.native ? languageName(view.native) : t("lang.yours"),
     mode: () => view?.wordHint ?? "shift",
     speak: (word) => void player.play("word", [el("span", {}, word)]),
     ceiling: () => header.getBoundingClientRect().bottom
@@ -1453,7 +2396,7 @@
     root.classList.toggle("history-open", on);
     scrim.hidden = !on || wide.matches;
     historyButton.setAttribute("aria-pressed", String(on));
-    historyButton.title = on ? "Hide your talks" : "Your talks";
+    historyButton.title = on ? t("talk.hideTalks") : t("talk.yourTalks");
     if (!on) stopClearing();
   }
   wide.addEventListener("change", () => {
@@ -1461,26 +2404,27 @@
     placeHistory();
   });
   var DAY_MS = 24 * 60 * 60 * 1e3;
-  var topicName = (id) => TOPICS.find((t) => t.id === id)?.title ?? id;
+  var topicName = (id) => TOPICS.some((topic) => topic.id === id) ? t(`topic.${id}`) : id;
+  var DAY_NAMES = { today: "talk.today", yesterday: "talk.yesterday", earlier: "talk.earlier" };
   function groupOf(iso, now) {
     const today = new Date(now).setHours(0, 0, 0, 0);
     const at = Date.parse(iso);
-    return at >= today ? "Today" : at >= today - DAY_MS ? "Yesterday" : "Earlier";
+    return at >= today ? "today" : at >= today - DAY_MS ? "yesterday" : "earlier";
   }
-  var whenOf = (iso, group) => group === "Earlier" ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  function talkItem(t, group, going) {
-    const meta = [`${t.lines} lines`, t.marked ? `${t.marked} with a mistake` : "", going ? "going on" : whenOf(t.ended, group)].filter(Boolean).join(" \xB7 ");
+  var whenOf = (iso, group) => group === "earlier" ? formatDate(new Date(iso), { day: "numeric", month: "short" }) : formatDate(new Date(iso), { hour: "2-digit", minute: "2-digit" });
+  function talkItem(talk, group, going) {
+    const meta = [t("talk.lines", { n: talk.lines }), talk.marked ? t("talk.withMistake", { n: talk.marked }) : "", going ? t("talk.goingOnMeta") : whenOf(talk.ended, group)].filter(Boolean).join(" \xB7 ");
     return el(
       "div",
       { class: going ? "hitem on" : "hitem" },
       el(
         "button",
-        { class: "hopen", "aria-current": going ? "true" : void 0, title: going ? "The talk going on" : "Go on with this talk", onclick: () => going ? !wide.matches && showHistory(false) : goOn(t.id) },
-        el("span", { class: "hname" }, topicName(t.topic)),
-        el("span", { class: "hfirst" }, t.first ? `\u201C${t.first}\u201D` : "The duck\u2019s first line"),
+        { class: "hopen", "aria-current": going ? "true" : void 0, title: going ? t("talk.goingOnTitle") : t("talk.goOn"), onclick: () => going ? !wide.matches && showHistory(false) : goOn(talk.id) },
+        el("span", { class: "hname" }, topicName(talk.topic)),
+        el("span", { class: "hfirst" }, talk.first ? `\u201C${talk.first}\u201D` : t("talk.firstLine")),
         el("small", {}, meta)
       ),
-      going ? null : el("button", { class: "ib hdel", title: "Delete this talk", "aria-label": "Delete this talk", onclick: () => post({ type: "talkDelete", id: t.id }) }, lucide("x"))
+      going ? null : el("button", { class: "ib hdel", title: t("talk.delete"), "aria-label": t("talk.delete"), onclick: () => post({ type: "talkDelete", id: talk.id }) }, lucide("x"))
     );
   }
   function drawHistory(v) {
@@ -1488,22 +2432,22 @@
     const from = JSON.stringify(v.talks) + new Date(now).toDateString();
     if (from === historyFrom) return;
     historyFrom = from;
-    const { current, past } = v.talks;
+    const { current: current2, past } = v.talks;
     const nodes = [];
-    if (current) nodes.push(el("h3", {}, "Going on"), talkItem(current, "Today", true));
+    if (current2) nodes.push(el("h3", {}, t("talk.goingOn")), talkItem(current2, "today", true));
     let group = "";
-    for (const t of past) {
-      const g = groupOf(t.ended, now);
-      if (g !== group) nodes.push(el("h3", {}, group = g));
-      nodes.push(talkItem(t, g, false));
+    for (const talk of past) {
+      const g = groupOf(talk.ended, now);
+      if (g !== group) nodes.push(el("h3", {}, t(DAY_NAMES[group = g])));
+      nodes.push(talkItem(talk, g, false));
     }
-    if (!past.length) nodes.push(el("p", { class: "hempty" }, "New talk puts a talk here, to go on with it later. Kept 30 days on this computer, 50 at most."));
+    if (!past.length) nodes.push(el("p", { class: "hempty" }, t("talk.historyEmpty")));
     historyList.replaceChildren(...nodes);
     drawFoot();
   }
   function drawFoot() {
     const n = view?.talks.past.length ?? 0;
-    historyFoot.replaceChildren(...n ? [el("button", { class: clearing ? "hclear sure" : "hclear", onclick: () => clearAll() }, clearing ? `Sure? Delete ${n === 1 ? "it" : `all ${n}`}` : "Clear all")] : []);
+    historyFoot.replaceChildren(...n ? [el("button", { class: clearing ? "hclear sure" : "hclear", onclick: () => clearAll() }, clearing ? n === 1 ? t("talk.sureOne") : t("talk.sureAll", { n }) : t("talk.clearAll"))] : []);
   }
   function clearAll() {
     if (clearing === void 0) {
@@ -1528,21 +2472,20 @@
     post({ type: "talkContinue", id });
     if (!wide.matches) showHistory(false);
   }
-  var settingsLink = () => el("button", { class: "btn", onclick: () => post({ type: "talkWindow", action: "settings" }) }, "Open settings");
+  var settingsLink = () => el("button", { class: "btn", onclick: () => post({ type: "talkWindow", action: "settings" }) }, t("common.openSettings"));
   var noticeRow = (name, text, note, control) => el("div", { class: "notice" }, lucide(name, "s"), el("div", { class: "l" }, text, el("small", {}, note)), control ?? null);
-  var sizeText = (mb) => mb >= 1e3 ? `${(Math.round(mb / 100) / 10).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`;
   function blockOf(v) {
     if (v.needsCard)
-      return { stop: true, deaf: true, node: noticeRow("cpu", "Talk needs a graphics card with 4 GB of its own memory or more", "On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.") };
+      return { stop: true, deaf: true, node: noticeRow("cpu", t("talk.needsCard"), t("talk.needsCardNote")) };
     if (v.model.status !== "ready") {
       const fetching = v.model.status === "downloading";
-      const note = fetching ? `downloading, ${Math.round(v.model.progress * 100)}%; the talk starts once it is here` : v.model.status === "failed" ? "the download failed" : "download it in the settings; Check my English and Translate can use it too";
-      return { stop: true, deaf: true, node: noticeRow("download", `The duck needs its model: ${v.model.name}, ${sizeText(v.model.size)}`, note, fetching ? null : settingsLink()) };
+      const note = fetching ? t("talk.downloading", { pct: Math.round(v.model.progress * 100) }) : v.model.status === "failed" ? t("talk.downloadFailed") : t("talk.downloadIt");
+      return { stop: true, deaf: true, node: noticeRow("download", t("talk.needsModel", { name: v.model.name, size: sizeText(v.model.size) }), note, fetching ? null : settingsLink()) };
     }
-    if (v.engine === "absent") return { stop: false, deaf: true, node: noticeRow("mic-off", "Type to the duck, or add speech to talk", "Talk hears you through the speech engine Dictate uses; download it in the settings.", settingsLink()) };
-    if (v.engine === "starting") return { stop: false, deaf: true, node: el("p", { class: "aside" }, lucide("loader", "s turning"), el("span", {}, "The speech engine is starting\u2026")) };
-    if (v.slow) return { stop: false, deaf: false, node: el("p", { class: "aside amber" }, lucide("circle-alert", "s"), el("span", {}, `${v.model.name} is slow on this computer: the duck may take a while to answer. Accurate answers in about 3 seconds.`)) };
-    if (v.busy) return { stop: false, deaf: false, node: el("p", { class: "aside amber" }, lucide("circle-alert", "s"), el("span", {}, `Another program is using the ${v.busy === "card" ? "graphics card" : "processor"}: the duck may answer slowly.`)) };
+    if (v.engine === "absent") return { stop: false, deaf: true, node: noticeRow("mic-off", t("talk.noEngine"), t("talk.noEngineNote"), settingsLink()) };
+    if (v.engine === "starting") return { stop: false, deaf: true, node: el("p", { class: "aside" }, lucide("loader", "s turning"), el("span", {}, t("talk.engineStarting"))) };
+    if (v.slow) return { stop: false, deaf: false, node: el("p", { class: "aside amber" }, lucide("circle-alert", "s"), el("span", {}, t("talk.slow", { name: v.model.name, accurate: levelName("accurate") }))) };
+    if (v.busy) return { stop: false, deaf: false, node: el("p", { class: "aside amber" }, lucide("circle-alert", "s"), el("span", {}, t(v.busy === "card" ? "talk.busyCard" : "talk.busyProcessor"))) };
     return void 0;
   }
   var block;
@@ -1557,17 +2500,17 @@
     empty.replaceChildren(
       tile(48),
       el("h2", {}, "Talk to the duck"),
-      el("p", {}, "Speak English. The duck answers aloud, and your mistakes are marked in your own lines."),
-      el("div", { class: "topics" }, ...TOPICS.map((t) => el("button", { class: "chip topic", disabled: stop, onclick: () => post({ type: "talkStart", topic: t.id }) }, t.title))),
-      el("small", {}, block?.deaf ? "Or type hello below." : "Or just press the button and say hello.")
+      el("p", {}, t("talk.intro")),
+      el("div", { class: "topics" }, ...TOPICS.map((topic) => el("button", { class: "chip topic", disabled: stop, onclick: () => post({ type: "talkStart", topic: topic.id }) }, topicName(topic.id)))),
+      el("small", {}, block?.deaf ? t("talk.orTypeHello") : t("talk.orSayHello"))
     );
   }
   function draw(v) {
     const first = !view;
     view = v;
-    const t = v.talk;
+    const talk = v.talk;
     const resumed = !!continuing && v.talks.current?.id === continuing;
-    if (first || resumed) lastRead = Math.max(0, ...t.turns.filter((turn) => turn.who === "duck").map((turn) => turn.id));
+    if (first || resumed) lastRead = Math.max(0, ...talk.turns.filter((turn) => turn.who === "duck").map((turn) => turn.id));
     if (resumed) continuing = "";
     block = blockOf(v);
     notice.replaceChildren(...block ? [block.node] : []);
@@ -1575,20 +2518,20 @@
     keyCaps.replaceChildren(...v.talkKey ? [caps(v.talkKey)] : []);
     pinButton.replaceChildren(lucide("pin"));
     pinButton.setAttribute("aria-pressed", String(v.onTop));
-    pinButton.title = v.onTop ? "Stop keeping it on top" : "Keep it on top of other windows";
+    pinButton.title = v.onTop ? t("talk.unpin") : t("talk.pin");
     pinButton.setAttribute("aria-label", pinButton.title);
     maxButton.replaceChildren(glyph(v.maximized ? "restore" : "maximize"));
-    maxButton.title = v.maximized ? "Restore" : "Maximize";
+    maxButton.title = v.maximized ? t("common.restore") : t("common.maximize");
     maxButton.setAttribute("aria-label", maxButton.title);
     root.classList.toggle("maxed", v.maximized);
     modelChip.textContent = v.model.name;
-    modelChip.title = `The duck runs on ${v.model.full}, the same model as Check my English, on this computer. Click to change it.`;
+    modelChip.title = t("talk.modelTitle", { model: v.model.full });
     drawHistory(v);
-    empty.hidden = t.turns.length > 0;
+    empty.hidden = talk.turns.length > 0;
     if (!empty.hidden) drawEmpty();
     const seen = /* @__PURE__ */ new Set();
     let before = null;
-    for (const turn of t.turns) {
+    for (const turn of talk.turns) {
       seen.add(turn.id);
       const from = JSON.stringify(turn);
       let known = drawn.get(turn.id);
@@ -1612,14 +2555,14 @@
       }
     if (sent) heard = "", sent = false;
     drawLive();
-    typing.hidden = t.status !== "thinking";
-    failed.hidden = t.status !== "failed";
-    failed.replaceChildren(lucide("circle-alert", "s"), el("span", {}, `The duck could not answer: ${t.message ?? "no answer"}. Say it again, or type it.`));
+    typing.hidden = talk.status !== "thinking";
+    failed.hidden = talk.status !== "failed";
+    failed.replaceChildren(lucide("circle-alert", "s"), el("span", {}, t("talk.failed", { message: talk.message ?? t("talk.noAnswer") })));
     markRare([...list.querySelectorAll(".turn.duck .bubble")], common, v.rareWords);
     readNew(v);
     drawComposer();
-    const last = t.turns.at(-1)?.id ?? 0;
-    if (first || resumed || !t.turns.length) follow(true);
+    const last = talk.turns.at(-1)?.id ?? 0;
+    if (first || resumed || !talk.turns.length) follow(true);
     else if (last > lastSeen && !atEnd) toEnd.hidden = false;
     lastSeen = last;
   }
@@ -1627,7 +2570,7 @@
     const showing = phase === "listening" || phase === "starting" || phase === "sending" || !!heard;
     live.hidden = !showing;
     if (!showing) return;
-    live.replaceChildren(el("div", { class: "bubble" }, heard ? el("div", { class: "said" }, heard) : el("div", { class: "said waiting" }, phase === "starting" ? "Starting the microphone\u2026" : "Listening\u2026")));
+    live.replaceChildren(el("div", { class: "bubble" }, heard ? el("div", { class: "said" }, heard) : el("div", { class: "said waiting" }, phase === "starting" ? t("talk.startingMic") : t("common.listening"))));
   }
   function readNew(v) {
     const newest = [...v.talk.turns].reverse().find((turn) => turn.who === "duck");
@@ -1649,23 +2592,27 @@
     const thinking = v.talk.status === "thinking";
     micButton.disabled = deaf || phase === "starting" || phase === "sending";
     field.disabled = stopped;
-    field.placeholder = deaf ? "Type a line and press Enter" : "Or type a line and press Enter";
+    field.placeholder = deaf ? t("talk.typeOnly") : t("talk.typePlaceholder");
     micButton.className = `mic ${phase === "listening" ? "listening" : phase === "idle" ? "idle" : "busy"}`;
     micButton.replaceChildren(phase === "listening" ? lucide("send-horizontal") : phase === "idle" ? lucide("mic") : lucide("loader", "turning"));
-    const label = phase === "listening" ? "Send" : "Talk";
+    const label = phase === "listening" ? t("talk.send") : t("talk.talk");
     micButton.title = label;
     micButton.setAttribute("aria-label", label);
-    const press = v.talkKey ? [caps(v.talkKey), el("span", {}, "or"), caps("Space")] : [caps("Space")];
-    if (stopped) status.replaceChildren(el("span", {}, "Talk is not possible yet: see above."));
-    else if (deaf) status.replaceChildren(...speaking ? [lucide("volume-2", "s"), el("span", {}, "The duck is speaking")] : thinking ? [el("span", {}, "The duck is thinking\u2026")] : [el("span", {}, "Typing only, until speech is here")]);
-    else if (trouble) status.replaceChildren(el("span", { class: "bad" }, trouble), el("span", {}, "Press again to try."));
-    else if (phase === "listening") status.replaceChildren(el("span", { class: "rec" }), el("span", {}, "Listening \xB7 press"), ...press, el("span", {}, "to send"), time, wave.canvas);
-    else if (phase === "starting") status.replaceChildren(el("span", {}, "Starting the microphone\u2026"));
-    else if (phase === "sending") status.replaceChildren(el("span", {}, "Finishing the line\u2026"));
-    else if (speaking) status.replaceChildren(lucide("volume-2", "s"), el("span", {}, "The duck is speaking \xB7 press"), ...press, el("span", {}, "to answer"));
-    else if (thinking) status.replaceChildren(el("span", {}, "The duck is thinking \xB7 press"), ...press, el("span", {}, "to talk over it"));
-    else status.replaceChildren(el("span", {}, "Press"), ...press, el("span", {}, "to talk"));
+    const press = v.talkKey ? [caps(v.talkKey), el("span", {}, t("common.or")), caps("Space")] : [caps("Space")];
+    if (stopped) status.replaceChildren(el("span", {}, t("talk.notPossible")));
+    else if (deaf) status.replaceChildren(...speaking ? [lucide("volume-2", "s"), el("span", {}, t("talk.speaking"))] : thinking ? [el("span", {}, t("talk.thinking"))] : [el("span", {}, t("talk.typingOnly"))]);
+    else if (trouble) status.replaceChildren(el("span", { class: "bad" }, trouble), el("span", {}, t("talk.pressAgain")));
+    else if (phase === "listening") status.replaceChildren(el("span", { class: "rec" }), ...withKeys("talk.listeningPress", press), time, wave.canvas);
+    else if (phase === "starting") status.replaceChildren(el("span", {}, t("talk.startingMic")));
+    else if (phase === "sending") status.replaceChildren(el("span", {}, t("talk.finishing")));
+    else if (speaking) status.replaceChildren(lucide("volume-2", "s"), ...withKeys("talk.speakingPress", press));
+    else if (thinking) status.replaceChildren(...withKeys("talk.thinkingPress", press));
+    else status.replaceChildren(...withKeys("talk.press", press));
     newButton.disabled = v.talk.turns.length === 0 && phase === "idle";
+  }
+  function withKeys(key, keys) {
+    const [before = "", after = ""] = t(key, { keys: "\0" }).split("\0").map((part) => part.trim());
+    return [...before ? [el("span", {}, before)] : [], ...keys, ...after ? [el("span", {}, after)] : []];
   }
   function toggle() {
     if (!view || block?.deaf) return;
@@ -1741,7 +2688,7 @@
         say(text);
       } else {
         heard = "";
-        trouble = "Nothing was heard.";
+        trouble = t("talk.nothingHeard");
       }
     } catch (error) {
       phase = "idle";

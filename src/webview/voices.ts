@@ -2,16 +2,18 @@
 // learn: where the system adds one. Voices are read once when Krya starts,
 // so a new one shows up after a restart.
 
+import { t } from '../i18n'
+
 export function voiceSteps(language: string, platform: string): string {
   switch (platform) {
     case 'win32':
-      return `To add one: Windows Settings → Time & language → Speech → Add voices → ${language}, then restart Krya.`
+      return t('voice.stepsWin', { lang: language })
     case 'darwin':
-      return `To add one: System Settings → Accessibility → Spoken Content → System voice → Manage Voices → ${language}, then restart Krya.`
+      return t('voice.stepsMac', { lang: language })
     case '':
       return ''
     default:
-      return 'Reading aloud uses the voices of Windows or macOS; this system has none the panel can use.'
+      return t('voice.none')
   }
 }
 

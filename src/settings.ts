@@ -2,6 +2,7 @@
 // (%APPDATA%\Krya). The learned language is English: the natural voice and
 // the word dictionaries are English ones.
 
+import { isUiLanguage, type UiLanguage } from './i18n'
 import { findLanguage, LANGUAGES } from './languages'
 import type { WordHintMode } from './protocol'
 import type { Prefer } from './speechplan'
@@ -62,6 +63,8 @@ export type Settings = {
   rareWords: boolean
   /** Light, dark, or as Windows is. */
   theme: ThemeMode
+  /** The interface's language (i18n): English unless the person picks Ukrainian or Russian; never taken from Windows by itself. */
+  uiLanguage: UiLanguage
   /** The card's width, and how tall it may grow (0: automatic), as last set by dragging its edge. */
   cardWidth: number
   cardHeight: number
@@ -198,6 +201,7 @@ export const DEFAULTS: Settings = {
   wordHint: 'shift',
   rareWords: true,
   theme: 'system',
+  uiLanguage: 'en',
   cardWidth: 440,
   cardHeight: 0,
   doubleCopy: true,
@@ -371,6 +375,7 @@ export function normalize(raw: unknown, native = DEFAULTS.native): Settings {
     wordHint: r.wordHint === 'hover' || r.wordHint === 'off' ? r.wordHint : 'shift',
     rareWords: flag(r.rareWords, DEFAULTS.rareWords),
     theme: r.theme === 'light' || r.theme === 'dark' ? r.theme : 'system',
+    uiLanguage: isUiLanguage(r.uiLanguage) ? r.uiLanguage : DEFAULTS.uiLanguage,
     cardWidth: within(r.cardWidth, CARD_WIDTH, DEFAULTS.cardWidth),
     cardHeight: r.cardHeight === 0 ? 0 : within(r.cardHeight, CARD_HEIGHT, DEFAULTS.cardHeight),
     doubleCopy: flag(r.doubleCopy, DEFAULTS.doubleCopy),

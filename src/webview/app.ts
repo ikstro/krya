@@ -27,7 +27,7 @@ import { el, icon, setIcon } from './dom'
 import { glyph } from './glyphs'
 import { caps, COPY_TWICE } from './keycaps'
 import { lucide, type LucideName } from './lucide'
-import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, listPage, liveField, navCard, post, row, seg, select, radioRow, recommended, toggle, toggleCard, toggleKnob, warn } from './ui'
+import { aside, bad, bar, btn, card, chip, grp, ib, link, linkBtn, listPage, liveField, navCard, post, row, seg, select, radioRow, recommended, toggle, toggleCard, toggleKnob, uiLanguageCard, warn } from './ui'
 import { seconds } from '../speechplan'
 import { recommend, recommendedModels } from '../setup'
 import { resetSetup, setupNodes } from './setup'
@@ -3011,6 +3011,7 @@ function settingsPage(v: AppView): HTMLElement[] {
   const s = v.settings
   return [
     grp('Language'),
+    uiLanguageCard(s.uiLanguage, uiLanguage => save({ uiLanguage })),
     card(
       'languages',
       'Your language',

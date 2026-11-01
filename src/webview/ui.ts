@@ -2,6 +2,7 @@
 // a card with its notes and control, a card that opens a page of its own, a
 // page that is a list to add to, switches, choices, links and chips.
 
+import { t, UI_LANGUAGES, type UiLanguage } from '../i18n'
 import type { ToHost } from '../protocol'
 import { el, icon } from './dom'
 import { lucide, type LucideName } from './lucide'
@@ -163,6 +164,20 @@ export function select<T extends string | number>(value: T, options: [T, string]
   })
   for (const [v, label] of options) node.append(el('option', v === value ? { value: String(v), selected: true } : { value: String(v) }, label))
   return el('span', { class: 'sel' }, node, lucide('chevron-down', 's'))
+}
+
+/** The interface's language, each named in itself; picked, every window of Krya loads again in it (Settings, the setup's first step). */
+export function uiLanguageCard(current: UiLanguage, save: (uiLanguage: UiLanguage) => void): HTMLElement {
+  return card(
+    'globe',
+    t('settings.uiLanguage'),
+    [t('settings.uiLanguageNote')],
+    seg<UiLanguage>(
+      current,
+      UI_LANGUAGES.map(l => [l.code, l.name]),
+      language => language !== current && save(language),
+    ),
+  )
 }
 
 export const linkBtn = (text: string, onclick: () => void, disabled = false) => el('button', { class: 'link', disabled, onclick }, text)

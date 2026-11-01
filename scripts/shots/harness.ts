@@ -12,7 +12,9 @@ import { appView, CAFE, talkWindowView, trayView } from './view'
 import { resolve } from 'node:path'
 
 const ROOT = resolve(__dirname, '..', '..').replace(/\\/g, '/')
-const OUT = `${ROOT}/.cache/shots`
+// SHOTS_LANG=uk or ru: every page in that interface language (i18n), into .cache/shots/<lang>/.
+const LANG = process.env.SHOTS_LANG ?? ''
+const OUT = `${ROOT}/.cache/shots${LANG ? `/${LANG}` : ''}`
 mkdirSync(OUT, { recursive: true })
 app.setPath('userData', `${ROOT}/.cache/shots-userdata`)
 app.on('window-all-closed', () => {})
@@ -34,7 +36,8 @@ function win(page: string, width: number, height: number, bg: string, query?: Re
     webPreferences: { preload: `${ROOT}/dist/preload.js`, contextIsolation: true, nodeIntegration: false, sandbox: true, offscreen: true, backgroundThrottling: false },
   })
   w.webContents.setFrameRate(30)
-  void w.loadFile(`${ROOT}/media/${page}`, query ? { query } : undefined)
+  const asked = { ...query, ...(LANG ? { lang: LANG } : {}) }
+  void w.loadFile(`${ROOT}/media/${page}`, Object.keys(asked).length ? { query: asked } : undefined)
   return w
 }
 
@@ -501,7 +504,7 @@ async function talkShots(theme: 'dark' | 'light'): Promise<void> {
   await view({ talk: { status: 'idle', topic: 'free', turns: [] }, model: { name: 'Accurate', full: 'Gemma 4 E4B', status: 'downloading', progress: 0.37, size: 5155 } }, 'downloading')
   // The history over a narrow talk: the clock in the bar opens it; Esc closes it.
   await view({}, 'talk-again', 300)
-  log.push(`talk history: ${await click(w, '.bar .ib[aria-label="Your talks"]')}`)
+  log.push(`talk history: ${await click(w, '.bar > .ib:first-child')}`)
   await sleep(300)
   log.push(`talk history open: ${await js(w, `document.querySelector('.talk').classList.contains('history-open')`)}`)
   await shot(w, tag('history'))
@@ -519,11 +522,11 @@ async function talkShots(theme: 'dark' | 'light'): Promise<void> {
   w.setSize(1400, 860)
   await sleep(500)
   await view({ maximized: true }, 'maximized', 400)
-  log.push(`talk hide history: ${await click(w, '.bar .ib[aria-label="Your talks"]')}`)
+  log.push(`talk hide history: ${await click(w, '.bar > .ib:first-child')}`)
   await sleep(300)
   await shot(w, tag('maximized-alone'))
   // Back as it was for the next run: the history beside a wide talk.
-  await click(w, '.bar .ib[aria-label="Your talks"]')
+  await click(w, '.bar > .ib:first-child')
   heard = 'Привет, это проверка диктовки: бейдж показывает фразу целиком, пока её слышит движок'
   w.destroy()
 }
@@ -568,8 +571,18 @@ app.whenReady().then(async () => {
   try {
     await cardShots('dark')
     await cardShots('light')
-    // SHOTS=card: the card alone.
-    if (process.env.SHOTS !== 'card') {
+    // SHOTS=card: the card alone; SHOTS=tray: the tray panel; SHOTS=daily: the card, the tray panel, the badge, the talk window and the setup.
+    if (process.env.SHOTS === 'tray') {
+      await trayShots('dark')
+      await trayShots('light')
+    } else if (process.env.SHOTS === 'daily') {
+      await setupShots('dark')
+      await trayShots('dark')
+      await trayShots('light')
+      await badgeShots('dark')
+      await talkShots('dark')
+      await talkShots('light')
+    } else if (process.env.SHOTS !== 'card') {
       await appShots('dark')
       await appShots('light')
       await appShots('dark', true)

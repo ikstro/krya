@@ -14,6 +14,7 @@
 // one; a click goes on with one. The window's settings are the app window's
 // Talk page (the gear); the model's name in the bar opens its choice.
 
+import { formatDate, languageName, levelName, sizeText, t, type Key } from '../i18n'
 import { voiceMatches } from '../languages'
 import { chosenNatural } from '../natural'
 import type { HostVoice, SpeechResult, TalkSummary, TalkTurn, TalkWindowView, ToView } from '../protocol'
@@ -102,7 +103,7 @@ const root = document.getElementById('root')!
 root.className = 'talk'
 
 const keyCaps = el('span', { class: 'head-key' })
-const historyButton = el('button', { class: 'ib', title: 'Your talks', 'aria-label': 'Your talks', 'aria-pressed': 'false', onclick: () => showHistory(!historyShown()) }, lucide('history'))
+const historyButton = el('button', { class: 'ib', title: t('talk.yourTalks'), 'aria-label': t('talk.yourTalks'), 'aria-pressed': 'false', onclick: () => showHistory(!historyShown()) }, lucide('history'))
 const modelChip = el('button', { class: 'model-chip', onclick: () => post({ type: 'talkWindow', action: 'model' }) })
 const pinButton = el('button', { class: 'ib', onclick: () => post({ type: 'talkPin', on: !view?.onTop }) })
 const maxButton = el('button', { class: 'ib', onclick: () => post({ type: 'talkWindow', action: 'maximize' }) })
@@ -116,9 +117,9 @@ const header = el(
   modelChip,
   el('span', { class: 'grow' }),
   pinButton,
-  el('button', { class: 'ib', title: 'Talk settings', 'aria-label': 'Talk settings', onclick: () => post({ type: 'talkWindow', action: 'settings' }) }, lucide('settings')),
+  el('button', { class: 'ib', title: t('talk.settings'), 'aria-label': t('talk.settings'), onclick: () => post({ type: 'talkWindow', action: 'settings' }) }, lucide('settings')),
   maxButton,
-  el('button', { class: 'ib', title: 'Close', 'aria-label': 'Close', onclick: () => post({ type: 'talkWindow', action: 'close' }) }, lucide('x')),
+  el('button', { class: 'ib', title: t('common.close'), 'aria-label': t('common.close'), onclick: () => post({ type: 'talkWindow', action: 'close' }) }, lucide('x')),
 )
 
 const notice = el('div', { class: 'talk-notice' })
@@ -129,11 +130,11 @@ const typing = el('div', { class: 'turn duck typing', hidden: true }, tile(28), 
 const failed = el('p', { class: 'warn talk-failed', hidden: true })
 const feedIn = el('div', { class: 'feed-in' }, empty, list, live, typing, failed)
 const feed = el('div', { class: 'feed' }, feedIn)
-const toEnd = el('button', { class: 'to-end', hidden: true, title: 'To the last line', 'aria-label': 'To the last line', onclick: () => follow(true) }, lucide('arrow-down', 's'))
+const toEnd = el('button', { class: 'to-end', hidden: true, title: t('talk.toEnd'), 'aria-label': t('talk.toEnd'), onclick: () => follow(true) }, lucide('arrow-down', 's'))
 
 const micButton = el('button', { class: 'mic', onclick: () => toggle() })
 const status = el('div', { class: 'cstatus', 'aria-live': 'polite' })
-const field = el('input', { type: 'text', class: 'field', placeholder: 'Or type a line and press Enter', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Type a line to the duck' })
+const field = el('input', { type: 'text', class: 'field', placeholder: t('talk.typePlaceholder'), autocomplete: 'off', spellcheck: 'false', 'aria-label': t('talk.typeAria') })
 field.addEventListener('keydown', event => {
   if (event.key === 'Enter' && field.value.trim()) {
     event.preventDefault()
@@ -145,7 +146,7 @@ field.addEventListener('keydown', event => {
     field.value = ''
   }
 })
-const newButton = el('button', { class: 'btn new', title: 'Put this talk away in your talks and start a new one', onclick: () => newTalk() }, lucide('square-pen'), 'New talk')
+const newButton = el('button', { class: 'btn new', title: t('talk.newTitle'), onclick: () => newTalk() }, lucide('square-pen'), t('talk.new'))
 const composer = el('div', { class: 'composer' }, el('div', { class: 'composer-in' }, micButton, el('div', { class: 'cmain' }, status, el('div', { class: 'crow' }, field, newButton))))
 const wave = new Wave()
 const time = el('span', { class: 'time' }, '0:00')
@@ -154,9 +155,9 @@ const historyList = el('div', { class: 'hlist' })
 const historyFoot = el('div', { class: 'hfoot' })
 const history = el(
   'aside',
-  { class: 'history', 'aria-label': 'Your talks' },
-  el('div', { class: 'hhead' }, el('span', { class: 'htitle' }, 'Your talks'), el('button', { class: 'ib hclose', title: 'Close', 'aria-label': 'Close the list', onclick: () => showHistory(false) }, lucide('x'))),
-  el('button', { class: 'btn hnew', onclick: () => newTalk() }, lucide('square-pen'), 'New talk'),
+  { class: 'history', 'aria-label': t('talk.yourTalks') },
+  el('div', { class: 'hhead' }, el('span', { class: 'htitle' }, t('talk.yourTalks')), el('button', { class: 'ib hclose', title: t('common.close'), 'aria-label': t('talk.closeList'), onclick: () => showHistory(false) }, lucide('x'))),
+  el('button', { class: 'btn hnew', onclick: () => newTalk() }, lucide('square-pen'), t('talk.new')),
   historyList,
   historyFoot,
 )
@@ -168,7 +169,7 @@ const hover = new WordHover({
   host: document.body,
   area: feed,
   post,
-  nativeName: () => view?.native ?? 'your language',
+  nativeName: () => (view?.native ? languageName(view.native) : t('lang.yours')),
   mode: () => view?.wordHint ?? 'shift',
   speak: word => void player.play('word', [el('span', {}, word)]),
   ceiling: () => header.getBoundingClientRect().bottom,
@@ -246,7 +247,7 @@ function placeHistory(): void {
   root.classList.toggle('history-open', on)
   scrim.hidden = !on || wide.matches
   historyButton.setAttribute('aria-pressed', String(on))
-  historyButton.title = on ? 'Hide your talks' : 'Your talks'
+  historyButton.title = on ? t('talk.hideTalks') : t('talk.yourTalks')
   if (!on) stopClearing()
 }
 
@@ -256,32 +257,35 @@ wide.addEventListener('change', () => {
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const topicName = (id: string) => TOPICS.find(t => t.id === id)?.title ?? id
+const topicName = (id: string) => (TOPICS.some(topic => topic.id === id) ? t(`topic.${id}` as Key) : id)
 
-function groupOf(iso: string, now: number): 'Today' | 'Yesterday' | 'Earlier' {
+type Day = 'today' | 'yesterday' | 'earlier'
+const DAY_NAMES: Record<Day, Key> = { today: 'talk.today', yesterday: 'talk.yesterday', earlier: 'talk.earlier' }
+
+function groupOf(iso: string, now: number): Day {
   const today = new Date(now).setHours(0, 0, 0, 0)
   const at = Date.parse(iso)
-  return at >= today ? 'Today' : at >= today - DAY_MS ? 'Yesterday' : 'Earlier'
+  return at >= today ? 'today' : at >= today - DAY_MS ? 'yesterday' : 'earlier'
 }
 
 /** When a talk ended: the time today and yesterday, the day before that. */
-const whenOf = (iso: string, group: string) =>
-  group === 'Earlier' ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+const whenOf = (iso: string, group: Day) =>
+  group === 'earlier' ? formatDate(new Date(iso), { day: 'numeric', month: 'short' }) : formatDate(new Date(iso), { hour: '2-digit', minute: '2-digit' })
 
 /** A talk in the list: its topic, the person's first line, how long it was; a click goes on with it, × deletes it. The one going on is lit. */
-function talkItem(t: TalkSummary, group: string, going: boolean): HTMLElement {
-  const meta = [`${t.lines} lines`, t.marked ? `${t.marked} with a mistake` : '', going ? 'going on' : whenOf(t.ended, group)].filter(Boolean).join(' · ')
+function talkItem(talk: TalkSummary, group: Day, going: boolean): HTMLElement {
+  const meta = [t('talk.lines', { n: talk.lines }), talk.marked ? t('talk.withMistake', { n: talk.marked }) : '', going ? t('talk.goingOnMeta') : whenOf(talk.ended, group)].filter(Boolean).join(' · ')
   return el(
     'div',
     { class: going ? 'hitem on' : 'hitem' },
     el(
       'button',
-      { class: 'hopen', 'aria-current': going ? 'true' : undefined, title: going ? 'The talk going on' : 'Go on with this talk', onclick: () => (going ? !wide.matches && showHistory(false) : goOn(t.id)) },
-      el('span', { class: 'hname' }, topicName(t.topic)),
-      el('span', { class: 'hfirst' }, t.first ? `“${t.first}”` : 'The duck’s first line'),
+      { class: 'hopen', 'aria-current': going ? 'true' : undefined, title: going ? t('talk.goingOnTitle') : t('talk.goOn'), onclick: () => (going ? !wide.matches && showHistory(false) : goOn(talk.id)) },
+      el('span', { class: 'hname' }, topicName(talk.topic)),
+      el('span', { class: 'hfirst' }, talk.first ? `“${talk.first}”` : t('talk.firstLine')),
       el('small', {}, meta),
     ),
-    going ? null : el('button', { class: 'ib hdel', title: 'Delete this talk', 'aria-label': 'Delete this talk', onclick: () => post({ type: 'talkDelete', id: t.id }) }, lucide('x')),
+    going ? null : el('button', { class: 'ib hdel', title: t('talk.delete'), 'aria-label': t('talk.delete'), onclick: () => post({ type: 'talkDelete', id: talk.id }) }, lucide('x')),
   )
 }
 
@@ -293,21 +297,21 @@ function drawHistory(v: TalkWindowView): void {
   historyFrom = from
   const { current, past } = v.talks
   const nodes: HTMLElement[] = []
-  if (current) nodes.push(el('h3', {}, 'Going on'), talkItem(current, 'Today', true))
+  if (current) nodes.push(el('h3', {}, t('talk.goingOn')), talkItem(current, 'today', true))
   let group = ''
-  for (const t of past) {
-    const g = groupOf(t.ended, now)
-    if (g !== group) nodes.push(el('h3', {}, (group = g)))
-    nodes.push(talkItem(t, g, false))
+  for (const talk of past) {
+    const g = groupOf(talk.ended, now)
+    if (g !== group) nodes.push(el('h3', {}, t(DAY_NAMES[(group = g)])))
+    nodes.push(talkItem(talk, g, false))
   }
-  if (!past.length) nodes.push(el('p', { class: 'hempty' }, 'New talk puts a talk here, to go on with it later. Kept 30 days on this computer, 50 at most.'))
+  if (!past.length) nodes.push(el('p', { class: 'hempty' }, t('talk.historyEmpty')))
   historyList.replaceChildren(...nodes)
   drawFoot()
 }
 
 function drawFoot(): void {
   const n = view?.talks.past.length ?? 0
-  historyFoot.replaceChildren(...(n ? [el('button', { class: clearing ? 'hclear sure' : 'hclear', onclick: () => clearAll() }, clearing ? `Sure? Delete ${n === 1 ? 'it' : `all ${n}`}` : 'Clear all')] : []))
+  historyFoot.replaceChildren(...(n ? [el('button', { class: clearing ? 'hclear sure' : 'hclear', onclick: () => clearAll() }, clearing ? (n === 1 ? t('talk.sureOne') : t('talk.sureAll', { n })) : t('talk.clearAll'))] : []))
 }
 
 function clearAll(): void {
@@ -342,10 +346,9 @@ function goOn(id: string): void {
 /** What stands in the way, said above the talk; `stop`: no talk at all, `deaf`: typing only. */
 type Block = { stop: boolean; deaf: boolean; node: HTMLElement } | undefined
 
-const settingsLink = () => el('button', { class: 'btn', onclick: () => post({ type: 'talkWindow', action: 'settings' }) }, 'Open settings')
+const settingsLink = () => el('button', { class: 'btn', onclick: () => post({ type: 'talkWindow', action: 'settings' }) }, t('common.openSettings'))
 const noticeRow = (name: Parameters<typeof lucide>[0], text: string, note: string, control?: HTMLElement | null) =>
   el('div', { class: 'notice' }, lucide(name, 's'), el('div', { class: 'l' }, text, el('small', {}, note)), control ?? null)
-const sizeText = (mb: number) => (mb >= 1000 ? `${(Math.round(mb / 100) / 10).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`)
 
 /**
  * The model not downloaded (it checks and answers), a computer whose graphics
@@ -355,16 +358,16 @@ const sizeText = (mb: number) => (mb >= 1000 ? `${(Math.round(mb / 100) / 10).to
  */
 function blockOf(v: TalkWindowView): Block {
   if (v.needsCard)
-    return { stop: true, deaf: true, node: noticeRow('cpu', 'Talk needs a graphics card with 4 GB of its own memory or more', 'On this computer the duck would answer in 15 seconds or more, too slow for a talk. Check my English still works.') }
+    return { stop: true, deaf: true, node: noticeRow('cpu', t('talk.needsCard'), t('talk.needsCardNote')) }
   if (v.model.status !== 'ready') {
     const fetching = v.model.status === 'downloading'
-    const note = fetching ? `downloading, ${Math.round(v.model.progress * 100)}%; the talk starts once it is here` : v.model.status === 'failed' ? 'the download failed' : 'download it in the settings; Check my English and Translate can use it too'
-    return { stop: true, deaf: true, node: noticeRow('download', `The duck needs its model: ${v.model.name}, ${sizeText(v.model.size)}`, note, fetching ? null : settingsLink()) }
+    const note = fetching ? t('talk.downloading', { pct: Math.round(v.model.progress * 100) }) : v.model.status === 'failed' ? t('talk.downloadFailed') : t('talk.downloadIt')
+    return { stop: true, deaf: true, node: noticeRow('download', t('talk.needsModel', { name: v.model.name, size: sizeText(v.model.size) }), note, fetching ? null : settingsLink()) }
   }
-  if (v.engine === 'absent') return { stop: false, deaf: true, node: noticeRow('mic-off', 'Type to the duck, or add speech to talk', 'Talk hears you through the speech engine Dictate uses; download it in the settings.', settingsLink()) }
-  if (v.engine === 'starting') return { stop: false, deaf: true, node: el('p', { class: 'aside' }, lucide('loader', 's turning'), el('span', {}, 'The speech engine is starting…')) }
-  if (v.slow) return { stop: false, deaf: false, node: el('p', { class: 'aside amber' }, lucide('circle-alert', 's'), el('span', {}, `${v.model.name} is slow on this computer: the duck may take a while to answer. Accurate answers in about 3 seconds.`)) }
-  if (v.busy) return { stop: false, deaf: false, node: el('p', { class: 'aside amber' }, lucide('circle-alert', 's'), el('span', {}, `Another program is using the ${v.busy === 'card' ? 'graphics card' : 'processor'}: the duck may answer slowly.`)) }
+  if (v.engine === 'absent') return { stop: false, deaf: true, node: noticeRow('mic-off', t('talk.noEngine'), t('talk.noEngineNote'), settingsLink()) }
+  if (v.engine === 'starting') return { stop: false, deaf: true, node: el('p', { class: 'aside' }, lucide('loader', 's turning'), el('span', {}, t('talk.engineStarting'))) }
+  if (v.slow) return { stop: false, deaf: false, node: el('p', { class: 'aside amber' }, lucide('circle-alert', 's'), el('span', {}, t('talk.slow', { name: v.model.name, accurate: levelName('accurate') }))) }
+  if (v.busy) return { stop: false, deaf: false, node: el('p', { class: 'aside amber' }, lucide('circle-alert', 's'), el('span', {}, t(v.busy === 'card' ? 'talk.busyCard' : 'talk.busyProcessor'))) }
   return undefined
 }
 
@@ -387,9 +390,9 @@ function drawEmpty(): void {
   empty.replaceChildren(
     tile(48),
     el('h2', {}, 'Talk to the duck'),
-    el('p', {}, 'Speak English. The duck answers aloud, and your mistakes are marked in your own lines.'),
-    el('div', { class: 'topics' }, ...TOPICS.map(t => el('button', { class: 'chip topic', disabled: stop, onclick: () => post({ type: 'talkStart', topic: t.id }) }, t.title))),
-    el('small', {}, block?.deaf ? 'Or type hello below.' : 'Or just press the button and say hello.'),
+    el('p', {}, t('talk.intro')),
+    el('div', { class: 'topics' }, ...TOPICS.map(topic => el('button', { class: 'chip topic', disabled: stop, onclick: () => post({ type: 'talkStart', topic: topic.id }) }, topicName(topic.id)))),
+    el('small', {}, block?.deaf ? t('talk.orTypeHello') : t('talk.orSayHello')),
   )
 }
 
@@ -397,10 +400,10 @@ function drawEmpty(): void {
 function draw(v: TalkWindowView): void {
   const first = !view
   view = v
-  const t = v.talk
+  const talk = v.talk
   // Opened on a talk kept from before, or one of the history taken up again: its lines are not read aloud again.
   const resumed = !!continuing && v.talks.current?.id === continuing
-  if (first || resumed) lastRead = Math.max(0, ...t.turns.filter(turn => turn.who === 'duck').map(turn => turn.id))
+  if (first || resumed) lastRead = Math.max(0, ...talk.turns.filter(turn => turn.who === 'duck').map(turn => turn.id))
   if (resumed) continuing = ''
   block = blockOf(v)
   notice.replaceChildren(...(block ? [block.node] : []))
@@ -408,20 +411,20 @@ function draw(v: TalkWindowView): void {
   keyCaps.replaceChildren(...(v.talkKey ? [caps(v.talkKey)] : []))
   pinButton.replaceChildren(lucide('pin'))
   pinButton.setAttribute('aria-pressed', String(v.onTop))
-  pinButton.title = v.onTop ? 'Stop keeping it on top' : 'Keep it on top of other windows'
+  pinButton.title = v.onTop ? t('talk.unpin') : t('talk.pin')
   pinButton.setAttribute('aria-label', pinButton.title)
   maxButton.replaceChildren(glyph(v.maximized ? 'restore' : 'maximize'))
-  maxButton.title = v.maximized ? 'Restore' : 'Maximize'
+  maxButton.title = v.maximized ? t('common.restore') : t('common.maximize')
   maxButton.setAttribute('aria-label', maxButton.title)
   root.classList.toggle('maxed', v.maximized)
   modelChip.textContent = v.model.name
-  modelChip.title = `The duck runs on ${v.model.full}, the same model as Check my English, on this computer. Click to change it.`
+  modelChip.title = t('talk.modelTitle', { model: v.model.full })
   drawHistory(v)
-  empty.hidden = t.turns.length > 0
+  empty.hidden = talk.turns.length > 0
   if (!empty.hidden) drawEmpty()
   const seen = new Set<number>()
   let before: Element | null = null
-  for (const turn of t.turns) {
+  for (const turn of talk.turns) {
     seen.add(turn.id)
     const from = JSON.stringify(turn)
     let known = drawn.get(turn.id)
@@ -448,15 +451,15 @@ function draw(v: TalkWindowView): void {
   // The line just sent stays where it was heard until the main process has it: the view after it.
   if (sent) (heard = ''), (sent = false)
   drawLive()
-  typing.hidden = t.status !== 'thinking'
-  failed.hidden = t.status !== 'failed'
-  failed.replaceChildren(lucide('circle-alert', 's'), el('span', {}, `The duck could not answer: ${t.message ?? 'no answer'}. Say it again, or type it.`))
+  typing.hidden = talk.status !== 'thinking'
+  failed.hidden = talk.status !== 'failed'
+  failed.replaceChildren(lucide('circle-alert', 's'), el('span', {}, t('talk.failed', { message: talk.message ?? t('talk.noAnswer') })))
   markRare([...list.querySelectorAll('.turn.duck .bubble')], common, v.rareWords)
   readNew(v)
   drawComposer()
-  const last = t.turns.at(-1)?.id ?? 0
+  const last = talk.turns.at(-1)?.id ?? 0
   // Opened, a new talk or one taken up again: at the end; a new line while scrolled up shows the ↓.
-  if (first || resumed || !t.turns.length) follow(true)
+  if (first || resumed || !talk.turns.length) follow(true)
   else if (last > lastSeen && !atEnd) toEnd.hidden = false
   lastSeen = last
 }
@@ -466,7 +469,7 @@ function drawLive(): void {
   const showing = phase === 'listening' || phase === 'starting' || phase === 'sending' || !!heard
   live.hidden = !showing
   if (!showing) return
-  live.replaceChildren(el('div', { class: 'bubble' }, heard ? el('div', { class: 'said' }, heard) : el('div', { class: 'said waiting' }, phase === 'starting' ? 'Starting the microphone…' : 'Listening…')))
+  live.replaceChildren(el('div', { class: 'bubble' }, heard ? el('div', { class: 'said' }, heard) : el('div', { class: 'said waiting' }, phase === 'starting' ? t('talk.startingMic') : t('common.listening'))))
 }
 
 /** The newest answer of the duck, read aloud once it comes (Read the duck aloud). */
@@ -493,23 +496,29 @@ function drawComposer(): void {
   const thinking = v.talk.status === 'thinking'
   micButton.disabled = deaf || phase === 'starting' || phase === 'sending'
   field.disabled = stopped
-  field.placeholder = deaf ? 'Type a line and press Enter' : 'Or type a line and press Enter'
+  field.placeholder = deaf ? t('talk.typeOnly') : t('talk.typePlaceholder')
   micButton.className = `mic ${phase === 'listening' ? 'listening' : phase === 'idle' ? 'idle' : 'busy'}`
   micButton.replaceChildren(phase === 'listening' ? lucide('send-horizontal') : phase === 'idle' ? lucide('mic') : lucide('loader', 'turning'))
-  const label = phase === 'listening' ? 'Send' : 'Talk'
+  const label = phase === 'listening' ? t('talk.send') : t('talk.talk')
   micButton.title = label
   micButton.setAttribute('aria-label', label)
-  const press = v.talkKey ? [caps(v.talkKey), el('span', {}, 'or'), caps('Space')] : [caps('Space')]
-  if (stopped) status.replaceChildren(el('span', {}, 'Talk is not possible yet: see above.'))
-  else if (deaf) status.replaceChildren(...(speaking ? [lucide('volume-2', 's'), el('span', {}, 'The duck is speaking')] : thinking ? [el('span', {}, 'The duck is thinking…')] : [el('span', {}, 'Typing only, until speech is here')]))
-  else if (trouble) status.replaceChildren(el('span', { class: 'bad' }, trouble), el('span', {}, 'Press again to try.'))
-  else if (phase === 'listening') status.replaceChildren(el('span', { class: 'rec' }), el('span', {}, 'Listening · press'), ...press, el('span', {}, 'to send'), time, wave.canvas)
-  else if (phase === 'starting') status.replaceChildren(el('span', {}, 'Starting the microphone…'))
-  else if (phase === 'sending') status.replaceChildren(el('span', {}, 'Finishing the line…'))
-  else if (speaking) status.replaceChildren(lucide('volume-2', 's'), el('span', {}, 'The duck is speaking · press'), ...press, el('span', {}, 'to answer'))
-  else if (thinking) status.replaceChildren(el('span', {}, 'The duck is thinking · press'), ...press, el('span', {}, 'to talk over it'))
-  else status.replaceChildren(el('span', {}, 'Press'), ...press, el('span', {}, 'to talk'))
+  const press = v.talkKey ? [caps(v.talkKey), el('span', {}, t('common.or')), caps('Space')] : [caps('Space')]
+  if (stopped) status.replaceChildren(el('span', {}, t('talk.notPossible')))
+  else if (deaf) status.replaceChildren(...(speaking ? [lucide('volume-2', 's'), el('span', {}, t('talk.speaking'))] : thinking ? [el('span', {}, t('talk.thinking'))] : [el('span', {}, t('talk.typingOnly'))]))
+  else if (trouble) status.replaceChildren(el('span', { class: 'bad' }, trouble), el('span', {}, t('talk.pressAgain')))
+  else if (phase === 'listening') status.replaceChildren(el('span', { class: 'rec' }), ...withKeys('talk.listeningPress', press), time, wave.canvas)
+  else if (phase === 'starting') status.replaceChildren(el('span', {}, t('talk.startingMic')))
+  else if (phase === 'sending') status.replaceChildren(el('span', {}, t('talk.finishing')))
+  else if (speaking) status.replaceChildren(lucide('volume-2', 's'), ...withKeys('talk.speakingPress', press))
+  else if (thinking) status.replaceChildren(...withKeys('talk.thinkingPress', press))
+  else status.replaceChildren(...withKeys('talk.press', press))
   newButton.disabled = v.talk.turns.length === 0 && phase === 'idle'
+}
+
+/** A phrase with keycaps in its `{keys}` place ("Press {keys} to talk"): the words on either side as spans, the caps between. */
+function withKeys(key: Key, keys: HTMLElement[]): HTMLElement[] {
+  const [before = '', after = ''] = t(key, { keys: '\u0000' }).split('\u0000').map(part => part.trim())
+  return [...(before ? [el('span', {}, before)] : []), ...keys, ...(after ? [el('span', {}, after)] : [])]
 }
 
 // ---------------------------------------------------------------- listening
@@ -595,7 +604,7 @@ async function send(): Promise<void> {
       say(text)
     } else {
       heard = ''
-      trouble = 'Nothing was heard.'
+      trouble = t('talk.nothingHeard')
     }
   } catch (error) {
     phase = 'idle'

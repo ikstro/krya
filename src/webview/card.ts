@@ -13,9 +13,8 @@
 
 import { hotkeyLabel } from '../hotkey'
 import { findLanguage, labelCode, langCode, voiceMatches } from '../languages'
-import { busyName } from '../modelbusy'
 import { chosenNatural } from '../natural'
-import { LEVEL_NAMES } from '../settings'
+import { languageName as uiLanguageName, levelName, t, type Key } from '../i18n'
 import { updateSentences } from './sweep'
 import type { BusyPart, CardKind, CardState, CardView, CheckResult, DiffPart, HostVoice, NaturalState, TextResult, ToHost, ToView, TranslationState, TutorHost, ViewConfig } from '../protocol'
 import { dwmFlag, el, html, icon } from './dom'
@@ -115,7 +114,7 @@ const player = new Player(
     hostCanSpeak: () => state.hostCanSpeak,
     natural: naturalVoice,
     audio: () => openAudio(),
-    naturalFailed: message => showHint([`The natural voice stopped (${message}). A system voice reads on.`], 10_000),
+    naturalFailed: message => showHint([t('card.naturalStopped', { message })], 10_000),
     entered: index => {
       // The field's sentence being read, marked where the person typed it.
       if (state.reading === 'src') return paint('reading', readRanges[index])
@@ -142,7 +141,7 @@ function viaKeys(via: string | undefined): HTMLElement | null {
   const keys = parts.map(p => hotkeyLabel(p.replace(/\*2$/, '')))
   return el(
     'span',
-    { class: 'via', title: `Opened by ${keys.join('+')}${twice ? ' twice' : ''}` },
+    { class: 'via', title: t(twice ? 'card.openedByTwice' : 'card.openedBy', { keys: keys.join('+') }) },
     ...keys.map(k => el('span', { class: 'key lit' }, k)),
     twice ? el('span', { class: 'x2' }, '×2') : null,
   )
@@ -155,7 +154,7 @@ const translationButton = el('button', { class: 'toggle', 'aria-pressed': 'true'
 const pinButton = el('button', { class: 'icon-btn', 'aria-pressed': 'false', onclick: () => togglePin() }, glyph('pin'))
 // The card fills the screen and goes back; main says which it is (a double click on the bar does the same).
 const maximizeButton = el('button', { class: 'icon-btn', 'aria-pressed': 'false', onclick: () => post({ type: 'maximize', on: !state.maximized }) }, glyph('maximize'))
-const closeButton = el('button', { class: 'icon-btn', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => post({ type: 'close' }) }, glyph('close'))
+const closeButton = el('button', { class: 'icon-btn', title: `${t('common.close')} (Esc)`, 'aria-label': t('common.close'), onclick: () => post({ type: 'close' }) }, glyph('close'))
 const header = el('header', { class: 'bar' }, kindLabel, el('span', { class: 'grow' }), translationButton, pinButton, maximizeButton, closeButton)
 
 const voiceText = el('span', { class: 'banner-text' })
@@ -164,8 +163,8 @@ const voiceClose = el(
   'button',
   {
     class: 'icon-btn',
-    title: 'Not now',
-    'aria-label': 'Not now',
+    title: t('common.notNow'),
+    'aria-label': t('common.notNow'),
     onclick: () => {
       if (state.natural?.status === 'ready') state.naturalJustReady = false
       else post({ type: 'dismissNatural' })
@@ -191,8 +190,8 @@ function busyNotice(): { box: HTMLElement; show(busy: BusyPart | undefined): voi
       const level = state.card?.level ?? 'fast'
       box.hidden = !busy || level === 'fast'
       if (!busy || level === 'fast') return
-      text.textContent = `The ${busyName(busy)} is busy, so Fast translated this. ${LEVEL_NAMES[level]} takes over again once it is free.`
-      button.textContent = `Use ${LEVEL_NAMES[level]} anyway`
+      text.textContent = t(busy === 'card' ? 'card.busyCard' : 'card.busyProcessor', { level: levelName(level) })
+      button.textContent = t('card.useAnyway', { level: levelName(level) })
     },
   }
 }
@@ -202,12 +201,12 @@ const textBusy = busyNotice()
 const stateView = el('div', { class: 'empty', hidden: true })
 // The English half: its words open the word card.
 const body = el('div', { class: 'body', 'data-words': true })
-const listenButton = el('button', { class: 'listen', 'data-play': 'message', 'data-key': 'card' }, glyph('play'), el('span', { class: 'listen-label' }, 'Listen'))
-const prevButton = el('button', { class: 'icon-btn', title: 'Previous sentence (←)', 'aria-label': 'Previous sentence', onclick: () => step(-1) }, glyph('prev'))
-const nextButton = el('button', { class: 'icon-btn', title: 'Next sentence (→)', 'aria-label': 'Next sentence', onclick: () => step(1) }, glyph('next'))
-const oneButton = el('button', { class: 'chip', 'aria-pressed': 'false', onclick: () => toggleOneAtATime() }, 'One by one')
+const listenButton = el('button', { class: 'listen', 'data-play': 'message', 'data-key': 'card' }, glyph('play'), el('span', { class: 'listen-label' }, t('common.listen')))
+const prevButton = el('button', { class: 'icon-btn', title: `${t('card.prev')} (←)`, 'aria-label': t('card.prev'), onclick: () => step(-1) }, glyph('prev'))
+const nextButton = el('button', { class: 'icon-btn', title: `${t('card.next')} (→)`, 'aria-label': t('card.next'), onclick: () => step(1) }, glyph('next'))
+const oneButton = el('button', { class: 'chip', 'aria-pressed': 'false', onclick: () => toggleOneAtATime() }, t('card.oneByOne'))
 // The keyboard is the interface: Space's job, next to the buttons it stands for.
-const spaceLabel = el('span', { class: 'kl' }, 'listen')
+const spaceLabel = el('span', { class: 'kl' }, t('card.spaceListen'))
 const spaceHint = el('span', { class: 'space-hint', 'aria-hidden': 'true' }, spaceLabel, el('span', { class: 'key' }, 'Space'))
 const translation = el('div', { class: 'translation' })
 // The translation's Copy, once there is one.
@@ -247,7 +246,7 @@ const textField = el('div', {
   'aria-multiline': 'true',
   spellcheck: 'false',
   dir: 'auto',
-  'aria-label': 'The text',
+  'aria-label': t('card.text'),
   // An edit: the marks and the word card go, the reading stops, and the text is translated again once typing pauses.
   oninput: () => {
     updateTextButtons()
@@ -273,9 +272,9 @@ const textField = el('div', {
 })
 const textCopy = copyButton(() => fieldText(textField))
 const textListen = listenText('src')
-const fromSelect = el('select', { 'aria-label': 'From', title: 'The language of the text', onchange: () => pickLanguage('from') })
-const toSelect = el('select', { 'aria-label': 'Into', title: 'The language to translate into', onchange: () => pickLanguage('to') })
-const swapButton = el('button', { class: 'swap-btn', title: 'Swap the languages: the translation becomes the text', onclick: () => swapLanguages() }, icon('arrow-swap'), el('span', {}, 'Swap'))
+const fromSelect = el('select', { 'aria-label': t('card.from'), title: t('card.fromTitle'), onchange: () => pickLanguage('from') })
+const toSelect = el('select', { 'aria-label': t('card.into'), title: t('card.intoTitle'), onchange: () => pickLanguage('to') })
+const swapButton = el('button', { class: 'swap-btn', title: t('card.swapTitle'), onclick: () => swapLanguages() }, icon('arrow-swap'), el('span', {}, t('card.swap')))
 /** A list of languages drawn as a pill: the select itself, its arrow over it. */
 const pill = (select: HTMLSelectElement) => el('span', { class: 'select-pill' }, select, icon('chevron-down'))
 const textLangs = el('span', { class: 'text-langs' }, pill(fromSelect), el('span', { class: 'to', 'aria-hidden': 'true' }, '→'), pill(toSelect), swapButton)
@@ -300,7 +299,7 @@ const hover = new WordHover({
   area: root,
   post,
   sentenceAt: range => (fieldRanges ? fieldRanges[rangeIndexAt(fieldRanges, range.startContainer, range.startOffset)]?.toString() : undefined),
-  nativeName: () => state.card?.native ?? 'your language',
+  nativeName: () => (state.card?.native ? uiLanguageName(state.card.native) : t('lang.yours')),
   mode: () => state.config.wordHint,
   // A word alone, read by the same voice as the text; the text's reading stops for it.
   speak: word => {
@@ -351,29 +350,29 @@ function renderVoiceBanner(): void {
   voiceClose.hidden = n.status === 'downloading'
   switch (n.status) {
     case 'absent':
-      voiceText.textContent = 'A natural voice sounds like a real person and reads offline.'
-      voiceButton.textContent = `Download · ${n.size} MB`
+      voiceText.textContent = t('card.voiceOffer')
+      voiceButton.textContent = t('card.voiceDownload', { size: n.size })
       return
     case 'failed':
-      voiceText.textContent = 'The natural voice did not download.'
-      voiceButton.textContent = 'Retry'
+      voiceText.textContent = t('card.voiceFailed')
+      voiceButton.textContent = t('common.retry')
       return
     case 'downloading':
-      voiceText.textContent = `Downloading the natural voice… ${Math.round(n.progress * 100)}%`
+      voiceText.textContent = t('card.voiceDownloading', { pct: Math.round(n.progress * 100) })
       return
     case 'ready':
-      voiceText.textContent = 'The natural voice is ready. Press Listen to hear it.'
+      voiceText.textContent = t('card.voiceReady')
       return
   }
 }
 
 /** The header's name for the card: its function, and the screen when the text was read from it. */
-const KINDS: Record<CardKind, [string, string?]> = {
-  selection: ['Listen'],
-  screenshot: ['Listen', 'screen'],
-  translate: ['Translate'],
-  text: ['Translate', 'screen'],
-  check: ['Check'],
+const KINDS: Record<CardKind, [Key, Key?]> = {
+  selection: ['kind.listen'],
+  screenshot: ['kind.listen', 'kind.screen'],
+  translate: ['kind.translate'],
+  text: ['kind.translate', 'kind.screen'],
+  check: ['kind.check'],
 }
 
 /** The kinds with the text as it is in a field, and its other side under it: the translator's, and Check my English. */
@@ -385,18 +384,18 @@ const checking = () => state.card?.kind === 'check'
 function renderChrome(): void {
   const c = state.card
   const [kindName, source] = KINDS[c?.kind ?? 'selection']
-  kindLabel.replaceChildren(viaKeys(c?.via) ?? '', el('span', { class: 'kind-name' }, kindName, source ? el('span', { class: 'kind-source' }, ` · ${source}`) : null))
+  kindLabel.replaceChildren(viaKeys(c?.via) ?? '', el('span', { class: 'kind-name' }, t(kindName), source ? el('span', { class: 'kind-source' }, ` · ${t(source)}`) : null))
   // The translator has no translation under an English text to hide.
   translationButton.hidden = translator(c)
   translationButton.textContent = labelCode(c?.native)
   translationButton.setAttribute('aria-pressed', String(state.showTranslation))
-  translationButton.title = state.showTranslation ? `Hide the ${c?.native ?? ''} translation` : `Show the ${c?.native ?? ''} translation`
+  translationButton.title = t(state.showTranslation ? 'card.hideTranslation' : 'card.showTranslation', { lang: uiLanguageName(c?.native ?? '') })
   pinButton.setAttribute('aria-pressed', String(state.pinned))
-  pinButton.title = state.pinned ? 'Unpin: close when another window is clicked' : 'Pin: keep open'
+  pinButton.title = state.pinned ? t('card.unpin') : t('card.pin')
   renderMaximized()
   document.body.classList.toggle('no-translation', !state.showTranslation)
   oneButton.setAttribute('aria-pressed', String(state.config.oneAtATime))
-  oneButton.title = state.config.oneAtATime ? 'Listen reads one sentence and waits; ← → step' : 'Read one sentence at a time'
+  oneButton.title = state.config.oneAtATime ? t('card.oneOn') : t('card.oneOff')
   document.body.classList.toggle('no-voice', !hasVoice())
   renderVoiceBanner()
   updatePlayButtons()
@@ -409,12 +408,12 @@ function status(text: string): HTMLElement {
 /** Translating, with the level's name unless it is Fast; Fast's while the model is too slow. */
 function translating(): string {
   const level = state.card?.level ?? 'fast'
-  if (state.card?.busy && level !== 'fast') return 'Translating with Fast…'
-  return level === 'fast' ? 'Translating…' : `Translating · ${LEVEL_NAMES[level]}…`
+  if (state.card?.busy && level !== 'fast') return t('card.translatingFast')
+  return level === 'fast' ? t('card.translating') : t('card.translatingLevel', { level: levelName(level) })
 }
 
 /** 1.4 of 84 MB; 1.2 of 2.5 GB. */
-const amount = (mb: number, of: number) => (of >= 1000 ? `${(mb / 1000).toFixed(1)} of ${(of / 1000).toFixed(1)} GB` : `${mb.toFixed(1)} of ${of} MB`)
+const amount = (mb: number, of: number) => (of >= 1000 ? t('card.ofGb', { a: (mb / 1000).toFixed(1), b: (of / 1000).toFixed(1) }) : t('card.ofMb', { a: mb.toFixed(1), b: of }))
 
 /** A first use: the translator for a pair (Fast), or the local model (a level's, the checker's: the same one) comes once, with how much of it is in and what happens meanwhile. */
 function downloading(pair: string, progress: number, size: number, meanwhile = ''): HTMLElement {
@@ -427,47 +426,47 @@ function downloading(pair: string, progress: number, size: number, meanwhile = '
   return el(
     'div',
     { class: 'download', role: 'status' },
-    el('div', { class: 'kl' }, 'first use · once'),
+    el('div', { class: 'kl' }, t('card.firstUse')),
     el(
       'div',
       { class: 'download-head' },
-      el('b', {}, model ? `${model} model` : level === 'fast' ? `Translator, ${pair}` : `${LEVEL_NAMES[level]} model`),
+      el('b', {}, model ? t('card.modelOf', { name: model }) : level === 'fast' ? t('card.translatorPair', { pair }) : t('card.modelOf', { name: levelName(level) })),
       el('span', { class: 'kl' }, amount(done * size, size)),
     ),
     el('div', { class: 'progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(done * 100) }, bar),
-    el('p', {}, `Downloads once from ${!model && level === 'fast' ? 'Mozilla' : 'Hugging Face'}, then ${model ? 'checks' : 'translates'} on this computer.${meanwhile ? ' ' + meanwhile : ''}`),
+    el('p', {}, `${t(model ? 'card.fromHfChecks' : level === 'fast' ? 'card.fromMozilla' : 'card.fromHfTranslates')}${meanwhile ? ' ' + meanwhile : ''}`),
   )
 }
 
 function failed(message: string, retry: () => void = () => post({ type: 'retry' })): HTMLElement[] {
   return [
-    el('p', { class: 'empty-title' }, checking() ? 'Not checked' : 'Not translated'),
+    el('p', { class: 'empty-title' }, checking() ? t('card.notChecked') : t('card.notTranslated')),
     el('p', { class: 'empty-text' }, message),
-    el('p', {}, el('button', { class: 'primary-btn', onclick: () => retry() }, 'Try again')),
+    el('p', {}, el('button', { class: 'primary-btn', onclick: () => retry() }, t('common.tryAgain'))),
   ]
 }
 
 /** The lower half; the same translation is left as it is, so a mark on it stays, and a draft becomes the accurate one sentence by sentence (sweep.ts). */
-function renderTranslation(c: CardView, t: TranslationState): void {
-  translationBar.hidden = t.status !== 'ready'
-  listenBusy.show(t.status === 'ready' ? t.busy : undefined)
-  if (t.status === 'ready') {
-    if (translation.dataset.html === t.html) return
-    const next = html(t.html)
+function renderTranslation(c: CardView, tr: TranslationState): void {
+  translationBar.hidden = tr.status !== 'ready'
+  listenBusy.show(tr.status === 'ready' ? tr.busy : undefined)
+  if (tr.status === 'ready') {
+    if (translation.dataset.html === tr.html) return
+    const next = html(tr.html)
     if (!translation.dataset.html || !updateSentences(translation, next, markRareWords)) translation.replaceChildren(next)
-    translation.dataset.html = t.html
+    translation.dataset.html = tr.html
     return
   }
   delete translation.dataset.html
-  switch (t.status) {
+  switch (tr.status) {
     case 'translating':
       translation.replaceChildren(status(translating()))
       return
     case 'downloading':
-      translation.replaceChildren(downloading(`${c.native} ⇄ English`, t.progress, t.size, 'The English is read meanwhile.'))
+      translation.replaceChildren(downloading(pairName(c.native), tr.progress, tr.size, t('card.readMeanwhile')))
       return
     case 'failed':
-      translation.replaceChildren(...failed(t.message))
+      translation.replaceChildren(...failed(tr.message))
       return
   }
 }
@@ -506,29 +505,29 @@ function renderState(): void {
   state.shownId = c.id
   switch (s.status) {
     case 'reading':
-      stateView.replaceChildren(status('Reading the text on the screen…'))
+      stateView.replaceChildren(status(t('card.readingScreen')))
       return
     case 'translating':
       stateView.replaceChildren(status(translating()))
       return
     case 'downloading':
-      stateView.replaceChildren(downloading(`${c.native} ⇄ English`, s.progress, s.size))
+      stateView.replaceChildren(downloading(pairName(c.native), s.progress, s.size))
       return
     case 'empty':
       stateView.replaceChildren(
-        el('p', { class: 'empty-title' }, 'No text here'),
-        el('p', { class: 'empty-text' }, 'The piece of the screen holds no text Krya can read. Snip a piece with words in it.'),
+        el('p', { class: 'empty-title' }, t('card.noText')),
+        el('p', { class: 'empty-text' }, t('card.noTextNote')),
       )
       return
     case 'no-ocr':
       stateView.replaceChildren(
-        el('p', { class: 'empty-title' }, 'Windows cannot read text yet'),
+        el('p', { class: 'empty-title' }, t('card.noOcr')),
         el(
           'p',
           { class: 'empty-text' },
-          `Add text recognition for ${c.native} or English: Settings → Time & language → Language & region → the language → Language options → Optical character recognition.`,
+          t('card.noOcrNote', { lang: uiLanguageName(c.native) }),
         ),
-        el('p', {}, el('button', { class: 'primary-btn', onclick: () => post({ type: 'openLanguageSettings' }) }, 'Open language settings')),
+        el('p', {}, el('button', { class: 'primary-btn', onclick: () => post({ type: 'openLanguageSettings' }) }, t('card.openLanguageSettings'))),
       )
       return
     case 'failed':
@@ -540,8 +539,11 @@ function renderState(): void {
 // ---------------------------------------------------------------- text card
 
 function languageName(code: string): string {
-  return findLanguage(code)?.name ?? code.toUpperCase()
+  return findLanguage(code) ? uiLanguageName(code) : code.toUpperCase()
 }
+
+/** "Ukrainian ⇄ English", in the interface's language. */
+const pairName = (nameOrCode: string) => t('lang.pairEnglish', { lang: uiLanguageName(nameOrCode) })
 
 /**
  * A text card. The field and the two languages are filled once per card: a
@@ -559,8 +561,8 @@ function renderText(c: CardView, s: Extract<CardState, { status: 'text' | 'check
     retranslate = undefined
     setFieldText(s.text)
     textLangs.hidden = s.status === 'check'
-    textField.setAttribute('aria-label', s.status === 'check' ? 'Your English' : 'The text')
-    textField.dataset.placeholder = s.status === 'check' ? 'Type or paste your English' : ''
+    textField.setAttribute('aria-label', s.status === 'check' ? t('card.yourEnglish') : t('card.text'))
+    textField.dataset.placeholder = s.status === 'check' ? t('card.typeEnglish') : ''
     if (s.status === 'text') fillLanguages(s.languages, s.from, s.to, s.mine ?? [])
     syncLanguages()
     delete textResult.dataset.key
@@ -575,8 +577,8 @@ function renderText(c: CardView, s: Extract<CardState, { status: 'text' | 'check
   const improving = s.status === 'text' && s.result.status === 'ready' && !!s.result.drafts
   // Fast did it, the local model too slow just now: the notice above says why.
   const busy = s.status === 'text' && s.result.status === 'ready' && !!s.result.busy
-  const by = s.status === 'check' ? `Checked · ${s.model}` : improving ? `Improving · ${LEVEL_NAMES[c.level]}…` : `Translated · ${busy ? 'Fast' : LEVEL_NAMES[c.level]}`
-  textFoot.textContent = s.canPaste ? `${by} · Shift+Enter, a new line` : by
+  const by = s.status === 'check' ? t('card.checkedBy', { model: s.model }) : improving ? t('card.improving', { level: levelName(c.level) }) : t('card.translatedBy', { level: levelName(busy ? 'fast' : c.level) })
+  textFoot.textContent = s.canPaste ? t('card.newLine', { by }) : by
   // Said under a translation, or one on its way; not under nothing, or a failure.
   textFoot.hidden = s.result.status === 'none' || s.result.status === 'failed'
   updateTextButtons()
@@ -618,7 +620,7 @@ function fillLanguages(codes: string[], from: string, to: string, mine: string[]
   ] as const) {
     select.replaceChildren(
       ...(first.length && rest.length
-        ? [el('optgroup', { label: 'Yours' }, ...first.map(option)), el('optgroup', { label: 'All languages' }, ...rest.map(option))]
+        ? [el('optgroup', { label: t('card.yours') }, ...first.map(option)), el('optgroup', { label: t('card.allLanguages') }, ...rest.map(option))]
         : [...first, ...rest].map(option)),
     )
     select.value = codes.includes(code) ? code : fallback
@@ -686,8 +688,8 @@ function outBlock(out: Out, canPaste: boolean, ready: boolean, stale = !ready): 
 
 function outBar(out: Out, canPaste: boolean, ready: boolean): HTMLElement {
   // Its key, Enter, is drawn on it by card.css, so the button's name stays "Paste".
-  const title = ready ? 'Paste over the selection (Enter)' : 'Pastes once the accurate translation is in (Enter)'
-  const pasteButton = el('button', { class: 'paste-btn', title, disabled: !ready, onclick: () => paste() }, 'Paste')
+  const title = ready ? t('card.pasteOver') : t('card.pasteLater')
+  const pasteButton = el('button', { class: 'paste-btn', title, disabled: !ready, onclick: () => paste() }, t('common.paste'))
   return halfBar([copyButton(() => out.text), out.to === 'en' && ready ? listenText('out') : null], canPaste ? [pasteButton] : [])
 }
 
@@ -722,7 +724,7 @@ function renderTextResult(r: TextResult, canPaste: boolean): void {
       textResult.replaceChildren(status(translating()), ...(lastOut ? outBlock(lastOut, canPaste, false) : []))
       return
     case 'downloading':
-      textResult.replaceChildren(downloading(`${languageName(r.language)} ⇄ English`, r.progress, r.size))
+      textResult.replaceChildren(downloading(pairName(r.language), r.progress, r.size))
       return
     case 'ready':
       lastOut = { text: r.text, to: r.to, html: r.html }
@@ -763,13 +765,13 @@ function markedText(parts: readonly DiffPart[]): Node[] {
  * `ready`: Listen and Paste may be pressed.
  */
 function checkBlock(r: Extract<CheckResult, { status: 'ready' }>, canPaste: boolean, ready: boolean): HTMLElement[] {
-  const pasteButton = el('button', { class: 'paste-btn', title: 'Paste the text set right over the selection (Enter)', disabled: !ready, onclick: () => paste() }, 'Paste')
+  const pasteButton = el('button', { class: 'paste-btn', title: t('card.pasteChecked'), disabled: !ready, onclick: () => paste() }, t('common.paste'))
   const changed = r.parts.some(p => p.kind !== 'same')
   const fade = ready ? '' : ' stale'
   return [
     changed
       ? el('div', { class: `text-out check-out${fade}`, lang: 'en', 'data-words': true }, ...markedText(r.parts))
-      : el('p', { class: `check-clean${fade}` }, icon('check'), 'Looks right'),
+      : el('p', { class: `check-clean${fade}` }, icon('check'), t('card.looksRight')),
     ...(changed && r.note ? [el('p', { class: `check-note${fade}`, lang: langCode(state.card?.native ?? '') }, r.note)] : []),
     // A right text: the field's own Copy and Listen are enough.
     halfBar(changed ? [copyButton(() => r.corrected), ready ? listenText('out') : null] : [], canPaste ? [pasteButton] : []),
@@ -789,7 +791,7 @@ function renderCheckResult(r: CheckResult, canPaste: boolean): void {
       textResult.replaceChildren()
       return
     case 'checking':
-      textResult.replaceChildren(status('Checking…'), ...(lastCheck ? checkBlock(lastCheck, canPaste, false) : []))
+      textResult.replaceChildren(status(t('common.checking')), ...(lastCheck ? checkBlock(lastCheck, canPaste, false) : []))
       return
     case 'downloading':
       textResult.replaceChildren(downloading('', r.progress, r.size))
@@ -843,17 +845,17 @@ function paste(): void {
 }
 
 function copyButton(text: () => string): HTMLButtonElement {
-  return el('button', { class: 'quiet-btn', title: 'Copy', onclick: () => copy(text()) }, icon('copy'), el('span', {}, 'Copy'))
+  return el('button', { class: 'quiet-btn', title: t('common.copy'), onclick: () => copy(text()) }, icon('copy'), el('span', {}, t('common.copy')))
 }
 
 /** The translator's ▶ Listen, beside Copy under its English half (`src` the field, `out` the translation); it turns into Stop while reading. */
 function listenText(key: 'src' | 'out'): HTMLButtonElement {
-  return el('button', { class: 'quiet-btn icon-only', 'data-play': 'text', 'data-key': key, title: 'Listen (Space)', 'aria-label': 'Listen' }, glyph('play'))
+  return el('button', { class: 'quiet-btn icon-only', 'data-play': 'text', 'data-key': key, title: t('card.listenSpace'), 'aria-label': t('common.listen') }, glyph('play'))
 }
 
 function copy(text: string): void {
   post({ type: 'copyText', text })
-  showHint(['Copied'], 1500)
+  showHint([t('common.copied')], 1500)
 }
 
 // ---------------------------------------------------------------- reading
@@ -871,7 +873,7 @@ function addParagraphButtons(): void {
   if (!several) return
   paragraphs.forEach((p, i) =>
     p.prepend(
-      el('button', { class: 'para-play', 'data-play': 'paragraph', 'data-key': `p:${i}`, title: 'Listen to this paragraph', 'aria-label': 'Listen to this paragraph' }, glyph('play')),
+      el('button', { class: 'para-play', 'data-play': 'paragraph', 'data-key': `p:${i}`, title: t('card.listenParagraph'), 'aria-label': t('card.listenParagraph') }, glyph('play')),
     ),
   )
 }
@@ -989,11 +991,12 @@ function updatePlayButtons(): void {
     const shape = button.querySelector<SVGSVGElement>('svg.glyph')
     if (shape && shape.dataset.shape !== (playing ? 'stop' : 'play')) shape.replaceWith(glyph(playing ? 'stop' : 'play'))
     const label = button.querySelector('.listen-label')
-    if (label) label.textContent = playing ? 'Stop' : 'Listen'
-    button.setAttribute('aria-label', playing ? 'Stop' : 'Listen')
-    button.title = playing ? 'Stop' : 'Listen'
+    const name = playing ? t('common.stop') : t('common.listen')
+    if (label) label.textContent = name
+    button.setAttribute('aria-label', name)
+    button.title = name
   }
-  spaceLabel.textContent = player.key === 'card' ? 'stop' : 'listen'
+  spaceLabel.textContent = player.key === 'card' ? t('card.spaceStop') : t('card.spaceListen')
   if (player.key !== 'src') paint('reading')
 }
 
@@ -1014,8 +1017,8 @@ function togglePin(): void {
 function renderMaximized(): void {
   const on = state.maximized
   maximizeButton.setAttribute('aria-pressed', String(on))
-  maximizeButton.title = on ? 'Restore' : 'Maximize'
-  maximizeButton.setAttribute('aria-label', on ? 'Restore' : 'Maximize')
+  maximizeButton.title = on ? t('common.restore') : t('common.maximize')
+  maximizeButton.setAttribute('aria-label', maximizeButton.title)
   const shape = maximizeButton.querySelector<SVGSVGElement>('svg.glyph')
   if (shape && shape.dataset.shape !== (on ? 'restore' : 'maximize')) shape.replaceWith(glyph(on ? 'restore' : 'maximize'))
   if (document.body.classList.contains('maximized') === on) return
@@ -1037,9 +1040,9 @@ function noVoiceHint(): void {
   const target = state.card?.target ?? 'English'
   showHint(
     [
-      `No ${target} voice on this computer. ${voiceSteps(target, state.platform)} `,
+      `${t('card.noVoice')} ${voiceSteps(target, state.platform)} `,
       canOpenSpeechSettings(state.platform)
-        ? el('button', { class: 'link', onclick: () => post({ type: 'openSpeechSettings' }) }, 'Open speech settings')
+        ? el('button', { class: 'link', onclick: () => post({ type: 'openSpeechSettings' }) }, t('card.openSpeechSettings'))
         : '',
     ],
     15_000,

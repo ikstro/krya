@@ -53,6 +53,7 @@ import { frameWindow, WIN11 } from './dwm'
 import { createTranslator, NATIVES } from './engine'
 import { LEVEL_VRAM_MB, translationAdvice } from './hardware'
 import { hotkeyLabel, isAccelerator } from './hotkey'
+import { levelName, setUiLanguage, t } from './i18n'
 import { FIX_LANGUAGES, KeyboardHelper, keyboardLayouts } from './keyboard'
 import { cardMemoryFree, cardMemoryUsed, driveOf, freeMb, loadModelSpeeds, loadVoiceSpeed, median, nextModelSpeed, nextVoiceSpeed, saveModelSpeeds, saveVoiceSpeed, type ModelSpeeds, type VoiceSpeed } from './device'
 import { defaultNative, findLanguage, langCode, scriptFor } from './languages'
@@ -431,6 +432,7 @@ function saveSettings(patch: Partial<Settings>): void {
   // Paused while a phrase is recorded: the phrase is dropped, as Esc would.
   if (patch.paused && settings.paused) dictation?.cancel()
   if ('theme' in patch) applyTheme()
+  if ('uiLanguage' in patch) applyUiLanguage()
   // The speech models are chosen from these (speechplan.ts), and the words to spell go with the plan: sent to the engine again.
   if (speech && (['native', 'speechPrefer', 'dictationModel', 'transcriptsModel', 'speechTestAgreed', 'vocabulary'] as const).some(k => k in patch)) speech.replan()
   if ('talkOnTop' in patch) talkWin?.setAlwaysOnTop(settings.talkOnTop)
@@ -458,8 +460,38 @@ const appColor = () => (nativeTheme.shouldUseDarkColors ? '#202020' : '#f3f3f3')
 /** The windows' edge, drawn by Windows 11 (dwm.ts): theme.css's `--border`. */
 const borderColor = () => (nativeTheme.shouldUseDarkColors ? '#3d3d3d' : '#e5e5e5')
 
-/** The page to load, told whether Windows draws its edge (then it draws none of its own). */
-const frameQuery = WIN11 ? { query: { frame: 'dwm' } } : undefined
+/** What a page's address tells it: whether Windows draws its edge (then it draws none of its own), and the interface's language (i18n). */
+const pageQuery = (): Record<string, string> => ({ ...(WIN11 ? { frame: 'dwm' } : {}), lang: settings.uiLanguage })
+const pageOptions = () => ({ query: pageQuery() })
+
+/**
+ * The interface's language picked: main's own phrases follow, and every open
+ * window loads again in it; the app window comes back on Settings (or the
+ * setup, which draws itself), the card is put away, the talk keeps its lines.
+ */
+function applyUiLanguage(): void {
+  setUiLanguage(settings.uiLanguage)
+  const media = (page: string) => path.join(app.getAppPath(), 'media', page)
+  if (appWin && !appWin.isDestroyed()) {
+    appReady = false
+    if (settings.setupDone) pendingTab = 'settings'
+    void appWin.loadFile(media('app.html'), pageOptions())
+  }
+  if (card && !card.isDestroyed()) {
+    if (shown) hideCard()
+    cardReady = false
+    void card.loadFile(media('card.html'), pageOptions())
+  }
+  if (talkWin && !talkWin.isDestroyed()) {
+    talkReady = false
+    void talkWin.loadFile(media('talk.html'), pageOptions())
+  }
+  if (trayPanel && !trayPanel.isDestroyed()) {
+    trayReady = false
+    void trayPanel.loadFile(media('tray.html'), pageOptions())
+  }
+  dictation?.languageChanged()
+}
 
 /** Light, dark or as Windows is: the pages follow `prefers-color-scheme`, which this sets. */
 function applyTheme(): void {
@@ -667,9 +699,9 @@ function unsaveWord(word: string): void {
 
 async function exportWords(): Promise<void> {
   const { filePath } = await dialog.showSaveDialog(appWin ?? ({} as BrowserWindow), {
-    title: 'Save the words for Anki',
+    title: t('main.saveWords'),
     defaultPath: path.join(app.getPath('documents'), 'Krya words.txt'),
-    filters: [{ name: 'Text for Anki', extensions: ['txt'] }],
+    filters: [{ name: t('main.ankiText'), extensions: ['txt'] }],
   })
   if (filePath) fs.writeFileSync(filePath, ankiTsv(words.list()) + '\n', 'utf8')
 }
@@ -678,9 +710,9 @@ async function exportWords(): Promise<void> {
 async function exportBackup(): Promise<void> {
   const day = new Date().toISOString().slice(0, 10)
   const options: Electron.SaveDialogOptions = {
-    title: 'Save a backup',
+    title: t('main.saveBackup'),
     defaultPath: path.join(app.getPath('documents'), `Krya backup ${day}.json`),
-    filters: [{ name: 'Krya backup', extensions: ['json'] }],
+    filters: [{ name: t('main.backupFile'), extensions: ['json'] }],
   }
   const { filePath } = appWin ? await dialog.showSaveDialog(appWin, options) : await dialog.showSaveDialog(options)
   if (!filePath) return
@@ -741,7 +773,7 @@ async function reportProblem(via: 'email' | 'github', text: string): Promise<voi
  * here. A settings file from an older Krya is its settings alone.
  */
 async function importBackup(): Promise<void> {
-  const options: Electron.OpenDialogOptions = { title: 'Open a backup', defaultPath: app.getPath('documents'), filters: [{ name: 'Krya backup', extensions: ['json'] }], properties: ['openFile'] }
+  const options: Electron.OpenDialogOptions = { title: t('main.openBackup'), defaultPath: app.getPath('documents'), filters: [{ name: t('main.backupFile'), extensions: ['json'] }], properties: ['openFile'] }
   const { canceled, filePaths } = appWin ? await dialog.showOpenDialog(appWin, options) : await dialog.showOpenDialog(options)
   const file = filePaths[0]
   if (canceled || !file) return
@@ -749,15 +781,15 @@ async function importBackup(): Promise<void> {
   try {
     read = readBackup(JSON.parse(fs.readFileSync(file, 'utf8')))
   } catch (error) {
-    void dialog.showMessageBox({ type: 'warning', title: 'Krya', message: 'This backup could not be read', detail: messageOf(error) })
+    void dialog.showMessageBox({ type: 'warning', title: 'Krya', message: t('main.backupUnread'), detail: messageOf(error) })
     return
   }
   const ask: Electron.MessageBoxOptions = {
     type: 'question',
     title: 'Krya',
-    message: 'Import this backup?',
-    detail: `It holds ${backupSummary(read)}. Your settings become the backup's; its words, mistakes and history are added to yours, nothing of yours is removed.`,
-    buttons: ['Import', 'Cancel'],
+    message: t('main.importAsk'),
+    detail: t('main.importDetail', { what: backupSummary(read) }),
+    buttons: [t('main.import'), t('common.cancel')],
     defaultId: 0,
     cancelId: 1,
   }
@@ -779,9 +811,9 @@ async function resetSettings(): Promise<void> {
   const options: Electron.MessageBoxOptions = {
     type: 'question',
     title: 'Krya',
-    message: 'Reset all settings?',
-    detail: 'Keys, switches and lists go back to how they came. Your language, words, transcripts and what Krya learned from your typing stay.',
-    buttons: ['Reset', 'Cancel'],
+    message: t('main.resetAsk'),
+    detail: t('main.resetDetail'),
+    buttons: [t('main.reset'), t('common.cancel')],
     defaultId: 1,
     cancelId: 1,
   }
@@ -795,9 +827,9 @@ async function resetKeys(): Promise<void> {
   const options: Electron.MessageBoxOptions = {
     type: 'question',
     title: 'Krya',
-    message: 'Reset all keys?',
-    detail: 'Every shortcut goes back to how it came: Ctrl+Alt+S, Ctrl+Alt+T, Ctrl+Alt+D, Ctrl+Alt+N and Ctrl+C twice; the others are cleared. Nothing else changes.',
-    buttons: ['Reset keys', 'Cancel'],
+    message: t('main.resetKeysAsk'),
+    detail: t('main.resetKeysDetail'),
+    buttons: [t('main.resetKeys'), t('common.cancel')],
     defaultId: 1,
     cancelId: 1,
   }
@@ -867,7 +899,7 @@ function createCard(): BrowserWindow {
     if (wParam.readUInt32LE(0) === HTCAPTION) maximizeCard(!maximizedFrom)
   })
   logPageErrors(win, 'card')
-  void win.loadFile(path.join(app.getAppPath(), 'media', 'card.html'), frameQuery)
+  void win.loadFile(path.join(app.getAppPath(), 'media', 'card.html'), pageOptions())
   return win
 }
 
@@ -1249,7 +1281,7 @@ function createAppWindow(): BrowserWindow {
     appWin = undefined
     appReady = false
   })
-  void win.loadFile(path.join(app.getAppPath(), 'media', 'app.html'), frameQuery)
+  void win.loadFile(path.join(app.getAppPath(), 'media', 'app.html'), pageOptions())
   return win
 }
 
@@ -2106,10 +2138,10 @@ async function translateInPlace(text: string, at: Point, window: bigint, via?: s
     await pasteInto(window, undefined, out)
     // Fast did it: said by the cursor, as no card shows.
     const busy = job.busy()
-    if (busy) keyboard.say(`Fast · ${busyName(busy)} busy`, BUSY_SAY_MS)
+    if (busy) keyboard.say(t(busy === 'card' ? 'badge.fastCard' : 'badge.fastProcessor'), BUSY_SAY_MS)
   } catch (error) {
     keyboard.say('')
-    tray?.displayBalloon({ title: 'Krya', content: `Could not translate: ${messageOf(error)}` })
+    tray?.displayBalloon({ title: 'Krya', content: t('main.notTranslated', { why: messageOf(error) }) })
   }
 }
 
@@ -2194,7 +2226,7 @@ let checkAsked = 0
  * dictated, to paste the text set right back into, `after` it.
  */
 function checkWindow(text: string, at: Point, window?: bigint, via?: string, field?: unknown, after?: string): void {
-  const id = openCard('check', { status: 'check', text, result: { status: 'none' }, model: LEVEL_NAMES[settings.model], canPaste: !!window }, at, via)
+  const id = openCard('check', { status: 'check', text, result: { status: 'none' }, model: levelName(settings.model), canPaste: !!window }, at, via)
   releaseField(pasteTarget?.field)
   pasteTarget = window ? { id, window, field, ...(after ? { after } : {}) } : undefined
   if (!window) releaseField(field)
@@ -2276,7 +2308,7 @@ function createTalkWindow(): BrowserWindow {
     talkWin = undefined
     talkReady = false
   })
-  void win.loadFile(path.join(app.getAppPath(), 'media', 'talk.html'), frameQuery)
+  void win.loadFile(path.join(app.getAppPath(), 'media', 'talk.html'), pageOptions())
   return win
 }
 
@@ -2333,7 +2365,7 @@ function talkWindowView(): TalkWindowView {
     native: s.native,
     natural: naturalState().status,
     engine: !installed ? 'absent' : view?.service === 'ready' ? 'ready' : 'starting',
-    model: { name: LEVEL_NAMES[s.model], full: LLM_MODELS[s.model].name, ...llmFiles.state(s.model) },
+    model: { name: levelName(s.model), full: LLM_MODELS[s.model].name, ...llmFiles.state(s.model) },
     needsCard: probed && fit.accurate.where !== 'card',
     slow: probed && fit[s.model].where !== 'card',
     ...(busy ? { busy } : {}),
@@ -2407,7 +2439,7 @@ function showText(text: string, purpose: Purpose, at: Point, window?: bigint, vi
 async function useClipboard(purpose: Purpose): Promise<void> {
   const text = (await clipboard.readText()).trim()
   if (text) showText(text, purpose, screen.getCursorScreenPoint())
-  else tray?.displayBalloon({ title: 'Krya', content: 'The clipboard holds no text. Select a text and copy it first.' })
+  else tray?.displayBalloon({ title: 'Krya', content: t('main.noClipText') })
 }
 
 /** How often a running model looks for a program on the full screen, and how long it rests before it gives the card to one. */
@@ -2545,7 +2577,7 @@ async function useSelection(purpose: Purpose, via?: string): Promise<void> {
     // Put back once a late copy has had its time; nothing changed, nothing is written.
     clipGuard.release(LATE_COPY_MS)
     log(`copy: nothing in ${COPY_WAIT_MS} ms from ${exe}`)
-    tray?.displayBalloon({ title: 'Krya', content: 'Nothing was copied. Select a text, then press the shortcut.' })
+    tray?.displayBalloon({ title: 'Krya', content: t('main.nothingCopied') })
   }, COPY_WAIT_MS)
 }
 
@@ -2694,7 +2726,7 @@ function registerShortcuts(): void {
   if (taken.length > 0 && !(appWin?.isVisible() ?? false)) {
     tray?.displayBalloon({
       title: 'Krya',
-      content: `${taken.map(keyLabel).join(' and ')} ${taken.length > 1 ? 'are' : 'is'} taken by another program. Choose another in the settings.`,
+      content: t('main.keysTaken', { n: taken.length, keys: taken.map(keyLabel).join(` ${t('common.and')} `) }),
     })
   }
 }
@@ -2978,11 +3010,11 @@ async function layoutIcon(short: string, caps: boolean, dark: boolean): Promise<
 }
 
 function tooltip(): string {
-  if (recordingNow()) return 'Recording'
-  if (settings.paused) return 'Krya · paused'
-  const ways = [settings.doubleCopy ? 'Ctrl+C twice' : '', settings.selectKey ? keyLabel(settings.selectKey) : ''].filter(Boolean)
-  const listen = ways.length ? `${ways.join(' or ')} to listen` : ''
-  const translate = settings.translateKey ? `${keyLabel(settings.translateKey)} to translate` : ''
+  if (recordingNow()) return t('tray.tipRecording')
+  if (settings.paused) return t('tray.tipPaused')
+  const ways = [settings.doubleCopy ? t('tray.tipTwice') : '', settings.selectKey ? keyLabel(settings.selectKey) : ''].filter(Boolean)
+  const listen = ways.length ? t('tray.tipListen', { keys: ways.join(` ${t('common.or')} `) }) : ''
+  const translate = settings.translateKey ? t('tray.tipTranslate', { key: keyLabel(settings.translateKey) }) : ''
   return ['Krya', listen, translate].filter(Boolean).join(' · ')
 }
 
@@ -3048,7 +3080,7 @@ function createTrayPanel(): BrowserWindow {
     trayPanel = undefined
     trayReady = false
   })
-  void win.loadFile(path.join(app.getAppPath(), 'media', 'tray.html'), frameQuery)
+  void win.loadFile(path.join(app.getAppPath(), 'media', 'tray.html'), pageOptions())
   return win
 }
 
@@ -3220,6 +3252,7 @@ function setUpSpeechEngine(): void {
   })
   dictation = new Dictation({
     page: path.join(app.getAppPath(), 'media', 'dictation.html'),
+    query: pageQuery,
     preload: path.join(__dirname, 'preload.js'),
     speech,
     paste: typeText,
@@ -3227,7 +3260,7 @@ function setUpSpeechEngine(): void {
       const job = translationJob([from])
       const english = await translatePlain(text, from, 'en', job.translate, job.t.direct)
       const busy = job.busy()
-      return { text: english, ...(busy ? { note: `Typed with Fast: the ${busyName(busy)} is busy` } : {}) }
+      return { text: english, ...(busy ? { note: t(busy === 'card' ? 'dict.fastCard' : 'dict.fastProcessor') } : {}) }
     },
     check: practice,
     expected: () => myLanguages(settings),
@@ -3288,7 +3321,7 @@ async function hostCall(request: HostCall): Promise<unknown> {
       if (!EXPORT_FORMATS.has(request.format)) throw new Error(`Cannot save as ${request.format}`)
       const safe = request.name.replace(/[<>:"/\\|?*\x00-\x1f]+/g, ' ').trim() || 'Transcript'
       const options: Electron.SaveDialogOptions = {
-        title: 'Save the transcript',
+        title: t('main.saveTranscript'),
         defaultPath: path.join(app.getPath('documents'), `${safe}.${request.format}`),
         filters: [{ name: request.format.toUpperCase(), extensions: [request.format] }],
       }
@@ -3335,6 +3368,7 @@ function start(): void {
   logMoved(adopted)
   const firstRun = !fs.existsSync(settingsFile())
   settings = readSettings()
+  setUiLanguage(settings.uiLanguage)
   // Only a fresh install sees the setup; a settings file from before it counts as set up (the default).
   if (firstRun) saveSettings({ setupDone: false })
   applyTheme()
@@ -3484,7 +3518,7 @@ function start(): void {
       stopRendering()
     }
   } catch (error) {
-    tray.displayBalloon({ title: 'Krya', content: `Ctrl+C twice will not work: ${messageOf(error)}. Use the tray menu.` })
+    tray.displayBalloon({ title: 'Krya', content: t('main.copyTwiceOff', { why: messageOf(error) }) })
   }
   void sendHostVoices()
   // The first start opens the window on "How to use".

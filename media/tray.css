@@ -261,8 +261,10 @@ body.keys .cmd.cur .lu {
 /* Pause, Settings, Report and Quit side by side under a hairline. */
 .foot {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  /* Each as wide as its words, spread over the row: a longer Ukrainian or Russian label takes room from the gaps. */
+  grid-template-columns: repeat(4, auto);
+  justify-content: space-between;
+  gap: 2px;
   margin: 12px -6px 0;
   padding: 6px 6px 0;
   border-top: 1px solid var(--border-soft);
@@ -272,8 +274,10 @@ body.keys .cmd.cur .lu {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   height: 34px;
+  padding: 0 6px;
+  white-space: nowrap;
   border-radius: var(--r-md);
   font: 450 13px / 1 var(--font);
   color: var(--text);
@@ -281,6 +285,7 @@ body.keys .cmd.cur .lu {
 }
 
 .fb .lu {
+  flex: none;
   width: 15px;
   height: 15px;
   color: var(--muted);
@@ -289,6 +294,11 @@ body.keys .cmd.cur .lu {
 .fb.paused,
 .fb.paused .lu {
   color: var(--paused);
+}
+
+/* Ukrainian and Russian labels are longer: Quit keeps its power sign alone, so the row fits on 360 px. */
+html:not([lang='en']) .fb.quit span {
+  display: none;
 }
 
 body:not(.keys) .fb:hover,

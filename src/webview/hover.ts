@@ -6,6 +6,7 @@
 // the extension host's offline dictionary, once per word. Only English has
 // dictionaries; another learned language gets a short note instead.
 
+import { t } from '../i18n'
 import type { Gloss, GlossMissing, ToHost, ToView, WordHintMode } from '../protocol'
 import { el, icon } from './dom'
 
@@ -236,11 +237,11 @@ export class WordHover {
       'div',
       { class: 'wc-head' },
       el('span', { class: 'wc-word' }, leadsWithBase ? gloss.base : hit.word),
-      leadsWithBase ? el('span', { class: 'wc-form' }, `from ${hit.word}`) : null,
+      leadsWithBase ? el('span', { class: 'wc-form' }, t('word.from', { word: hit.word })) : null,
       ipa ? el('span', { class: 'wc-ipa' }, `/${ipa}/`) : null,
       this.clicked ? el('span', { class: 'grow' }) : null,
       this.clicked
-        ? el('button', { class: 'icon-btn', title: 'Say it', 'aria-label': 'Say it', onclick: () => this.options.speak(hit.word) }, icon('unmute'))
+        ? el('button', { class: 'icon-btn', title: t('word.say'), 'aria-label': t('word.say'), onclick: () => this.options.speak(hit.word) }, icon('unmute'))
         : null,
       this.clicked
         ? el(
@@ -248,8 +249,8 @@ export class WordHover {
             {
               class: 'icon-btn',
               'aria-pressed': String(saved),
-              title: saved ? 'Remove from Words' : 'Save to Words',
-              'aria-label': saved ? 'Remove from Words' : 'Save to Words',
+              title: saved ? t('word.remove') : t('word.save'),
+              'aria-label': saved ? t('word.remove') : t('word.save'),
               onclick: () => this.toggleSaved(hit, saved),
             },
             icon(saved ? 'star-full' : 'star-empty'),
@@ -261,7 +262,7 @@ export class WordHover {
     let body: HTMLElement[]
     if (!answer || answer === 'pending') body = [el('div', { class: 'wc-note' }, '…')]
     else if (answer.missing && answer.missing !== 'not-found') body = [el('div', { class: 'wc-note' }, this.note(answer.missing))]
-    else if (!gloss) body = [el('div', { class: 'wc-note' }, 'Not in the dictionary.')]
+    else if (!gloss) body = [el('div', { class: 'wc-note' }, t('word.notFound'))]
     else
       body = gloss.entries.flatMap((entry, i) =>
         i === 0
@@ -280,18 +281,18 @@ export class WordHover {
   }
 
   private note(missing: GlossMissing): string {
-    const pair = `English → ${this.options.nativeName()}`
+    const pair = t('word.pair', { lang: this.options.nativeName() })
     switch (missing) {
       case 'not-english':
-        return `Word meanings are for English only, for now; the ${this.options.nativeName()} translation is below.`
+        return t('word.notEnglish', { lang: this.options.nativeName() })
       case 'no-dictionary':
-        return `No ${pair} dictionary yet; the translation is below.`
+        return t('word.noDictionary', { pair })
       case 'downloading':
-        return `Downloading the ${pair} dictionary, once…`
+        return t('word.downloading', { pair })
       case 'download-failed':
-        return `Couldn't download the ${pair} dictionary. Check the internet connection; it tries again in a minute.`
+        return t('word.failed', { pair })
       case 'download-off':
-        return `The ${pair} dictionary isn't downloaded.`
+        return t('word.off', { pair })
       default:
         return ''
     }

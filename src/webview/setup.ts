@@ -14,7 +14,7 @@ import { minutes, seconds } from '../speechplan'
 import { el } from './dom'
 import { lucide, type LucideName } from './lucide'
 import { installed, running } from './speech'
-import { aside, bad, bar, btn, card, chip, grp, ib, linkBtn, seg, select, toggleCard } from './ui'
+import { aside, bad, bar, btn, card, chip, grp, ib, linkBtn, seg, select, toggleCard, uiLanguageCard } from './ui'
 
 export type SetupHooks = {
   save: (patch: Partial<Settings>) => void
@@ -117,6 +117,7 @@ function languageStep(v: AppView, h: SetupHooks): HTMLElement[] {
   )
   if (s.native === firstNative) advised(own, { on: true, why: '' })
   return [
+    uiLanguageCard(s.uiLanguage, uiLanguage => h.save({ uiLanguage })),
     grp('Your language'),
     own,
     s.native === firstNative ? aside('info', `Windows is in ${s.native}: the same language is advised.`) : null,

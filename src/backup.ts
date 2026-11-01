@@ -8,6 +8,7 @@
 // replaces the settings and adds the rest to what is here, so nothing here is
 // lost. A settings file exported by 0.10.0–0.10.1 (the settings alone) imports too.
 
+import { t } from './i18n'
 import type { LearnedLists } from './learning'
 
 export const BACKUP_KIND = 'krya-backup'
@@ -52,19 +53,17 @@ export function readBackup(raw: unknown): BackupRead {
   }
 }
 
-const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-
 /** What a backup holds, in a line: "settings, 120 words, 3 mistakes, 8 learned words, 30 translations, 12 dictated phrases, 4 talks". */
 export function backupSummary(b: BackupRead): string {
   const learned = (['fixedOnce', 'alwaysFix', 'myWords'] as const).reduce((n, k) => n + list(b.learned[k]).length, 0)
   return [
-    'settings',
-    b.words.length ? count(b.words.length, 'word') : '',
-    b.mistakes.length ? count(b.mistakes.length, 'mistake') : '',
-    learned ? count(learned, 'learned word') : '',
-    b.translations.length ? count(b.translations.length, 'translation') : '',
-    b.dictation.length ? count(b.dictation.length, 'dictated phrase') : '',
-    b.talks.length ? count(b.talks.length, 'talk') : '',
+    t('backup.settings'),
+    b.words.length ? t('backup.words', { n: b.words.length }) : '',
+    b.mistakes.length ? t('backup.mistakes', { n: b.mistakes.length }) : '',
+    learned ? t('backup.learned', { n: learned }) : '',
+    b.translations.length ? t('backup.translations', { n: b.translations.length }) : '',
+    b.dictation.length ? t('backup.phrases', { n: b.dictation.length }) : '',
+    b.talks.length ? t('backup.talks', { n: b.talks.length }) : '',
   ]
     .filter(Boolean)
     .join(', ')

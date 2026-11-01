@@ -5,6 +5,7 @@
 // recording goes to the speech engine while it is made, a chunk every few
 // seconds (`ChunkRecorder`), so a closed window loses at most the last one.
 
+import { t } from '../i18n'
 import type { HostCall, SpeechResult } from '../protocol'
 
 export type Call = (request: HostCall) => Promise<unknown>
@@ -340,8 +341,8 @@ export class StreamRecorder {
 /** What getUserMedia's refusal means, in words. */
 export function micTrouble(error: unknown): string {
   const name = error instanceof DOMException ? error.name : ''
-  if (name === 'NotAllowedError') return 'No access to the microphone: allow it in Windows Settings → Privacy → Microphone'
-  if (name === 'NotFoundError') return 'No microphone found'
-  if (name === 'NotReadableError') return 'Another program holds the microphone'
+  if (name === 'NotAllowedError') return t('mic.denied')
+  if (name === 'NotFoundError') return t('mic.none')
+  if (name === 'NotReadableError') return t('mic.busy')
   return error instanceof Error ? error.message : String(error)
 }

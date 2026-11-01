@@ -4,6 +4,7 @@
 // tile, its sentences as spans to light while read and its words clickable;
 // the person's on the right, their mistakes marked in place, the note under it.
 
+import { t } from '../i18n'
 import type { TalkTurn } from '../protocol'
 import { splitSentences } from '../sentences'
 import { tile } from './brand'
@@ -15,7 +16,7 @@ import { withMarks } from './marks'
 export function duckTurn(turn: TalkTurn, again?: () => void): HTMLElement {
   const sentences = splitSentences(turn.text)
   const bubble = el('div', { class: 'bubble', 'data-words': '' }, ...(sentences.length ? sentences : [turn.text]).flatMap((s, i) => [i ? ' ' : '', el('span', { class: 's', 'data-i': String(i) }, s)]))
-  const button = again ? el('button', { class: 'ib again', title: 'Say it again', 'aria-label': 'Say it again', onclick: again }, lucide('volume-2')) : null
+  const button = again ? el('button', { class: 'ib again', title: t('turn.again'), 'aria-label': t('turn.again'), onclick: again }, lucide('volume-2')) : null
   return el('div', { class: 'turn duck', 'data-id': String(turn.id) }, tile(28), bubble, button)
 }
 
@@ -24,11 +25,11 @@ export function myTurn(turn: TalkTurn, hear?: () => void): HTMLElement {
   const marked = !!turn.parts?.length
   const line = el('span', { class: 'said marks' }, ...(marked ? withMarks(turn.parts!) : [turn.text]))
   const under = turn.checking
-    ? el('small', { class: 'checking' }, lucide('loader', 's turning'), 'checking…')
+    ? el('small', { class: 'checking' }, lucide('loader', 's turning'), t('turn.checking'))
     : marked
-      ? el('small', {}, turn.note || 'set right above')
+      ? el('small', {}, turn.note || t('turn.setRight'))
       : null
   const cls = marked ? 'bubble fixed' : 'bubble'
-  const bubble = hear ? el('button', { class: cls, title: marked ? 'Hear it said right' : 'Hear it', onclick: hear }, line, under) : el('div', { class: cls }, line, under)
+  const bubble = hear ? el('button', { class: cls, title: marked ? t('turn.hearRight') : t('turn.hear'), onclick: hear }, line, under) : el('div', { class: cls }, line, under)
   return el('div', { class: 'turn me', 'data-id': String(turn.id) }, bubble)
 }

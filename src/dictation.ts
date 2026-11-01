@@ -38,6 +38,8 @@ const MOST_EXPECTED = 8
 
 export type DictationOptions = {
   page: string
+  /** What the page's address carries: Windows' frame, the interface's language (main.ts pageQuery). */
+  query: () => Record<string, string>
   preload: string
   speech: SpeechHost
   /** Types the text in the program in front, the clipboard kept. */
@@ -88,7 +90,7 @@ export class Dictation {
   /** What Windows was last found doing to the badge, as logged; empty while it shows it on top. */
   private trouble = ''
   /** Windows cloaked the badge: a new one is made before the next phrase. */
-  private stale = false
+  private stale: false | string = false
 
   constructor(private readonly o: DictationOptions) {}
 
@@ -341,7 +343,7 @@ export class Dictation {
     b.webContents.on('render-process-gone', (_event, details) => log(`badge: the page's process is gone: ${details.reason}`))
     b.webContents.on('did-fail-load', (_event, code, description) => log(`badge: the page did not load: ${code} ${description}`))
     b.webContents.on('console-message', m => log(`badge page: ${m.message} (${m.sourceId}:${m.lineNumber})`))
-    void b.loadFile(this.o.page)
+    void b.loadFile(this.o.page, { query: this.o.query() })
     log(`badge: window made, page ${this.o.page}`)
     this.badge = b
     return b
@@ -385,19 +387,25 @@ export class Dictation {
       const trouble = troubleOf(sight)
       if (trouble !== this.trouble) log(trouble ? `badge: Windows has it ${trouble}` : 'badge: Windows has it on top again')
       this.trouble = trouble
-      if (sight.cloaked) this.stale = true
+      if (sight.cloaked) this.stale = 'as Windows cloaked the last one'
       if (trouble) this.raise(b)
       this.look(LOOK_MS.every)
     }, after)
   }
 
-  /** A new badge in place of one Windows cloaked: made now, it is on the desktop in use. */
+  /** A new badge in place of one Windows cloaked (made now, it is on the desktop in use), or of one in the interface's old language. */
   private renew(): void {
+    const why = this.stale
     this.stale = false
     this.badge?.destroy()
     this.badge = undefined
     this.badgeReady = false
-    log('badge: made again, as Windows cloaked the last one')
+    log(`badge: made again, ${why}`)
+  }
+
+  /** The interface's language changed: the next phrase gets a badge made in it. */
+  languageChanged(): void {
+    if (this.badge) this.stale = 'in the new language'
   }
 
   /**

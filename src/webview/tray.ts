@@ -11,6 +11,7 @@
 // shown comes in one `tray` message, sent again whenever any of it changes.
 
 import { hotkeyLabel } from '../hotkey'
+import { languageName, t } from '../i18n'
 import type { Settings } from '../settings'
 import type { ToHost, ToView, TrayCommand, TrayView, TutorHost } from '../protocol'
 import { logo } from './brand'
@@ -87,12 +88,12 @@ const KEPT_MS = 1500
 
 function keepRow(v: TrayView): HTMLElement {
   if (keep.mode === 'kept')
-    return el('div', { class: 'cmd kept', 'data-id': 'keepWord', role: 'status' }, lucide('check', 's'), el('span', { class: 'l' }, `Kept: ${keep.word}`))
+    return el('div', { class: 'cmd kept', 'data-id': 'keepWord', role: 'status' }, lucide('check', 's'), el('span', { class: 'l' }, t('tray.kept', { word: keep.word })))
   return el(
     'button',
-    { class: 'cmd', 'data-nav': true, 'data-id': 'keepWord', title: 'Never fix this word by itself (Kept as typed)', onclick: () => openKeep(v) },
+    { class: 'cmd', 'data-nav': true, 'data-id': 'keepWord', title: t('tray.keepWordTitle'), onclick: () => openKeep(v) },
     lucide('lock', 's'),
-    el('span', { class: 'l' }, 'Keep a word as typed…'),
+    el('span', { class: 'l' }, t('tray.keepWord')),
   )
 }
 
@@ -106,8 +107,8 @@ function openKeep(v: TrayView): void {
     class: 'keep-field',
     type: 'text',
     value: v.keep.word,
-    placeholder: 'a word, as you type it',
-    'aria-label': 'Keep a word as typed',
+    placeholder: t('tray.keepPlaceholder'),
+    'aria-label': t('tray.keepAria'),
     spellcheck: 'false',
     autocomplete: 'off',
   }) as HTMLInputElement
@@ -170,11 +171,11 @@ function pauseButton(paused: boolean): HTMLElement {
       'data-id': 'paused',
       role: 'switch',
       'aria-checked': String(paused),
-      title: paused ? 'Keys and Ctrl+C twice are off' : 'Every key and reaction off until resumed',
+      title: paused ? t('tray.pausedTitle') : t('tray.pauseTitle'),
       onclick: () => post({ type: 'saveSettings', patch: { paused: !paused } }),
     },
     lucide(paused ? 'play' : 'pause', 's'),
-    paused ? 'Resume' : 'Pause',
+    paused ? t('tray.resume') : t('tray.pause'),
   )
 }
 
@@ -185,14 +186,14 @@ function group(label: string, ...rows: (HTMLElement | null)[]): HTMLElement {
 
 /** Krya's state in a few words: paused, or whether the translator for the person's language is here; nothing when there is nothing to say. */
 function status(v: TrayView): HTMLElement | null {
-  if (v.paused) return el('span', { class: 'st paused', title: 'Keys and Ctrl+C twice are off' }, el('span', { class: 'dot' }), 'paused')
+  if (v.paused) return el('span', { class: 'st paused', title: t('tray.pausedTitle') }, el('span', { class: 'dot' }), t('tray.paused'))
   switch (v.translator) {
     case 'ready':
-      return el('span', { class: 'st', title: `${v.native} ⇄ English, offline` }, el('span', { class: 'dot' }), 'ready')
+      return el('span', { class: 'st', title: t('tray.readyTitle', { pair: t('lang.pairEnglish', { lang: languageName(v.native) }) }) }, el('span', { class: 'dot' }), t('tray.ready'))
     case 'downloading':
-      return el('span', { class: 'st' }, 'downloading…')
+      return el('span', { class: 'st' }, t('tray.downloading'))
     case 'absent':
-      return el('span', { class: 'st' }, 'translator on first use')
+      return el('span', { class: 'st' }, t('tray.firstUse'))
     default:
       return null
   }
@@ -205,46 +206,46 @@ function render(v: TrayView): void {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.id : undefined
   const openApp = () => post({ type: 'tray', command: 'open' })
   // The brand opens the window too; Open is the one the keys reach. The version beside it: a run from source says so, and when it was built.
-  const version = el('span', { class: 'ver', title: `Built ${v.build}` }, v.dev ? `${v.version} dev` : v.version)
-  const brand = el('button', { class: 'brand', tabindex: '-1', title: 'Open Krya', onclick: openApp }, logo(), version)
-  const open = el('button', { class: 'open', 'data-nav': true, 'data-id': 'open', onclick: openApp }, 'Open')
+  const version = el('span', { class: 'ver', title: t('tray.built', { build: v.build }) }, v.dev ? `${v.version} dev` : v.version)
+  const brand = el('button', { class: 'brand', tabindex: '-1', title: t('tray.openKrya'), onclick: openApp }, logo(), version)
+  const open = el('button', { class: 'open', 'data-nav': true, 'data-id': 'open', onclick: openApp }, t('tray.open'))
   const panel = el(
     'div',
     { class: 'panel' },
     el('header', { class: 'head' }, brand, el('div', { class: 'side' }, status(v), open)),
     group(
-      'Actions',
-      command('listenCopied', 'volume-2', 'Listen to the copied text', 'listenCopied', v.keys.listenCopied),
-      command('translateCopied', 'languages', 'Translate the copied text', 'translateCopied'),
-      command('typeToTranslate', 'pencil-line', 'Type to translate…', 'typeToTranslate', v.keys.typeToTranslate),
-      command('checkEnglish', 'graduation-cap', 'Check my English…', 'checkEnglish', v.keys.checkEnglish),
+      t('tray.actions'),
+      command('listenCopied', 'volume-2', t('tray.listenCopied'), 'listenCopied', v.keys.listenCopied),
+      command('translateCopied', 'languages', t('tray.translateCopied'), 'translateCopied'),
+      command('typeToTranslate', 'pencil-line', t('tray.typeToTranslate'), 'typeToTranslate', v.keys.typeToTranslate),
+      command('checkEnglish', 'graduation-cap', t('tray.checkEnglish'), 'checkEnglish', v.keys.checkEnglish),
       v.speech.installed ? command('talk', 'bird', 'Talk to the duck…', 'talk', v.keys.talk) : null,
-      command('listenScreen', 'monitor-speaker', 'Listen to a screen snip', 'listenScreen', v.keys.snipListen),
-      command('translateScreen', 'scan-text', 'Translate a screen snip', 'translateScreen', v.keys.snipTranslate),
-      v.speech.installed ? command('note', 'notebook-pen', v.speech.recording ? 'Save the note' : 'New note', 'note', v.speech.noteKey) : null,
-      v.speech.installed ? command('transcripts', 'file-text', 'Transcripts', 'transcripts') : null,
+      command('listenScreen', 'monitor-speaker', t('tray.listenScreen'), 'listenScreen', v.keys.snipListen),
+      command('translateScreen', 'scan-text', t('tray.translateScreen'), 'translateScreen', v.keys.snipTranslate),
+      v.speech.installed ? command('note', 'notebook-pen', v.speech.recording ? t('tray.saveNote') : t('tray.newNote'), 'note', v.speech.noteKey) : null,
+      v.speech.installed ? command('transcripts', 'file-text', t('tray.transcripts'), 'transcripts') : null,
     ),
     group(
-      'Quick settings',
-      toggle('autoFix', 'spell-check', 'Fix the layout as I type', v.autoFix),
-      v.keys.switch ? toggle('switchOn', 'keyboard', `Switch layouts with ${hotkeyLabel(v.keys.switch)}`, v.switchOn) : null,
-      toggle('layoutBadge', 'text-cursor', 'Show the layout by the cursor', v.layoutBadge),
-      toggle('trayLayout', 'panel-bottom', 'Show the layout in the tray', v.trayLayout),
-      toggle('doubleCopy', 'copy', 'Ctrl+C twice listens', v.doubleCopy),
+      t('tray.quick'),
+      toggle('autoFix', 'spell-check', t('tray.autoFix'), v.autoFix),
+      v.keys.switch ? toggle('switchOn', 'keyboard', t('tray.switchWith', { key: hotkeyLabel(v.keys.switch) }), v.switchOn) : null,
+      toggle('layoutBadge', 'text-cursor', t('tray.layoutBadge'), v.layoutBadge),
+      toggle('trayLayout', 'panel-bottom', t('tray.trayLayout'), v.trayLayout),
+      toggle('doubleCopy', 'copy', t('tray.doubleCopy'), v.doubleCopy),
     ),
     group(
-      'Your words',
+      t('tray.yourWords'),
       v.keep.on ? keepRow(v) : null,
-      v.speech.installed ? command('vocabulary', 'mic', 'Add a word to spell…', 'vocabulary') : null,
-      command('kept', 'list', 'Words kept as typed', 'kept'),
+      v.speech.installed ? command('vocabulary', 'mic', t('tray.vocabulary'), 'vocabulary') : null,
+      command('kept', 'list', t('tray.keptList'), 'kept'),
     ),
     el(
       'footer',
       { class: 'foot' },
       pauseButton(v.paused),
-      el('button', { class: 'fb', 'data-nav': true, 'data-id': 'settings', onclick: () => post({ type: 'tray', command: 'settings' }) }, lucide('settings', 's'), 'Settings'),
-      el('button', { class: 'fb', 'data-nav': true, 'data-id': 'report', title: 'Report a problem, with Krya’s logs', onclick: () => post({ type: 'tray', command: 'report' }) }, lucide('bug', 's'), 'Report'),
-      el('button', { class: 'fb', 'data-nav': true, 'data-id': 'quit', onclick: () => post({ type: 'tray', command: 'quit' }) }, lucide('power', 's'), 'Quit'),
+      el('button', { class: 'fb', 'data-nav': true, 'data-id': 'settings', onclick: () => post({ type: 'tray', command: 'settings' }) }, lucide('settings', 's'), t('tray.settings')),
+      el('button', { class: 'fb', 'data-nav': true, 'data-id': 'report', title: t('tray.reportTitle'), onclick: () => post({ type: 'tray', command: 'report' }) }, lucide('bug', 's'), t('tray.report')),
+      el('button', { class: 'fb quit', 'data-nav': true, 'data-id': 'quit', title: t('tray.quit'), 'aria-label': t('tray.quit'), onclick: () => post({ type: 'tray', command: 'quit' }) }, lucide('power', 's'), el('span', {}, t('tray.quit'))),
     ),
   )
   root.replaceChildren(panel)

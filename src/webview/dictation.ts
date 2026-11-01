@@ -4,6 +4,7 @@
 // hands over the text (to be typed) or finishes the note in the engine. Its
 // window follows the panel's height; the keys are on the Dictate page, not here.
 
+import { t, type Key } from '../i18n'
 import type { DictationMode, ToView, TutorHost } from '../protocol'
 import { el } from './dom'
 import { ChunkRecorder, micTrouble, PhraseRecorder, StreamRecorder, type StreamStatus } from './recorder'
@@ -17,7 +18,7 @@ declare global {
 
 const host = window.tutorHost
 const root = document.getElementById('badge')!
-const TITLES: Record<DictationMode, string> = { type: 'Dictate', english: 'Dictate in English', note: 'A note', check: 'Practice English' }
+const TITLES: Record<DictationMode, Key> = { type: 'dict.type', english: 'dict.english', note: 'dict.note', check: 'dict.check' }
 
 type Recorder = PhraseRecorder | ChunkRecorder | StreamRecorder
 let recorder: Recorder | undefined
@@ -65,7 +66,7 @@ function onStatus(status: StreamStatus): void {
   if (!words || !dot || !time) return
   const model = status.model
   fetching = model?.state === 'downloading'
-  if (fetching) time.textContent = `Getting the speech model ${Math.round((model?.progress ?? 0) * 100)}%`
+  if (fetching) time.textContent = t('dict.gettingModel', { pct: Math.round((model?.progress ?? 0) * 100) })
   time.classList.toggle('fetch', fetching)
   const text = status.heard.trim()
   if (text && text !== said) {
@@ -95,10 +96,10 @@ function recording(): void {
   const heard = new Wave()
   wave = heard
   dot = el('span', { class: 'dot' })
-  words = wordsOf('', 'Listening…')
+  words = wordsOf('', t('common.listening'))
   said = ''
   fetching = false
-  show('rec', words, dot, el('span', { class: 'what' }, TITLES[mode]), time, heard.canvas)
+  show('rec', words, dot, el('span', { class: 'what' }, t(TITLES[mode])), time, heard.canvas)
   // A new phrase's window starts at its smallest: told the panel's height even when it is the last one's.
   postHeight(true)
   // One tick per 50 ms: the clock, and the levels. A stream hands over every 50 ms it heard;
@@ -139,7 +140,7 @@ async function stop(): Promise<void> {
   recorder = undefined
   if (!r) return
   const behind = dot?.classList.contains('behind')
-  show('busy', said ? wordsOf(said) : null, el('span', { class: 'spin' }), el('span', { class: 'what' }, mode === 'note' ? 'Saving the note…' : behind ? 'Catching up…' : mode === 'check' ? 'Checking…' : 'Typing…'))
+  show('busy', said ? wordsOf(said) : null, el('span', { class: 'spin' }), el('span', { class: 'what' }, mode === 'note' ? t('dict.savingNote') : behind ? t('dict.catchingUp') : mode === 'check' ? t('common.checking') : t('dict.typing')))
   busy = r
   try {
     if (r instanceof ChunkRecorder) host.post({ type: 'dictationNote', id: await r.finish() })
@@ -176,9 +177,9 @@ window.addEventListener('message', event => {
     else if (message.command === 'stop') void stop()
     else void cancel()
   } else if (message.type === 'dictationDone') {
-    show('done', wordsOf(message.text), el('span', { class: 'check' }, '✓'), el('span', { class: 'what' }, message.note ?? (mode === 'note' ? 'Saved' : 'Typed')))
+    show('done', wordsOf(message.text), el('span', { class: 'check' }, '✓'), el('span', { class: 'what' }, message.note ?? (mode === 'note' ? t('dict.saved') : t('dict.typed'))))
   } else if (message.type === 'dictationError') {
-    show('error', wordsOf(message.message), el('span', { class: 'what' }, mode === 'note' ? 'The note was not saved' : 'Nothing typed'))
+    show('error', wordsOf(message.message), el('span', { class: 'what' }, mode === 'note' ? t('dict.noteFailed') : t('dict.nothingTyped')))
   }
 })
 
